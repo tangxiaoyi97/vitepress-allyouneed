@@ -1,0 +1,107 @@
+/* Tags 组件样式 */
+
+.ayn-tags-filter {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.95em;
+  color: var(--ayn-text-1);
+  background-color: var(--ayn-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ayn-tags-filter:focus {
+  border-color: var(--ayn-brand);
+}
+
+.ayn-tags-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 1rem;
+  background-color: var(--ayn-bg-soft);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 8px;
+  line-height: 1.6;
+}
+
+.ayn-tags-cloud-item {
+  appearance: none;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(--ayn-tag-text);
+  padding: 0.1em 0.55em;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--vp-font-family-mono, monospace);
+  line-height: 1.4;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ayn-tags-cloud-item:hover {
+  background-color: var(--ayn-tag-hover-bg);
+  color: var(--ayn-tag-hover-text);
+}
+
+.ayn-tags-cloud-item.is-active {
+  background-color: var(--ayn-tag-hover-bg);
+  color: var(--ayn-tag-hover-text);
+  border-color: var(--ayn-tag-hover-bg);
+}
+
+.ayn-tags-cloud-item sup {
+  margin-left: 0.2em;
+  font-size: 0.7em;
+  opacity: 0.7;
+}
+
+.ayn-tags-expand {
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  background-color: var(--ayn-bg-soft);
+  border-left: 3px solid var(--ayn-brand);
+  border-radius: 6px;
+}
+
+.ayn-tags-expand-header {
+  margin-bottom: 0.5rem;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--ayn-brand);
+}
+
+.ayn-tags-expand-header small {
+  margin-left: 0.5em;
+  font-size: 0.7em;
+  font-weight: 400;
+  color: var(--ayn-text-2);
+}
+
+.ayn-tags-expand-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ayn-tags-expand-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--ayn-divider);
+}
+
+.ayn-tags-expand-list li:last-child {
+  border-bottom: none;
+}
+
+.ayn-tags-expand-list a {
+  color: var(--ayn-text-1);
+  text-decoration: none;
+}
+
+.ayn-tags-expand-list a:hover {
+  color: var(--ayn-brand);
+}

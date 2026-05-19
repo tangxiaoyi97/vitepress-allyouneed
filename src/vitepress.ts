@@ -33,6 +33,9 @@ import type MarkdownIt from 'markdown-it'
 import type { AllYouNeedOptions, AllYouNeedEnv } from './core/types.js'
 import { viteAllYouNeed } from './vite.js'
 import allYouNeedMarkdownIt from './markdown-it.js'
+import { resolveOptions } from './core/config-bridge.js'
+import { registerTagsInline } from './modules/tags/index.js'
+import { injectViewsSidebar } from './core/views/sidebar-inject.js'
 
 export function defineConfigWithAllYouNeed(
   config: UserConfig,
@@ -77,26 +80,51 @@ export function defineConfigWithAllYouNeed(
   const existingMarkdown = config.markdown ?? {}
   const existingConfig = (existingMarkdown as { config?: unknown }).config
 
+  // v0.2:解析一次选项,用于 sidebar 注入和 tags 规则判断
+  const resolvedForWrapper = resolveOptions(mergedOptions, {
+    srcDir: mergedOptions.srcDir ?? config.srcDir,
+    base: mergedOptions.base ?? config.base,
+    cleanUrls: mergedOptions.cleanUrls ?? config.cleanUrls,
+  })
+
   const newMarkdownConfig = (md: MarkdownIt) => {
     // 1. 装我们的 inline/block 规则
     allYouNeedMarkdownIt(md, mergedOptions)
 
-    // 2. 装一条 core 规则,在 'normalize' 之前把 vault index/options 注入 state.env
+    // 2. v0.2:正文 #tag 规则(若用户开了 views.parseInlineTags 且 views 模块开)
+    if (
+      resolvedForWrapper.modules.views &&
+      resolvedForWrapper.views.parseInlineTags
+    ) {
+      registerTagsInline(md)
+    }
+
+    // 3. 装一条 core 规则,在 'normalize' 之前把 vault index/options 注入 state.env
     md.core.ruler.before(
       'normalize',
       'allyouneed_env_inject',
       makeEnvInjector(vitePlugin),
     )
 
-    // 3. 让用户原 markdown.config 继续生效
+    // 4. 让用户原 markdown.config 继续生效
     if (typeof existingConfig === 'function') {
       existingConfig(md)
     }
   }
 
+  // v0.2:自动注入视图条目到 sidebar
+  const themeConfig = (config.themeConfig ?? {}) as Record<string, unknown>
+  if (resolvedForWrapper.modules.views) {
+    themeConfig.sidebar = injectViewsSidebar(
+      themeConfig.sidebar as Parameters<typeof injectViewsSidebar>[0],
+      resolvedForWrapper,
+    )
+  }
+
   return {
     ...config,
     vite: newVite,
+    themeConfig,
     markdown: {
       ...existingMarkdown,
       config: newMarkdownConfig,

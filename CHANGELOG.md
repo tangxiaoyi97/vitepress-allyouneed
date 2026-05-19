@@ -2,17 +2,46 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [0.2.0] - Planned
+## [0.2.0-beta.0] - 2026-05
 
-计划加的"插件自动生成视图":
+### Added — 自动生成视图
 
-- **VaultGraph** — 全站关系图(节点 = 笔记,边 = wikilink/transclusion)
-- **VaultStats** — vault 统计仪表盘(总页数/标签数/链接数/最近修改 …)
-- **Tags** — 标签云图 + 标签 → 笔记列表
-- 上述视图都作为虚拟 .md 页面自动生成、自动注入 sidebar 底部,用户无需手动配置
+- **完整 theme 入口** `vitepress-allyouneed/theme`,继承 VitePress DefaultTheme,自动 register 三个组件。用户在 `.vitepress/theme/index.ts` 改一行 import 即可启用。
+- **VaultStats 组件** —— 4 张数字卡片(笔记/标签/链接/资源)+ 最近修改 10 条 + 扫描告警显示。
+- **Tags 组件** —— 标签云(字号按 count 归一化)+ 搜索过滤 + 点击展开该标签下笔记列表 + URL hash 同步。
+- **VaultGraph 组件** —— d3-force 力导向图,SVG 渲染,节点半径按 in-degree 放大,边按 wikilink/transclusion 区分色;支持 zoom/pan/drag/click-to-navigate/hover-tooltip;节点超过阈值(默认 500)降级为提示。
+- **虚拟 .md 自动生成** —— 启动时往 `srcDir/{graph,stats,tags}.md` 写视图模板。带 sentinel 标记,允许我们升级模板;用户已有同名文件且无 sentinel 时跳过 + warn。
+- **vault-data.json 自动生成** —— `srcDir/public/vault-data.json`,三个组件 fetch 同一份。dev HMR 时自动重生。
+- **sidebar 自动注入** —— 在用户 sidebar 末尾追加 "Vault Views" 分组(默认折叠)。支持 array / per-path object / undefined 三种 sidebar 形态。
+- **正文 #tag inline rule** —— 识别 `#tag` / `#nested/tag` / `#中文标签`,渲染为 `<a class="ayn-tag">`,自动跳到 `/tags#tag`。Unicode 友好,带 URL fragment / 数字开头等边界过滤。
+- **CSS variables 系统** —— 全部组件颜色用 `--ayn-*` 变量,默认回退到 VitePress 的 `--vp-c-*`。用户在自己 CSS 里改一行变量即可全局换色。
+- **theme 可被三层覆盖** —— 用户可在自己的 `.vitepress/theme/index.ts` 里 `{ ...AllYouNeedTheme, enhanceApp(ctx) { /* override */ } }` 替换任意组件 / 样式 / 加自己 enhanceApp 逻辑。
 
-实现机制:`viteAllYouNeed` 通过 Vite 的 `resolveId`/`load` 在 `_views/*.md`
-路径上产生虚拟模块;markdown 内容 = 自动生成的引导文字 + 嵌入的 Vue 组件。
+### Configuration
+
+新增 `ViewsOptions`:
+- `views.enabled.{graph,stats,tags}: boolean` —— 单独开关每个视图
+- `views.names.{graph,stats,tags}: string` —— 自定义视图文件名(避开和用户笔记冲突)
+- `views.sidebar: 'auto' | false` —— sidebar 注入策略
+- `views.sidebarText` —— 自定义 sidebar 显示文字(group / graph / stats / tags)
+- `views.graphMaxNodes: number` —— VaultGraph 节点上限(默认 500)
+- `views.dataFileName: string` —— vault-data.json 文件名(默认 `vault-data.json`)
+- `views.parseInlineTags: boolean` —— 是否识别正文 #tag(默认 true)
+
+### New deps
+
+- `d3-force` / `d3-selection` / `d3-zoom` / `d3-drag` —— 合计 ~24KB min+gz,只 VaultGraph 用
+
+### Dev deps
+
+- `vue` `^3.5.13`(peer 的 .vue 文件编译要)
+- `@types/d3-*` 4 个
+
+### Tests
+
+- 16 个新用例覆盖 generate-md / generate-data / sidebar-inject / #tag rule;v0.2 测试总数 75。
+
+## [0.1.0] - Unreleased
 
 ## [0.1.0] - Unreleased
 

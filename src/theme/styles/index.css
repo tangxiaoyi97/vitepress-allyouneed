@@ -1,0 +1,19 @@
+/*
+ * vitepress-allyouneed v0.2 — theme 一站式样式 barrel。
+ *
+ * 用户在自己的 .vitepress/theme/index.ts 里:
+ *
+ *   import 'vitepress-allyouneed/theme/style.css'
+ *
+ * 即可一行引入所有内容:wikilink/transclusion(v0.1)+ 三个视图(v0.2)。
+ *
+ * 想覆盖任何颜色/间距:在自己的 CSS 里改 :root 上的 --ayn-* 变量。
+ */
+
+@import './shared.css';
+@import './stats.css';
+@import './tags.css';
+@import './graph.css';
+
+/* v0.1 wikilink/transclusion 样式 */
+@import '../../../style.css';

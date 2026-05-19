@@ -83,6 +83,7 @@ export function resolveOptions(
   const scanUser = user.scan ?? {}
   const assetsUser = user.assets ?? {}
   const modulesUser = user.modules ?? {}
+  const viewsUser = user.views ?? {}
 
   const wikilinksHtmlAttrs: PageLinkAttrs = wikilinksUser.htmlAttributes ?? {}
   const embedsHtmlAttrs: ImageEmbedAttrs = embedsUser.htmlAttributes ?? {}
@@ -133,9 +134,33 @@ export function resolveOptions(
       htmlAttributes: embedsHtmlAttrs,
     },
 
+    views: {
+      enabled: {
+        graph: viewsUser.enabled?.graph ?? true,
+        stats: viewsUser.enabled?.stats ?? true,
+        tags: viewsUser.enabled?.tags ?? true,
+      },
+      names: {
+        graph: viewsUser.names?.graph ?? 'graph',
+        stats: viewsUser.names?.stats ?? 'stats',
+        tags: viewsUser.names?.tags ?? 'tags',
+      },
+      sidebar: viewsUser.sidebar ?? 'auto',
+      sidebarText: {
+        group: viewsUser.sidebarText?.group ?? 'Vault Views',
+        graph: viewsUser.sidebarText?.graph ?? '关系图',
+        stats: viewsUser.sidebarText?.stats ?? '统计',
+        tags: viewsUser.sidebarText?.tags ?? '标签',
+      },
+      graphMaxNodes: viewsUser.graphMaxNodes ?? 500,
+      dataFileName: viewsUser.dataFileName ?? 'vault-data.json',
+      parseInlineTags: viewsUser.parseInlineTags ?? true,
+    },
+
     modules: {
       wikilinks: modulesUser.wikilinks ?? true,
       embeds: modulesUser.embeds ?? true,
+      views: modulesUser.views ?? true,
     },
 
     slugify,

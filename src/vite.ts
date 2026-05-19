@@ -31,6 +31,8 @@ import { scanVault, updateFile, removeFile } from './core/vault/index.js'
 import { createDevMiddleware } from './core/asset-pipeline/dev-middleware.js'
 import { ASSET_PLACEHOLDER_PREFIX } from './core/asset-pipeline/build-emit.js'
 import { toPosix } from './utils/path.js'
+import { generateViewMarkdown } from './core/views/generate-md.js'
+import { writeVaultData } from './core/views/generate-data.js'
 
 export interface VitePluginAllYouNeedReturn extends Plugin {
   __getOptions(): ResolvedOptions
@@ -78,6 +80,40 @@ export function viteAllYouNeed(
       })
       try {
         index = scanVault(resolved)
+
+        // v0.2:生成虚拟视图 .md(若用户开了 views 模块)
+        if (resolved.modules.views) {
+          const mdReport = generateViewMarkdown(resolved, index)
+          for (const written of mdReport.written) {
+            cfg.logger.info(
+              `[vitepress-allyouneed] 生成视图 ${written}`,
+            )
+          }
+          for (const skipped of mdReport.skipped) {
+            cfg.logger.warn(
+              `[vitepress-allyouneed] 跳过 ${skipped.path}: ${skipped.reason}`,
+            )
+          }
+          // 写完 .md 后需要重新 scan,把新生成的视图也收进 index
+          if (mdReport.written.length > 0) {
+            index = scanVault(resolved)
+          }
+
+          // v0.2:写 vault-data.json
+          try {
+            const dataReport = writeVaultData(index, resolved)
+            cfg.logger.info(
+              `[vitepress-allyouneed] 写 ${dataReport.path} (${dataReport.bytes}B)`,
+            )
+          } catch (err) {
+            cfg.logger.warn(
+              `[vitepress-allyouneed] vault-data.json 写入失败: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            )
+          }
+        }
+
         if (index.warnings.length > 0) {
           const top = index.warnings.slice(0, 10)
           for (const w of top) {
@@ -120,6 +156,14 @@ export function viteAllYouNeed(
         }
       } catch {
         removeFile(index, ctx.file, resolved)
+      }
+      // v0.2:数据变了 → 重新生成 vault-data.json,触发组件 fetch 新数据
+      if (resolved.modules.views) {
+        try {
+          writeVaultData(index, resolved)
+        } catch {
+          /* 写不进就算 */
+        }
       }
     },
 

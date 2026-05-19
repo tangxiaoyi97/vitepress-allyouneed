@@ -1,0 +1,79 @@
+/*
+ * vitepress-allyouneed v0.2 — 视图组件 CSS 变量定义。
+ *
+ * 所有变量都有"插件默认值 → VitePress 主题色"的回退链。用户可在自己的
+ * CSS 里覆写 :root 上的 --ayn-* 变量来全局换色,无需改组件代码。
+ */
+
+:root {
+  /* 通用 */
+  --ayn-bg: var(--vp-c-bg);
+  --ayn-bg-soft: var(--vp-c-bg-soft);
+  --ayn-bg-mute: var(--vp-c-bg-mute);
+  --ayn-text-1: var(--vp-c-text-1);
+  --ayn-text-2: var(--vp-c-text-2);
+  --ayn-divider: var(--vp-c-divider);
+  --ayn-brand: var(--vp-c-brand-1);
+  --ayn-brand-soft: var(--vp-c-brand-soft, var(--vp-c-brand-1));
+
+  /* VaultStats */
+  --ayn-stats-card-bg: var(--vp-c-bg-soft);
+  --ayn-stats-card-border: var(--vp-c-divider);
+  --ayn-stats-number-color: var(--vp-c-brand-1);
+  --ayn-stats-label-color: var(--vp-c-text-2);
+
+  /* Tags */
+  --ayn-tag-bg: var(--vp-c-bg-soft);
+  --ayn-tag-text: var(--vp-c-text-1);
+  --ayn-tag-hover-bg: var(--vp-c-brand-1);
+  --ayn-tag-hover-text: var(--vp-c-white);
+
+  /* VaultGraph */
+  --ayn-graph-node-color: var(--vp-c-brand-1);
+  --ayn-graph-node-stroke: var(--vp-c-bg);
+  --ayn-graph-edge-color: var(--vp-c-divider);
+  --ayn-graph-edge-embed-color: var(--vp-c-brand-2, var(--vp-c-brand-1));
+  --ayn-graph-bg: var(--vp-c-bg);
+  --ayn-graph-label-color: var(--vp-c-text-1);
+}
+
+/* 三个组件共用的 wrapper */
+.ayn-view {
+  margin: 1.5rem 0;
+}
+
+.ayn-view-loading,
+.ayn-view-error,
+.ayn-view-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ayn-text-2);
+  background-color: var(--ayn-bg-soft);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 8px;
+}
+
+.ayn-view-error {
+  color: var(--vp-c-danger-1, #d97706);
+}
+
+/* 正文 #tag 行内样式(由 src/modules/tags/rule.ts 输出 <a class="ayn-tag">)*/
+.ayn-tag {
+  display: inline-block;
+  padding: 0.05em 0.5em;
+  margin: 0 0.15em;
+  font-size: 0.85em;
+  font-family: var(--vp-font-family-mono, monospace);
+  color: var(--ayn-tag-text);
+  background-color: var(--ayn-tag-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.ayn-tag:hover {
+  background-color: var(--ayn-tag-hover-bg);
+  color: var(--ayn-tag-hover-text);
+  border-color: var(--ayn-tag-hover-bg);
+}
