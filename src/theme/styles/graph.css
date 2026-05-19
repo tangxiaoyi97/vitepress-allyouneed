@@ -1,0 +1,79 @@
+.ayn-graph-container {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  background-color: var(--ayn-graph-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ayn-graph-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+.ayn-graph-svg:active {
+  cursor: grabbing;
+}
+
+/* ── 边 ──────────────────────────────────────────── */
+
+.ayn-graph-edge {
+  stroke: var(--ayn-graph-edge-color);
+  stroke-width: 1px;
+  stroke-opacity: 0.5;
+  transition: stroke-opacity 0.2s;
+}
+.ayn-graph-edge--embed {
+  stroke: var(--ayn-graph-edge-embed-color);
+  stroke-width: 1px;
+  stroke-dasharray: 3 3;
+  stroke-opacity: 0.7;
+}
+.ayn-graph-edge.is-dimmed {
+  stroke-opacity: 0.06;
+}
+
+/* ── 节点 ────────────────────────────────────────── */
+
+.ayn-graph-node {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.ayn-graph-node circle {
+  fill: var(--ayn-graph-node-color);
+  stroke: var(--ayn-graph-node-stroke);
+  stroke-width: 1.5px;
+  transition: fill 0.15s, stroke-width 0.15s, r 0.15s;
+}
+.ayn-graph-node:hover circle {
+  fill: var(--vp-c-brand-2, var(--ayn-graph-node-color));
+}
+
+/* focus mode:hover 一个节点时,自己 + 邻居高亮,其它暗淡 */
+.ayn-graph-node.is-active circle {
+  stroke-width: 2.5px;
+}
+.ayn-graph-node.is-dimmed {
+  opacity: 0.18;
+}
+
+/* ── 标签 ────────────────────────────────────────── */
+
+.ayn-graph-label {
+  font-size: 10px;
+  fill: var(--ayn-graph-label-color);
+  pointer-events: none;
+  font-family: var(--vp-font-family-base, sans-serif);
+  /* 默认半透明,hover 节点时全显 */
+  opacity: 0.5;
+  transition: opacity 0.2s, font-weight 0.15s;
+}
+.ayn-graph-node:hover .ayn-graph-label,
+.ayn-graph-node.is-active .ayn-graph-label,
+.ayn-graph-node.is-related .ayn-graph-label {
+  opacity: 1;
+  font-weight: 600;
+}

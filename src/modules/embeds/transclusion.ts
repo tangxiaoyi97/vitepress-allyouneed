@@ -119,17 +119,28 @@ export function renderTransclusionHtml(
   }
 
   const sourceUrl = headingPart
-    ? `${target.url}#${escapeHtml(options.slugify(headingPart))}`
+    ? `${target.url}#${options.slugify(headingPart)}`
     : target.url
 
-  // aliasParts 当前作为 wrapper 的可见 caption,在 v0.1 仅做 data 属性留痕
   const aliasData = aliasParts.length
     ? ` data-caption="${escapeHtml(aliasParts.join('|'))}"`
     : ''
 
-  return `<div class="transclusion" data-source="${escapeHtml(
-    target.relativePath,
-  )}" data-source-url="${escapeHtml(sourceUrl)}"${aliasData}>${inner}</div>`
+  // v0.2 美化:右上角"前往源文件"按钮 —— 极简箭头图标,不带 basename 文字
+  // (basename 已经通过 data-source attr 可以读取;鼠标 hover title 也能看)
+  const sourceLink =
+    `<a class="transclusion-source-link" ` +
+    `href="${escapeHtml(sourceUrl)}" ` +
+    `aria-label="Go to source: ${escapeHtml(target.relativePath)}" ` +
+    `title="${escapeHtml(target.relativePath)}">↗</a>`
+
+  return (
+    `<div class="transclusion" data-source="${escapeHtml(target.relativePath)}"` +
+    ` data-source-url="${escapeHtml(sourceUrl)}"${aliasData}>` +
+    sourceLink +
+    inner +
+    `</div>`
+  )
 }
 
 /**

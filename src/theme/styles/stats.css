@@ -1,0 +1,77 @@
+.ayn-stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.ayn-stats-card {
+  padding: 1.25rem 1rem;
+  text-align: center;
+  background-color: var(--ayn-stats-card-bg);
+  border: 1px solid var(--ayn-stats-card-border);
+  border-radius: 10px;
+}
+.ayn-stats-number {
+  font-size: 2em;
+  font-weight: 700;
+  color: var(--ayn-stats-number-color);
+  line-height: 1.2;
+}
+.ayn-stats-label {
+  margin-top: 0.25rem;
+  font-size: 0.9em;
+  color: var(--ayn-stats-label-color);
+}
+.ayn-stats-section-title {
+  margin-top: 2rem;
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.ayn-stats-recent {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+}
+.ayn-stats-recent li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--ayn-divider);
+}
+.ayn-stats-recent li:last-child {
+  border-bottom: none;
+}
+.ayn-stats-recent a {
+  color: var(--ayn-text-1);
+  text-decoration: none;
+  font-weight: 500;
+}
+.ayn-stats-recent a:hover {
+  color: var(--ayn-brand);
+}
+.ayn-stats-recent-time {
+  font-size: 0.85em;
+  color: var(--ayn-text-2);
+  white-space: nowrap;
+}
+.ayn-stats-warnings {
+  margin: 1.5rem 0;
+  padding: 0.85rem 1rem;
+  background-color: var(--vp-c-warning-soft, rgba(202, 138, 4, 0.08));
+  /* 四边边框 + 圆角(原 border-left + radius 的组合换掉) */
+  border: 1px solid var(--vp-c-warning-1, #ca8a04);
+  border-radius: 6px;
+}
+.ayn-stats-warnings small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--ayn-text-2);
+}
+.ayn-stats-meta {
+  margin-top: 2rem;
+  font-size: 0.8em;
+  color: var(--ayn-text-2);
+  text-align: right;
+}

@@ -1,11 +1,9 @@
 /**
- * 自定义 VitePress 主题入口。
+ * v0.2 — 用 vitepress-allyouneed 完整 theme(继承 default + 三视图组件)。
  *
- * 这里只做一件事:在默认主题之上加 vitepress-allyouneed 的默认样式表。
- * 不需要这个文件时,VitePress 用内置 DefaultTheme,不会有 wikilink/transclusion 样式。
+ * 想覆盖任何东西(组件/CSS/enhanceApp 等),按 PLAN-v0.2.md 三层洋葱模式。
  */
+import AllYouNeedTheme from 'vitepress-allyouneed/theme'
+import 'vitepress-allyouneed/theme/style.css' // 一站式样式 barrel(含 v0.1 wikilink 样式)
 
-import DefaultTheme from 'vitepress/theme'
-import 'vitepress-allyouneed/style.css'
-
-export default DefaultTheme
+export default AllYouNeedTheme

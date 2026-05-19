@@ -69,15 +69,15 @@
 
 .transclusion {
   position: relative;
-  margin: 1.25rem 0;
-  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.5rem 1rem;
+  /* 全四边边框 + 圆角(不再用 border-left + radius 的组合) */
   border: 1px solid var(--vp-c-divider);
-  border-left: 3px solid var(--vp-c-brand-1);
-  border-radius: 6px;
+  border-radius: 8px;
   background-color: var(--vp-c-bg-soft);
 }
 
-/* 内部的 h1/h2 看起来不要那么"页面级",和 transclusion 容器视觉上分开 */
+/* 内部首尾元素去掉外 margin,避免容器内顶/底空白过多 */
 .transclusion > :first-child {
   margin-top: 0;
 }
@@ -86,6 +86,31 @@
   margin-bottom: 0;
 }
 
+/* "前往源"链接 —— 极简箭头图标,挂右上角 */
+.transclusion-source-link {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.85em;
+  line-height: 1;
+  color: var(--vp-c-text-3, var(--vp-c-text-2));
+  background-color: transparent;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.transclusion-source-link:hover {
+  color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-bg);
+}
+
+/* transclusion 内的 heading 不再像页面级 H1,降低视觉权重 */
 .transclusion h1,
 .transclusion h2 {
   font-size: 1.15em;
@@ -102,32 +127,20 @@
   margin: 0.5em 0;
 }
 
-/* 右上角小标志:来源 */
-.transclusion[data-source-url]::before {
-  content: '↗ ' attr(data-source);
-  position: absolute;
-  top: -0.6em;
-  right: 1rem;
-  padding: 0 0.5em;
-  font-size: 0.75em;
-  color: var(--vp-c-text-2);
-  background-color: var(--vp-c-bg);
-}
-
-/* 失败态:不同颜色 */
+/* 失败态:边框+背景一起换色,不再用 border-left 单侧 */
 .transclusion--dead,
 .transclusion--cycle,
 .transclusion--too-deep,
 .transclusion--unmatched-anchor {
-  border-left-color: var(--vp-c-warning-1, #ca8a04);
+  border-color: var(--vp-c-warning-1, #ca8a04);
   background-color: var(--vp-c-warning-soft, rgba(202, 138, 4, 0.08));
   color: var(--vp-c-text-1);
   font-size: 0.9em;
-  padding: 0.5rem 0.75rem;
+  padding: 0.6rem 0.9rem;
 }
 
 .transclusion--dead {
-  border-left-color: var(--vp-c-danger-1, #d97706);
+  border-color: var(--vp-c-danger-1, #d97706);
   background-color: var(--vp-c-danger-soft, rgba(217, 119, 6, 0.08));
 }
 

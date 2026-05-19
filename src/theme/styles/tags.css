@@ -1,0 +1,308 @@
+/*
+ * Tags 视图 — 紧凑表格风。
+ * 用 .vp-doc 前缀压住 VitePress 默认 ul/li 的 disc bullet。
+ */
+
+.ayn-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── 搜索框(占满宽度,圆角 8px,小 padding)──────── */
+
+.ayn-tags-search {
+  position: relative;
+}
+
+.ayn-tags-search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--vp-c-text-3, var(--ayn-text-2));
+  pointer-events: none;
+}
+
+.ayn-tags-search-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ayn-tags-search input {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 1rem 0.55rem 2.45rem;
+  font-size: 0.88em;
+  color: var(--ayn-text-1);
+  background-color: var(--vp-c-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 8px;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ayn-tags-search input::placeholder {
+  color: var(--vp-c-text-3, var(--ayn-text-2));
+}
+
+.ayn-tags-search input:focus {
+  border-color: var(--ayn-brand);
+  box-shadow: 0 0 0 3px var(--vp-c-brand-soft, rgba(63, 71, 233, 0.15));
+}
+
+/* ── Tags 云白卡(rounded-lg,薄阴影)──────────────── */
+
+.ayn-tags-cloud-card {
+  padding: 1rem;
+  background-color: var(--vp-c-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ayn-tags-empty {
+  padding: 0.5rem;
+  text-align: center;
+  color: var(--ayn-text-2);
+  font-size: 0.88em;
+}
+
+.ayn-tags-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ── Tag chip:pill(rounded-full),active 反色 ──── */
+
+.ayn-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.82em;
+  font-weight: 500;
+  color: var(--ayn-text-2);
+  background-color: var(--vp-c-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+  font-family: inherit;
+  line-height: 1.2;
+}
+
+.ayn-tag-chip:hover {
+  color: var(--ayn-text-1);
+  border-color: var(--vp-c-text-3, var(--ayn-text-2));
+}
+
+.ayn-tag-chip.is-active {
+  color: var(--vp-c-white, #fff);
+  background-color: var(--vp-c-text-1, var(--ayn-text-1));
+  border-color: var(--vp-c-text-1, var(--ayn-text-1));
+}
+
+.ayn-tag-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.78em;
+  height: 0.78em;
+  opacity: 0.6;
+}
+
+.ayn-tag-chip-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ayn-tag-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3em;
+  padding: 0.05em 0.45em;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--ayn-text-2);
+  background-color: var(--vp-c-bg-soft);
+  border-radius: 999px;
+}
+
+.ayn-tag-chip.is-active .ayn-tag-chip-count {
+  color: var(--vp-c-white, #fff);
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Notes table 区 ─────────────────────────────── */
+
+.ayn-tag-notes {
+  display: flex;
+  flex-direction: column;
+}
+
+.ayn-tag-notes-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.85rem 0.5rem 0.85rem;
+  font-size: 0.7em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--vp-c-text-3, var(--ayn-text-2));
+}
+
+/* 表格容器:单卡片 + 单一边框 */
+.ayn-tag-notes-table,
+.vp-doc .ayn-tag-notes-table {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background-color: var(--vp-c-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* ── 单行 ──────────────────────────────────────── */
+
+.ayn-tag-note-row,
+.vp-doc .ayn-tag-notes-table > li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ayn-tag-note-row::marker,
+.vp-doc .ayn-tag-notes-table > li::marker {
+  content: '';
+}
+
+.ayn-tag-note-row + .ayn-tag-note-row {
+  border-top: 1px solid var(--ayn-divider);
+}
+
+/* .vp-doc 前缀 + 直接对所有子元素 text-decoration: none,
+ * 压住 VitePress 默认 a 下划线 */
+.ayn-tag-note-row-link,
+.vp-doc .ayn-tag-note-row-link,
+.vp-doc .ayn-tag-note-row-link:hover,
+.ayn-tag-note-row-link *,
+.vp-doc .ayn-tag-note-row-link * {
+  text-decoration: none !important;
+}
+
+.ayn-tag-note-row-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  color: inherit;
+  transition: background-color 0.12s;
+}
+
+.ayn-tag-note-row-link:hover {
+  background-color: var(--vp-c-bg-soft);
+}
+
+/* 左半:title + 其它 tag pills(原 file icon 已移除 —— 列表不需要那个) */
+.ayn-tag-note-row-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ayn-tag-note-row-title {
+  font-size: 0.92em;
+  font-weight: 500;
+  color: var(--ayn-text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s;
+  min-width: 0;
+}
+
+.ayn-tag-note-row-link:hover .ayn-tag-note-row-title {
+  color: var(--ayn-brand);
+}
+
+.ayn-tag-note-row-othertag {
+  display: inline-block;
+  padding: 0.05em 0.4em;
+  /* 缩小:从 0.7em → 0.62em,且去掉 border 减少视觉重量,
+   * 让标题(0.92em)成为视觉主角 */
+  font-size: 0.62em;
+  font-weight: 500;
+  font-family: var(--vp-font-family-mono, monospace);
+  color: var(--ayn-brand);
+  background-color: var(--vp-c-brand-soft, rgba(63, 71, 233, 0.1));
+  border: none;
+  border-radius: 3px;
+  flex-shrink: 0;
+  /* 让 tag 与文字基线对齐稍上,像角标 */
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+/* 窄屏隐藏 inline tag,避免拥挤 */
+@media (max-width: 640px) {
+  .ayn-tag-note-row-othertag {
+    display: none;
+  }
+}
+
+/* 右半:path + date */
+.ayn-tag-note-row-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.78em;
+  color: var(--vp-c-text-3, var(--ayn-text-2));
+  flex-shrink: 0;
+}
+
+.ayn-tag-note-row-path {
+  font-family: var(--vp-font-family-mono, monospace);
+  font-size: 0.92em;
+  max-width: 12rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 窄屏隐藏 path,只剩 date */
+@media (max-width: 800px) {
+  .ayn-tag-note-row-path {
+    display: none;
+  }
+}
+
+.ayn-tag-note-row-date {
+  width: 5.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 空态 ──────────────────────────────────────── */
+
+.ayn-tag-notes-empty {
+  padding: 2rem;
+  text-align: center;
+  font-size: 0.88em;
+  color: var(--ayn-text-2);
+  background-color: var(--vp-c-bg);
+  border: 1px solid var(--ayn-divider);
+  border-radius: 8px;
+}

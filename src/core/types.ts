@@ -217,6 +217,45 @@ export interface AssetsOptions {
   outputDir?: string
 }
 
+// ── v0.2:自动视图选项 ────────────────────────────────────────
+
+export interface ViewsOptions {
+  enabled?: {
+    graph?: boolean
+    stats?: boolean
+    tags?: boolean
+  }
+  /**
+   * 视图文件所在的子目录(相对 srcDir),默认 `_perspectives_`。
+   * 设成空串 `''` 把视图文件直接放在 srcDir 根(URL 更短但容易和用户笔记冲突)。
+   *
+   * 最终文件路径:`<srcDir>/<urlPrefix>/<name>.md`
+   * 最终 URL:`<base>/<urlPrefix>/<name>`(prefix 为空时退化为 `<base>/<name>`)
+   */
+  urlPrefix?: string
+  /** 视图文件名(默认 'graph' / 'stats' / 'tags';用 urlPrefix 隔离命名空间)*/
+  names?: {
+    graph?: string
+    stats?: string
+    tags?: string
+  }
+  /** sidebar 自动注入策略;'auto' = 加到末尾;false = 不动 */
+  sidebar?: 'auto' | false
+  /** sidebar 中显示的文字 */
+  sidebarText?: {
+    group?: string
+    graph?: string
+    stats?: string
+    tags?: string
+  }
+  /** VaultGraph 节点数超过此值时降级为占位提示 */
+  graphMaxNodes?: number
+  /** vault-data.json 的输出文件名(相对 srcDir/public/)。默认 'vault-data.json' */
+  dataFileName?: string
+  /** 是否启用正文 #tag 解析(默认 true)。关掉则 tags 只来自 frontmatter */
+  parseInlineTags?: boolean
+}
+
 /**
  * 顶层选项。
  */
@@ -237,12 +276,15 @@ export interface AllYouNeedOptions {
   assets?: AssetsOptions
   wikilinks?: WikilinksModuleOptions
   embeds?: EmbedsModuleOptions
+  views?: ViewsOptions
 
   // ── 模块开关 ──
   modules?: {
     wikilinks?: boolean
     embeds?: boolean
-    // future: callouts, tags, dataview, graph
+    /** v0.2:自动生成的 VaultGraph/Stats/Tags 视图,默认开 */
+    views?: boolean
+    // future: callouts, dataview
   }
 
   /**
@@ -271,7 +313,17 @@ export interface ResolvedOptions {
   embeds: Required<Omit<EmbedsModuleOptions, 'htmlAttributes'>> & {
     htmlAttributes: ImageEmbedAttrs
   }
-  modules: { wikilinks: boolean; embeds: boolean }
+  views: Required<{
+    enabled: { graph: boolean; stats: boolean; tags: boolean }
+    urlPrefix: string
+    names: { graph: string; stats: string; tags: string }
+    sidebar: 'auto' | false
+    sidebarText: { group: string; graph: string; stats: string; tags: string }
+    graphMaxNodes: number
+    dataFileName: string
+    parseInlineTags: boolean
+  }>
+  modules: { wikilinks: boolean; embeds: boolean; views: boolean }
   slugify: (text: string) => string
 }
 
