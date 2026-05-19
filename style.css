@@ -1,0 +1,159 @@
+/*
+ * vitepress-allyouneed — 默认样式
+ * --------------------------------------------------------------
+ * 使用:在 VitePress 主题入口 import:
+ *   import 'vitepress-allyouneed/style.css'
+ *
+ * 全部用 VitePress 暴露的 --vp-c-* 设计 token,自动跟随主题/暗色。
+ * 不想用某段?选择性 import 你自己的 CSS 覆盖即可。
+ */
+
+/* ────────────────────────────────────────────────────────────────
+ * wikilinks
+ * ──────────────────────────────────────────────────────────────── */
+
+.wikilink {
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--vp-c-brand-2, var(--vp-c-brand-1));
+  padding-bottom: 1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.wikilink:hover {
+  color: var(--vp-c-brand-2);
+  border-bottom-style: solid;
+}
+
+/* 死链:解析失败 */
+.wikilink--dead {
+  color: var(--vp-c-danger-1, #d97706);
+  border-bottom-color: var(--vp-c-danger-1, #d97706);
+  border-bottom-style: dotted;
+  cursor: help;
+}
+
+.wikilink--dead::after {
+  content: '?';
+  display: inline-block;
+  margin-left: 0.25em;
+  font-size: 0.75em;
+  color: var(--vp-c-danger-1, #d97706);
+  vertical-align: super;
+}
+
+/* 锚点匹配失败,但页面存在 */
+.wikilink--unmatched-anchor {
+  border-bottom-style: dotted;
+}
+
+.wikilink--unmatched-anchor::after {
+  content: '#?';
+  display: inline-block;
+  margin-left: 0.25em;
+  font-size: 0.75em;
+  color: var(--vp-c-warning-1, #ca8a04);
+  vertical-align: super;
+}
+
+/* 段落中混入的 ![[note]] 被降级为链接 */
+.wikilink--inline-transclusion-degraded {
+  border-bottom-style: dotted;
+  color: var(--vp-c-warning-1, #ca8a04);
+  border-bottom-color: var(--vp-c-warning-1, #ca8a04);
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * transclusion(笔记内联)
+ * ──────────────────────────────────────────────────────────────── */
+
+.transclusion {
+  position: relative;
+  margin: 1.25rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--vp-c-divider);
+  border-left: 3px solid var(--vp-c-brand-1);
+  border-radius: 6px;
+  background-color: var(--vp-c-bg-soft);
+}
+
+/* 内部的 h1/h2 看起来不要那么"页面级",和 transclusion 容器视觉上分开 */
+.transclusion > :first-child {
+  margin-top: 0;
+}
+
+.transclusion > :last-child {
+  margin-bottom: 0;
+}
+
+.transclusion h1,
+.transclusion h2 {
+  font-size: 1.15em;
+  margin: 0.5em 0;
+  border-bottom: 1px solid var(--vp-c-divider);
+  padding-bottom: 0.25em;
+}
+
+.transclusion h3,
+.transclusion h4,
+.transclusion h5,
+.transclusion h6 {
+  font-size: 1em;
+  margin: 0.5em 0;
+}
+
+/* 右上角小标志:来源 */
+.transclusion[data-source-url]::before {
+  content: '↗ ' attr(data-source);
+  position: absolute;
+  top: -0.6em;
+  right: 1rem;
+  padding: 0 0.5em;
+  font-size: 0.75em;
+  color: var(--vp-c-text-2);
+  background-color: var(--vp-c-bg);
+}
+
+/* 失败态:不同颜色 */
+.transclusion--dead,
+.transclusion--cycle,
+.transclusion--too-deep,
+.transclusion--unmatched-anchor {
+  border-left-color: var(--vp-c-warning-1, #ca8a04);
+  background-color: var(--vp-c-warning-soft, rgba(202, 138, 4, 0.08));
+  color: var(--vp-c-text-1);
+  font-size: 0.9em;
+  padding: 0.5rem 0.75rem;
+}
+
+.transclusion--dead {
+  border-left-color: var(--vp-c-danger-1, #d97706);
+  background-color: var(--vp-c-danger-soft, rgba(217, 119, 6, 0.08));
+}
+
+.transclusion--dead code,
+.transclusion--cycle code,
+.transclusion--too-deep code,
+.transclusion--unmatched-anchor code {
+  background-color: transparent;
+  color: inherit;
+  font-weight: 600;
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * image embed —— 默认不强样式,但给个温和的圆角
+ * ──────────────────────────────────────────────────────────────── */
+
+img[src*='/__ayn_asset__/'],
+img[data-allyouneed-asset] {
+  border-radius: 4px;
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * 暗色模式 — VitePress 通过 .dark 类切换。
+ * 大多数 token 已自动跟随,只对极个别需要的做覆盖。
+ * ──────────────────────────────────────────────────────────────── */
+
+.dark .transclusion[data-source-url]::before {
+  background-color: var(--vp-c-bg);
+}

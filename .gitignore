@@ -1,0 +1,51 @@
+# ─ Node / npm ───────────────────────────────────────────────────
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+.pnpm-store
+.yarn
+
+# ─ 构建产物(npm publish 走 `files` 白名单,这里只是不入 git)──
+dist
+coverage
+*.tsbuildinfo
+.tsup
+
+# ─ VitePress(根目录 + 任意子目录,如 examples/.vitepress)──
+.vitepress/cache
+.vitepress/dist
+**/.vitepress/cache
+**/.vitepress/dist
+
+# ─ 环境 / 密钥 ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─ 编辑器 / IDE ─────────────────────────────────────────────────
+.idea
+.vscode
+.history
+*.swp
+*.swo
+*~
+
+# ─ OS 杂物 ──────────────────────────────────────────────────────
+.DS_Store
+._.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─ 日志 ────────────────────────────────────────────────────────
+*.log
+
+# ─ 沙箱 / 临时验证脚本(沙箱里我留的,你本地手动 rm 了就不会重生)──
+.test-*.mjs
+.validate*.mjs
+.smoke.mjs
+
+# ─ 本地维护文档(只给作者自己看的 cheat-sheet,不入库)──
+PUBLISHING.md
