@@ -289,3 +289,39 @@ describe('views.injectInto 四模式', () => {
     expect(r['/_perspectives_/']).toBeDefined()
   })
 })
+
+// ── foldersFirst:同一层 files vs folders 的相对位置 ─────────────
+
+describe('sidebarAuto.foldersFirst', () => {
+  let tmp: string
+  beforeAll(() => {
+    tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-ff-'))
+    // 根:1 个文件 + 1 个子目录
+    write(nodePath.join(tmp, 'alpha.md'), '---\ntitle: Alpha\n---\nbody\n')
+    write(nodePath.join(tmp, 'sub', 'index.md'), '---\ntitle: Sub\n---\nbody\n')
+    write(nodePath.join(tmp, 'sub', 'inner.md'), '---\ntitle: Inner\n---\nbody\n')
+  })
+  afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }))
+
+  it('默认 false:同层 files 在 folders 之前', () => {
+    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
+    const idx = scanVault(opts)
+    const sb = generateSidebar(idx, opts, { layout: 'tree' }) as SidebarItem[]
+    // 顶层应为 [Alpha(file), Sub(group)]
+    expect(sb[0]?.text).toBe('Alpha')
+    expect(sb[1]?.text).toBe('Sub')
+    expect(sb[1]?.items).toBeDefined()
+  })
+
+  it("foldersFirst: true:folders 在 files 之前", () => {
+    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
+    const idx = scanVault(opts)
+    const sb = generateSidebar(idx, opts, {
+      layout: 'tree',
+      foldersFirst: true,
+    }) as SidebarItem[]
+    expect(sb[0]?.text).toBe('Sub')
+    expect(sb[0]?.items).toBeDefined()
+    expect(sb[1]?.text).toBe('Alpha')
+  })
+})

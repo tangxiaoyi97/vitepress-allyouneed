@@ -284,6 +284,16 @@ export interface SidebarAutoUserOptions {
   excludePrefixes?: string[]
 
   /**
+   * 自动生成 sidebar 时,**子目录(group)是否排在普通文件之前**。
+   *   - false(默认)  files → virtualGroups → folders
+   *   - true           folders → virtualGroups → files(Finder / Obsidian 风格)
+   *
+   * 仅影响同一层级内"文件 vs 子目录"的相对位置;每段内部排序仍按 sortBy /
+   * orderKey / groupOrder。
+   */
+  foldersFirst?: boolean
+
+  /**
    * 给缺 index.md 的文件夹自动生成"目录页"。三种模式:
    *   - 'off'        不生成
    *   - 'top-level'  仅为顶级目录生成(导航栏入口,默认)

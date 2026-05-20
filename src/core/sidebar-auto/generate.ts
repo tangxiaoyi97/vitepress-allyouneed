@@ -60,6 +60,7 @@ export function resolveSidebarAutoOptions(
     groupLink: user.groupLink ?? 'all',
     includePrefix: user.includePrefix,
     excludePrefixes: user.excludePrefixes ?? [],
+    foldersFirst: user.foldersFirst ?? false,
   }
 }
 
@@ -271,8 +272,6 @@ function renderNode(
     if (override) return override
   }
 
-  const out: SidebarItem[] = []
-
   // 抽出 sidebarGroup 标记的文件(虚拟 group)
   const virtualGroups = new Map<string, FileEntry[]>()
   const normalFiles: FileEntry[] = []
@@ -287,24 +286,29 @@ function renderNode(
     }
   }
 
-  // 排序普通文件
-  normalFiles.sort((a, b) => compareEntries(a, b, opts))
-  for (const f of normalFiles) {
-    out.push({ text: opts.formatItemTitle(f), link: f.url })
-  }
+  // 三段 collect:files / virtualGroups / childDirs
 
-  // 虚拟 groups(按名字字母序)
+  // 1. 普通文件
+  normalFiles.sort((a, b) => compareEntries(a, b, opts))
+  const fileItems: SidebarItem[] = normalFiles.map((f) => ({
+    text: opts.formatItemTitle(f),
+    link: f.url,
+  }))
+
+  // 2. 虚拟 groups(按名字字母序)
   const virtualKeys = [...virtualGroups.keys()].sort()
+  const virtualItems: SidebarItem[] = []
   for (const name of virtualKeys) {
     const items = virtualGroups.get(name)!.sort((a, b) => compareEntries(a, b, opts))
-    out.push({
+    virtualItems.push({
       text: name,
       collapsed: opts.collapsed,
       items: items.map((f) => ({ text: opts.formatItemTitle(f), link: f.url })),
     })
   }
 
-  // 子目录:按 groupOrder(仅顶级生效)然后字母序
+  // 3. 子目录:按 groupOrder(仅顶级生效)然后字母序
+  const folderItems: SidebarItem[] = []
   const childKeys = sortChildKeys(node, opts, isRoot)
   for (const key of childKeys) {
     const child = node.children.get(key)!
@@ -323,10 +327,16 @@ function renderNode(
     ) {
       group.link = child.dirIndex.url
     }
-    out.push(group)
+    folderItems.push(group)
   }
 
-  return out
+  // 按 foldersFirst 决定三段拼接顺序。
+  // virtualGroups 始终跟着 folders(它们语义上也是"分组"),只是 files 和
+  // folders 的相对位置可配。
+  if (opts.foldersFirst) {
+    return [...folderItems, ...virtualItems, ...fileItems]
+  }
+  return [...fileItems, ...virtualItems, ...folderItems]
 }
 
 /**

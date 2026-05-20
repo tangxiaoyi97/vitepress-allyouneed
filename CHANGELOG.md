@@ -2,6 +2,19 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.3] - 2026-05-20
+
+### Added
+- **`sidebarAuto.foldersFirst`** — 控制同一层级内"普通文件 vs 子目录 group"的相对位置。
+  - `false`(默认)`files → virtualGroups → folders`(老行为,兼容)
+  - `true`           `folders → virtualGroups → files`(Finder / Obsidian 风格)
+  - 仅影响相对位置;段内排序仍由 `sortBy` / `orderKey` / `groupOrder` 决定。
+
+## [0.3.2] - 2026-05-20
+
+### Fixed
+- **根目录无 `index.md` 时 404**:`autoFolderIndex: 'top-level' / 'all'` 模式之前只为 srcDir **下**的目录生成 index,根本身被漏。现在 `dirsToProcess` 把 srcDir 根也加进去,根索引页用 `srcDir` basename 当 H1(fallback `Home`)。
+
 ## [0.3.1] - 2026-05-20
 
 ### Fixed
