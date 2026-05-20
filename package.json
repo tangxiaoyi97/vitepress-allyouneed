@@ -1,7 +1,7 @@
 {
   "name": "vitepress-allyouneed",
-  "version": "0.2.0-beta.0",
-  "description": "Vitepress extention made for wikilinks, image embeds, note transclusion, frontmatter aliases, auto assets, systematic vault index, plus v0.2 auto-generated views (VaultGraph/VaultStats/Tags). Forked from actuallysomecat/markdown-it-wikilinks-plus.",
+  "version": "0.3.0-beta.0",
+  "description": "VitePress plugin that turns an Obsidian/Notion-style vault into a website: wikilinks, transclusion, asset pipeline, auto-generated views (Graph/Stats/Tags), Obsidian syntax (callouts/highlight/comments/footnotes/block-refs/audio-video-pdf), sidebar auto-generation, document header. Forked from actuallysomecat/markdown-it-wikilinks-plus.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
