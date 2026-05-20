@@ -2,6 +2,11 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.1] - 2026-05-20
+
+### Fixed
+- **空目录假 URL 导致 MIME 404**
+
 ## [0.3.0] - 2026-05-20
 
 正式版。汇集 v0.3 全部新功能(Obsidian 语法 6 模块、sidebar 自动生成全套、DocHeader banner、i18n 集成、`_sidebar.md` 覆盖等),并修两个 deploy 关键 bug。

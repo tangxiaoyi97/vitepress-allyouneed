@@ -62,7 +62,8 @@ export default defineConfigWithAllYouNeed(
 
     sidebarAuto: {
       mode: 'fill-if-empty',
-      layout: 'per-folder',
+      layout: 'tree',               // ⭐ 默认推荐:单一全局嵌套 sidebar
+      // 想试"nav tab 切换 → 切 sidebar" 体验,改成 'per-folder' + 删 nav 手写
       collapsed: false,
       sortBy: 'order-then-title',
       groupLink: 'all',

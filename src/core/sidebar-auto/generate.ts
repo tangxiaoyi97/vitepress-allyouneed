@@ -475,8 +475,13 @@ function toPerFolderSidebar(
       const firstUrl =
         child.dirIndex && !child.dirIndexEmpty
           ? child.dirIndex.url
-          : findFirstPageUrl(child, opts) ?? `/${key}/`
-      rootItems.push({ text: labelText, link: firstUrl })
+          : findFirstPageUrl(child, opts)
+      // ⚠ 没有真实页面就**不加 link**(避免点击 → 假 URL → 404 → router 报模块加载失败)
+      if (firstUrl) {
+        rootItems.push({ text: labelText, link: firstUrl })
+      } else {
+        rootItems.push({ text: labelText })
+      }
     } else {
       rootItems.push({ text: labelText })
     }
@@ -536,14 +541,19 @@ export function generateNav(
       continue
     }
     const text = computeGroupText(child.path, child.dirIndex, opts)
-    // 链接:dirIndex.url 已含 base,strip 掉;或 /<key>/(不带 base)
+    // 链接选取(dirIndex.url 在 v0.3+ 已经不带 base,直接用即可):
+    //   1. 非空 dirIndex → dirIndex.url
+    //   2. 否则递归找第一个有效 page
+    //   3. 都没有 → **跳过这个 tab**(nav tab 必须可点,否则点不动反而困惑;
+    //      不像 sidebar 里没 link 还能展开/折叠)
     let link: string
-    if (child.dirIndex) {
+    if (child.dirIndex && !child.dirIndexEmpty) {
       link = stripBase(child.dirIndex.url, base)
     } else {
-      link = `/${key}/`
+      const first = findFirstPageUrl(child, opts)
+      if (!first) continue // skip whole tab
+      link = first
     }
-    // activeMatch 工作在 currentPath(VitePress 在 client 上已经去掉 base 的 URL)
     const escapedPrefix = `/${key}/`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     out.push({ text, link, activeMatch: '^' + escapedPrefix })
   }
