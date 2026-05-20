@@ -2,6 +2,17 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0-beta.1] - 2026-05-20
+
+### Fixed
+- **i18n nav 注入丢失**
+- **跨 locale nav 链接 404**
+
+### Added
+- 11 篇 EN 翻译 — `en/guide/{overview, docs×6, advanced×4}`
+- VitePress 原生 i18n 集成:wrapper 自动识别 `themeConfig.locales`,给每个 non-root locale 自动用 `includePrefix` 生成对应 sidebar;root locale 自动用 `excludePrefixes` 排除其它 locale 子树。
+- `sidebarAuto.includePrefix` / `excludePrefixes` 公开选项 — 手动控制 i18n sidebar 范围。
+
 ## [0.3.0-beta.0] - Unreleased
 
 v0.3 把"接管 Obsidian 仓库"从能跑变成好用。补齐了 13 种 callouts、Pandoc footnotes、`==高亮==`、`%%注释%%`、`^block-ref`、`![[audio|video|pdf]]` 媒体嵌入;sidebar 不再需要手写(三种 layout + nav 自动生成 + `_sidebar.md` 手动覆盖);文档顶部加了 banner-style `DocHeader`(cover/dates/tags/word-count);Perspectives 视图组挪到 nav 下拉,不再污染各 tab sidebar;补全 11 篇用户文档 + 完整 frontmatter 字段表。

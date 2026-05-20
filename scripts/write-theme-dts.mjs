@@ -70,6 +70,8 @@ export declare function useVaultData(fileName?: string): UseVaultDataResult
 export declare const VaultGraph: DefineComponent<{ maxNodes?: number }>
 export declare const VaultStats: DefineComponent<Record<string, never>>
 export declare const Tags: DefineComponent<Record<string, never>>
+export declare const Layout: DefineComponent<Record<string, never>>
+export declare const DocHeader: DefineComponent<Record<string, never>>
 
 declare const theme: Theme
 export default theme

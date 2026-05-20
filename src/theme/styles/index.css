@@ -3,4 +3,6 @@
 @import './stats.css';
 @import './tags.css';
 @import './graph.css';
+@import './callouts.css';
+@import './doc-header.css';
 @import '../../../style.css';

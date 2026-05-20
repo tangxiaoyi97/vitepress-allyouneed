@@ -217,6 +217,95 @@ export interface AssetsOptions {
   outputDir?: string
 }
 
+// ── v0.3:sidebar 自动生成的公开选项 ─────────────────────────────
+
+export interface SidebarAutoUserOptions {
+  /**
+   * 触发策略:
+   *   - 'off'           完全不生成
+   *   - 'fill-if-empty' 仅当 themeConfig.sidebar 未提供时自动生成(默认)
+   *   - 'force'         总是用自动生成覆盖 themeConfig.sidebar
+   */
+  mode?: 'off' | 'fill-if-empty' | 'force'
+  /**
+   * 布局:
+   *   - 'tree'        (默认)单一全局 array,子目录嵌套成子 group
+   *   - 'flat'        所有目录扁平摊到顶层
+   *   - 'per-folder'  每个顶层目录独立一份 sidebar,VitePress 按 URL 前缀切换
+   */
+  layout?: 'tree' | 'flat' | 'per-folder'
+  /** 排除路径(相对 srcDir,glob `**` / `*` 支持基本) */
+  exclude?: string[]
+  /** group 默认是否 collapsed,默认 true */
+  collapsed?: boolean
+  /** 排序策略 */
+  sortBy?: 'order-then-title' | 'title' | 'mtime-desc'
+  /** group 标题转换(默认对 dirname 做 humanize) */
+  formatGroupTitle?: (dirname: string) => string
+  /** item 标题转换(默认 frontmatter.sidebarTitle ?? title ?? H1 ?? basename) */
+  formatItemTitle?: (entry: FileEntry) => string
+  /** frontmatter 中标记隐藏的 key,默认 'sidebarHidden' */
+  hiddenKey?: string
+  /** frontmatter 中覆盖标题的 key,默认 'sidebarTitle' */
+  titleKey?: string
+  /** frontmatter 中排序权重的 key,默认 'order' */
+  orderKey?: string
+  /**
+   * 自动生成 nav tabs(配合 layout: 'per-folder' 实现"切换根目录、独立 sidebar"
+   * 体验)。默认 false;仅当 themeConfig.nav 未提供时填,不踩用户。
+   */
+  autoNav?: boolean
+  /** autoNav 第一项的文字,默认 'Home' */
+  homeNavText?: string
+
+  /** 自动剥 `01-foo.md` 这种数字前缀(humanize 时),默认 true */
+  stripNumericPrefix?: boolean
+
+  /** 顶级 group 字母序覆盖。例:`['Guides','Tour']` 让这两个排最前 */
+  groupOrder?: string[]
+
+  /** 嵌套深度上限,根算 0。undefined = 不限,默认不限 */
+  maxDepth?: number
+
+  /**
+   * sidebar group 标题是否带 link(点 group 名跳到 dirIndex):
+   *   - 'all'        所有有 dirIndex 的 group 都可点(默认,兼容)
+   *   - 'top-level'  只顶级 group 可点;侧边栏内子组**不跳转**,只展开/折叠
+   *   - 'off'        所有 group 都不可点
+   *
+   * 与 autoFolderIndex 互补:autoFolderIndex 控"是否生成",groupLink 控"是否可点"。
+   */
+  groupLink?: 'all' | 'top-level' | 'off'
+
+  /** i18n:只扫某子树(`'en'` = 只看 /en/ 下,用于 EN locale 的独立 sidebar) */
+  includePrefix?: string
+
+  /** i18n:排除这些 prefix 的子树(root locale 排除掉其它 locale) */
+  excludePrefixes?: string[]
+
+  /**
+   * 给缺 index.md 的文件夹自动生成"目录页"。三种模式:
+   *   - 'off'        不生成
+   *   - 'top-level'  仅为顶级目录生成(导航栏入口,默认)
+   *   - 'all'        所有非空目录都生成
+   *
+   * 兼容写法:
+   *   - true   = 'top-level'
+   *   - false  = 'off'
+   *   - object 可细控 exclude/template
+   *
+   * **默认 'top-level'**:既保证 nav tab/`/dir/` URL 能落地,又不在子目录写文件。
+   */
+  autoFolderIndex?:
+    | 'off' | 'top-level' | 'all'
+    | boolean
+    | {
+        mode?: 'off' | 'top-level' | 'all'
+        exclude?: string[]
+        stripNumericPrefix?: boolean
+      }
+}
+
 // ── v0.2:自动视图选项 ────────────────────────────────────────
 
 export interface ViewsOptions {
@@ -239,9 +328,18 @@ export interface ViewsOptions {
     stats?: string
     tags?: string
   }
-  /** sidebar 自动注入策略;'auto' = 加到末尾;false = 不动 */
+  /**
+   * 视图条目注入位置(v0.3 新):
+   *   - 'sidebar'(默认,兼容老版)→ 每个 sidebar 末尾追加 Perspectives 组
+   *   - 'nav'                   → themeConfig.nav 末尾追加 Perspectives 下拉,
+   *                                sidebar 不再被污染(per-folder 用户推荐)
+   *   - 'both'                  → 两边都加
+   *   - 'off'                   → 都不加(用户自己手动配)
+   */
+  injectInto?: 'sidebar' | 'nav' | 'both' | 'off'
+  /** @deprecated 老字段,等价 injectInto: 'sidebar' | 'off'。仅 injectInto 未设时生效 */
   sidebar?: 'auto' | false
-  /** sidebar 中显示的文字 */
+  /** sidebar/nav 中显示的文字 */
   sidebarText?: {
     group?: string
     graph?: string
@@ -277,6 +375,8 @@ export interface AllYouNeedOptions {
   wikilinks?: WikilinksModuleOptions
   embeds?: EmbedsModuleOptions
   views?: ViewsOptions
+  /** v0.3:sidebar 自动生成。详见 SidebarAutoOptions */
+  sidebarAuto?: SidebarAutoUserOptions
 
   // ── 模块开关 ──
   modules?: {
@@ -284,7 +384,17 @@ export interface AllYouNeedOptions {
     embeds?: boolean
     /** v0.2:自动生成的 VaultGraph/Stats/Tags 视图,默认开 */
     views?: boolean
-    // future: callouts, dataview
+    /** v0.3:Obsidian callouts(`> [!type] ...`),默认开 */
+    callouts?: boolean
+    /** v0.3:Obsidian 高亮 `==text==` → `<mark>`,默认开 */
+    highlight?: boolean
+    /** v0.3:Obsidian 注释 `%%...%%` 整段隐藏,默认开 */
+    comments?: boolean
+    /** v0.3:Pandoc 风格 footnotes `[^id]` + `[^id]: text`,默认开 */
+    footnotes?: boolean
+    /** v0.3:Obsidian block-ref marker `^block-id`(纯渲染层 anchor),默认开 */
+    blockRefs?: boolean
+    // future: dataview
   }
 
   /**
@@ -317,13 +427,26 @@ export interface ResolvedOptions {
     enabled: { graph: boolean; stats: boolean; tags: boolean }
     urlPrefix: string
     names: { graph: string; stats: string; tags: string }
-    sidebar: 'auto' | false
+    injectInto: 'sidebar' | 'nav' | 'both' | 'off'
+    sidebar: 'auto' | false   // 老字段,仅 injectInto 未显式传时被使用
     sidebarText: { group: string; graph: string; stats: string; tags: string }
     graphMaxNodes: number
     dataFileName: string
     parseInlineTags: boolean
   }>
-  modules: { wikilinks: boolean; embeds: boolean; views: boolean }
+  modules: {
+    wikilinks: boolean
+    embeds: boolean
+    views: boolean
+    callouts: boolean
+    highlight: boolean
+    comments: boolean
+    footnotes: boolean
+    blockRefs: boolean
+  }
+  /** v0.3:sidebar 自动生成原始选项(具体 resolve 由 sidebar-auto 模块内部完成,
+   * 这里只透传给 wrapper)*/
+  sidebarAuto: SidebarAutoUserOptions
   slugify: (text: string) => string
 }
 

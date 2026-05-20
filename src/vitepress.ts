@@ -35,7 +35,11 @@ import { viteAllYouNeed } from './vite.js'
 import allYouNeedMarkdownIt from './markdown-it.js'
 import { resolveOptions } from './core/config-bridge.js'
 import { registerTagsInline } from './modules/tags/index.js'
-import { injectViewsSidebar } from './core/views/sidebar-inject.js'
+import { injectViewsSidebar, injectViewsNav } from './core/views/sidebar-inject.js'
+import { generateSidebar, generateNav } from './core/sidebar-auto/index.js'
+import { generateFolderIndexes } from './core/sidebar-auto/generate-folder-index.js'
+import { scanVault } from './core/vault/index.js'
+import { scanWikilinks, logDeadLinks } from './core/scan-wikilinks.js'
 
 export function defineConfigWithAllYouNeed(
   config: UserConfig,
@@ -112,13 +116,124 @@ export function defineConfigWithAllYouNeed(
     }
   }
 
-  // v0.2:自动注入视图条目到 sidebar
+  // v0.2/v0.3:自动注入视图条目 + sidebar 自动生成
   const themeConfig = (config.themeConfig ?? {}) as Record<string, unknown>
+
+  // v0.3:sidebar 自动生成
+  //   - mode='off'           不动
+  //   - mode='fill-if-empty' 仅当用户没提供 sidebar 时填(默认)
+  //   - mode='force'         覆盖
+  // 依赖 viteplugin.__getIndex(),但 index 在 Vite buildStart 才填好,所以这里
+  // 用懒解析:把 themeConfig.sidebar 设为一个 getter,首次访问时再扫
+  const sidebarAuto = resolvedForWrapper.sidebarAuto
+  const sidebarMode = sidebarAuto.mode ?? 'fill-if-empty'
+  if (sidebarMode !== 'off') {
+    const userProvided = themeConfig.sidebar !== undefined
+    const shouldFill = sidebarMode === 'force' || !userProvided
+    if (shouldFill) {
+      // 同步路径:scanVault 已在 Vite buildStart 跑过(若 dev/build);
+      // 但 defineConfigWithAllYouNeed 时 buildStart 还没到 —— 此时 index 为空。
+      // 解决:这里立即跑一次 scanVault(成本约 100ms,可接受),用结果生成 sidebar。
+      // Vite buildStart 时 viteplugin 会再扫一次,index 实例不同但内容一致。
+      try {
+        // v0.3:autoFolderIndex —— 在 scan 前给缺 index 的目录建一份 index.md。
+        // 支持三种模式:'off' / 'top-level'(默认) / 'all'。
+        // 兼容旧写法:true → 'top-level',false → 'off'。
+        const folderOpts = normalizeAutoFolderIndex(
+          sidebarAuto.autoFolderIndex,
+          sidebarAuto.stripNumericPrefix,
+        )
+        if (folderOpts.mode !== 'off') {
+          try {
+            generateFolderIndexes(resolvedForWrapper, folderOpts)
+          } catch (e) {
+            console.warn(
+              'vitepress-allyouneed: autoFolderIndex 生成失败,跳过。',
+              e instanceof Error ? e.message : String(e),
+            )
+          }
+        }
+        const index = scanVault(resolvedForWrapper)
+        // 启动时把所有死 wikilink 集中 warn 一次,免得只能 dev 打开每页才能看到
+        try {
+          const report = scanWikilinks(index, resolvedForWrapper)
+          logDeadLinks(report, resolvedForWrapper.deadLink)
+        } catch {
+          /* 不阻塞 */
+        }
+        // v0.3:i18n 支持 — 用户配了 themeConfig.locales(VitePress 原生 i18n),
+        // 对每个 non-root locale 自动用 includePrefix 生成对应 sidebar,
+        // root sidebar 用 excludePrefixes 排掉这些 locale 子树。
+        const localesObj = (config as { locales?: Record<string, { link?: string; themeConfig?: Record<string, unknown> }> }).locales
+        const localeKeys = localesObj
+          ? Object.keys(localesObj).filter((k) => k !== 'root')
+          : []
+
+        themeConfig.sidebar = generateSidebar(index, resolvedForWrapper, {
+          ...sidebarAuto,
+          excludePrefixes: [
+            ...(sidebarAuto.excludePrefixes ?? []),
+            ...localeKeys, // 根 sidebar 排除掉所有 locale 子树
+          ],
+        })
+
+        // 每个 non-root locale 各自生成 sidebar(在它自己的 themeConfig 里)
+        if (localesObj) {
+          for (const lang of localeKeys) {
+            const localeCfg = localesObj[lang]!
+            if (!localeCfg.themeConfig) localeCfg.themeConfig = {}
+            if (localeCfg.themeConfig.sidebar === undefined) {
+              localeCfg.themeConfig.sidebar = generateSidebar(
+                index,
+                resolvedForWrapper,
+                { ...sidebarAuto, includePrefix: lang },
+              )
+            }
+          }
+        }
+
+        // v0.3:autoNav 开启时,nav 没写就自动填(每个顶层目录一个 tab)
+        if (sidebarAuto.autoNav && themeConfig.nav === undefined) {
+          themeConfig.nav = generateNav(
+            index,
+            resolvedForWrapper,
+            sidebarAuto,
+          )
+        }
+      } catch (e) {
+        console.warn(
+          'vitepress-allyouneed: sidebar 自动生成失败,跳过。',
+          e instanceof Error ? e.message : String(e),
+        )
+      }
+    }
+  }
+
   if (resolvedForWrapper.modules.views) {
     themeConfig.sidebar = injectViewsSidebar(
       themeConfig.sidebar as Parameters<typeof injectViewsSidebar>[0],
       resolvedForWrapper,
     )
+    // v0.3:也可注入到 nav(views.injectInto: 'nav' | 'both')
+    themeConfig.nav = injectViewsNav(
+      themeConfig.nav as Parameters<typeof injectViewsNav>[0],
+      resolvedForWrapper,
+    )
+    // v0.3 i18n:每个 locale 的 themeConfig.nav 也注入(否则 i18n 下顶层 nav 被覆盖,
+    // 下拉就消失了)
+    const localesForNav = (config as { locales?: Record<string, { themeConfig?: { nav?: unknown } }> }).locales
+    if (localesForNav) {
+      for (const lang of Object.keys(localesForNav)) {
+        const lc = localesForNav[lang]!
+        if (!lc.themeConfig) continue
+        if (lc.themeConfig.nav !== undefined) {
+          lc.themeConfig.nav = injectViewsNav(
+            lc.themeConfig.nav as Parameters<typeof injectViewsNav>[0],
+            resolvedForWrapper,
+          )
+        }
+      }
+    }
   }
 
   return {
@@ -130,6 +245,57 @@ export function defineConfigWithAllYouNeed(
       config: newMarkdownConfig,
     },
   }
+}
+
+/**
+ * 把 sidebarAuto.autoFolderIndex(union 类型)归一化成 generateFolderIndexes
+ * 接受的对象形式。**默认 mode = 'top-level'**(用户没显式传时)。
+ */
+function normalizeAutoFolderIndex(
+  v: unknown,
+  globalStripNumericPrefix: boolean | undefined,
+): {
+  mode: 'off' | 'top-level' | 'all'
+  exclude?: string[]
+  stripNumericPrefix?: boolean
+  template?: import('./core/sidebar-auto/generate-folder-index.js').FolderIndexOptions['template']
+} {
+  let mode: 'off' | 'top-level' | 'all' = 'top-level'
+  let exclude: string[] | undefined
+  let strip: boolean | undefined = globalStripNumericPrefix
+  let template:
+    | import('./core/sidebar-auto/generate-folder-index.js').FolderIndexOptions['template']
+    | undefined
+
+  if (v === undefined || v === null) {
+    // 用默认 'top-level'
+  } else if (v === false || v === 'off') {
+    mode = 'off'
+  } else if (v === true || v === 'top-level') {
+    mode = 'top-level'
+  } else if (v === 'all') {
+    mode = 'all'
+  } else if (typeof v === 'object') {
+    const obj = v as {
+      mode?: 'off' | 'top-level' | 'all'
+      enabled?: boolean
+      exclude?: string[]
+      stripNumericPrefix?: boolean
+      template?: import('./core/sidebar-auto/generate-folder-index.js').FolderIndexOptions['template']
+    }
+    if (obj.mode) {
+      mode = obj.mode
+    } else if (obj.enabled === false) {
+      mode = 'off'
+    } else if (obj.enabled === true) {
+      mode = 'top-level'
+    }
+    exclude = obj.exclude
+    if (obj.stripNumericPrefix !== undefined) strip = obj.stripNumericPrefix
+    template = obj.template
+  }
+
+  return { mode, exclude, stripNumericPrefix: strip, template }
 }
 
 /**

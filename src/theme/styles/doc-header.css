@@ -1,0 +1,247 @@
+/*
+ * vitepress-allyouneed v0.3 — DocHeader 样式
+ *
+ * 设计目标:
+ *   - 横幅形式:宽,矮(220px),非"巨大方块"
+ *   - 圆角小(4px),贴合 VitePress 自身卡片风格
+ *   - 颜色走 --vp-c-* 变量,light/dark 自动适配
+ *   - Mode A(with-banner):cover 图 + 渐变遮罩 + 白字
+ *   - Mode B(no-banner):无背景,标题/meta/tag 走主题色普通排版
+ */
+
+/* ─ 容器 ─────────────────────────────────────────────────────────── */
+
+.ayn-doc-header {
+  position: relative;
+  margin: 0 0 1.5rem 0;
+  padding: 0;
+}
+
+/* Mode A: with-banner ───────────────────────────────────────────── */
+
+.ayn-doc-header--with-banner {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  /* 自适应:短标题 220px 横幅;长标题(2 行)自然撑高,上限 320px */
+  min-height: 220px;
+  max-height: 320px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: var(--vp-c-bg-mute);
+  border: 1px solid var(--vp-c-divider);
+}
+
+/* 背景图层 */
+.ayn-doc-banner-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+/* 渐变遮罩层 */
+.ayn-doc-banner-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* 内容容器 */
+.ayn-doc-header-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ayn-doc-header--with-banner .ayn-doc-header-inner {
+  color: rgba(255, 255, 255, 0.96);
+}
+.ayn-doc-header--with-banner.ayn-doc-header--text-dark .ayn-doc-header-inner {
+  color: var(--vp-c-text-1);
+}
+.ayn-doc-header--with-banner.ayn-doc-header--text-dark .ayn-doc-meta-line {
+  color: var(--vp-c-text-2);
+}
+.ayn-doc-header--with-banner.ayn-doc-header--text-dark .ayn-doc-tag {
+  color: var(--vp-c-text-1);
+  background-color: rgba(255, 255, 255, 0.7);
+  border-color: transparent;
+}
+.ayn-doc-header--with-banner.ayn-doc-header--text-dark .ayn-doc-tag:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  color: var(--vp-c-text-1);
+}
+
+/* Mode B: no-banner ─────────────────────────────────────────────── */
+
+.ayn-doc-header--no-banner .ayn-doc-header-inner {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 0.5rem 0;
+  gap: 0.55rem;
+  color: var(--vp-c-text-1);
+}
+
+.ayn-doc-header--no-banner .ayn-doc-banner-title {
+  color: var(--vp-c-text-1);
+  /* 没 banner 时字号更大,补偿背景视觉缺失 */
+  font-size: clamp(2.25rem, 5.5vw, 3.75rem);
+  line-height: 1.1;
+}
+
+.ayn-doc-header--no-banner .ayn-doc-meta-line {
+  color: var(--vp-c-text-2);
+}
+
+.ayn-doc-header--no-banner .ayn-doc-tag {
+  color: var(--vp-c-text-2);
+  background-color: var(--vp-c-bg-soft);
+  border-color: transparent;
+}
+.ayn-doc-header--no-banner .ayn-doc-tag:hover {
+  background-color: var(--vp-c-brand-soft, var(--vp-c-bg-mute));
+  color: var(--vp-c-brand-1, var(--vp-c-text-1));
+}
+
+/* ─ 公共:标题 / meta / tag ───────────────────────────────────── */
+
+.ayn-doc-banner-title {
+  /* 自适应字号:窄屏 32px → 宽屏 52px */
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  line-height: 1.12;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: inherit;
+
+  /* 长标题自适应:
+       - 短标题 → 一行,最大字号
+       - 长标题 → 自动换行,最多 2 行(超出 line-clamp 截断)
+       - text-wrap: balance → 两行长度尽量均衡(现代浏览器) */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-wrap: balance;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  /* 给 line-clamp 一点呼吸 padding,避免某些字体下尾行下沿被截 */
+  padding-bottom: 0.1em;
+}
+
+/* 标题下分割线 */
+.ayn-doc-title-divider {
+  height: 1px;
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.3);
+  margin: 0.2rem 0 0.1rem 0;
+}
+
+.ayn-doc-header--with-banner.ayn-doc-header--text-dark .ayn-doc-title-divider {
+  background-color: rgba(0, 0, 0, 0.18);
+}
+
+.ayn-doc-header--no-banner .ayn-doc-title-divider {
+  background-color: var(--vp-c-divider);
+  margin: 0.15rem 0 0.05rem 0;
+}
+
+.ayn-doc-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  margin: 0;
+  color: rgba(229, 231, 235, 0.85); /* Mode A 默认 */
+}
+
+.ayn-doc-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ayn-doc-meta-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.ayn-doc-meta-sep {
+  opacity: 0.5;
+  display: none;
+}
+@media (min-width: 640px) {
+  .ayn-doc-meta-sep {
+    display: inline;
+  }
+}
+
+/* Tag pills:VitePress 扁平化(无毛玻璃、无 icon、小圆角、纯色)*/
+.ayn-doc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.ayn-doc-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: var(--vp-font-family-mono, ui-monospace, monospace);
+  color: rgba(255, 255, 255, 0.92);
+  background-color: rgba(255, 255, 255, 0.16);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+.ayn-doc-tag:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  text-decoration: none;
+}
+
+/* 移动端 ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .ayn-doc-header--with-banner {
+    min-height: 170px;
+    max-height: 280px;
+    border-radius: 4px;
+  }
+  .ayn-doc-header--with-banner .ayn-doc-header-inner {
+    padding: 1rem 1rem 1rem 1rem;
+    gap: 0.4rem;
+  }
+  .ayn-doc-banner-title {
+    font-size: clamp(1.4rem, 5.5vw, 1.85rem);
+  }
+}
+
+/* H1 自动隐藏:DocHeader 已经渲染了大标题 ──────────────────────── */
+
+body.ayn-hide-doc-h1 .vp-doc > div > h1:first-child,
+body.ayn-hide-doc-h1 .vp-doc > h1:first-child {
+  display: none;
+}

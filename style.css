@@ -25,12 +25,15 @@
   border-bottom-style: solid;
 }
 
-/* 死链:解析失败 */
+/* 死链:解析失败 —— 视觉是链接、删除线、不可点(无 href) */
 .wikilink--dead {
   color: var(--vp-c-danger-1, #d97706);
   border-bottom-color: var(--vp-c-danger-1, #d97706);
   border-bottom-style: dotted;
-  cursor: help;
+  text-decoration: line-through;
+  text-decoration-color: var(--vp-c-danger-1, #d97706);
+  cursor: not-allowed;
+  opacity: 0.85;
 }
 
 .wikilink--dead::after {

@@ -146,6 +146,14 @@ export function resolveOptions(
         stats: viewsUser.names?.stats ?? 'stats',
         tags: viewsUser.names?.tags ?? 'tags',
       },
+      // 'injectInto' 优先(v0.3+);否则从老的 'sidebar' 字段推断;再否则默认 'nav'
+      injectInto:
+        viewsUser.injectInto ??
+        (viewsUser.sidebar === false
+          ? 'off'
+          : viewsUser.sidebar === 'auto'
+            ? 'sidebar'
+            : 'nav'),
       sidebar: viewsUser.sidebar ?? 'auto',
       sidebarText: {
         group: viewsUser.sidebarText?.group ?? 'Perspectives',
@@ -162,7 +170,14 @@ export function resolveOptions(
       wikilinks: modulesUser.wikilinks ?? true,
       embeds: modulesUser.embeds ?? true,
       views: modulesUser.views ?? true,
+      callouts: modulesUser.callouts ?? true,
+      highlight: modulesUser.highlight ?? true,
+      comments: modulesUser.comments ?? true,
+      footnotes: modulesUser.footnotes ?? true,
+      blockRefs: modulesUser.blockRefs ?? true,
     },
+
+    sidebarAuto: user.sidebarAuto ?? {},
 
     slugify,
   }

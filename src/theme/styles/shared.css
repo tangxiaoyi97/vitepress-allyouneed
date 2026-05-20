@@ -50,22 +50,121 @@
   color: var(--vp-c-danger-1, #d97706);
 }
 
+/* 全局 .ayn-tag —— 风格与 .ayn-doc-tag 保持一致(VitePress 扁平化:
+   4px 圆角,monospace,纯色背景,无边框) */
 .ayn-tag {
   display: inline-block;
-  padding: 0.05em 0.5em;
-  margin: 0 0.15em;
+  padding: 0.1em 0.5em;
+  margin: 0 0.1em;
   font-size: 0.85em;
-  font-family: var(--vp-font-family-mono, monospace);
-  color: var(--ayn-tag-text);
-  background-color: var(--ayn-tag-bg);
-  border: 1px solid var(--ayn-divider);
-  border-radius: 999px;
+  font-weight: 500;
+  font-family: var(--vp-font-family-mono, ui-monospace, monospace);
+  color: var(--vp-c-text-2);
+  background-color: var(--vp-c-bg-soft);
+  border: 1px solid transparent;
+  border-radius: 4px;
   text-decoration: none;
   transition: background-color 0.15s, color 0.15s;
 }
 
 .ayn-tag:hover {
-  background-color: var(--ayn-tag-hover-bg);
-  color: var(--ayn-tag-hover-text);
-  border-color: var(--ayn-tag-hover-bg);
+  background-color: var(--vp-c-brand-soft, var(--vp-c-bg-mute));
+  color: var(--vp-c-brand-1, var(--vp-c-text-1));
+  border-color: transparent;
+  text-decoration: none;
+}
+
+/* v0.3 — audio/video/pdf embed 默认样式 */
+.ayn-embed {
+  display: block;
+  margin: 1rem auto;
+  max-width: 100%;
+}
+.ayn-embed--audio {
+  width: 100%;
+}
+.ayn-embed--video {
+  border-radius: 6px;
+  background-color: #000;
+}
+.ayn-embed--pdf {
+  width: 100%;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+}
+
+/* v0.3 — Pandoc footnotes */
+.ayn-footnote-ref a {
+  text-decoration: none;
+  font-size: 0.85em;
+  padding: 0 0.15em;
+  color: var(--vp-c-brand-1);
+}
+.ayn-footnote-ref a:hover {
+  text-decoration: underline;
+}
+.ayn-footnotes {
+  margin-top: 3rem;
+  font-size: 0.9em;
+  color: var(--vp-c-text-2);
+}
+.ayn-footnotes hr {
+  border: none;
+  border-top: 1px solid var(--vp-c-divider);
+  margin-bottom: 1rem;
+}
+.ayn-footnotes-list {
+  padding-left: 1.5rem;
+}
+.ayn-footnote-item {
+  margin: 0.4em 0;
+}
+.ayn-footnote-backref {
+  text-decoration: none;
+  margin-left: 0.25em;
+  color: var(--vp-c-brand-1);
+  opacity: 0.6;
+  /* 强制非 emoji 字体,避免 ↑ 等箭头符号在某些系统被当 emoji 渲染 */
+  font-family: var(--vp-font-family-mono, ui-monospace, monospace);
+}
+.ayn-footnote-backref:hover {
+  opacity: 1;
+}
+
+/* v0.3 — block-ref 锚点(纯标识,不加视觉)*/
+.ayn-block-anchor {
+  scroll-margin-top: var(--vp-nav-height, 64px);
+}
+
+/* v0.3 — Obsidian 高亮 ==text== → <mark>;走 VitePress 黄底色 */
+.vp-doc mark {
+  background-color: var(
+    --ayn-mark-bg,
+    var(--vp-c-warning-soft, rgba(234, 179, 8, 0.25))
+  );
+  color: var(--ayn-mark-text, inherit);
+  padding: 0.05em 0.2em;
+  border-radius: 3px;
+}
+
+/* 高亮 + 数学公式组合优化:
+   - <mark> 内的 mathjax 容器去掉额外背景,避免双层底色
+   - 公式自带的 padding 调一致,避免和 mark 边距冲突
+   - 块公式(math_block,通常 display=block)放在 mark 里(罕见),
+     让 mark 不变成 inline 包裹                                  */
+.vp-doc mark mjx-container,
+.vp-doc mark .katex,
+.vp-doc mark .katex-display {
+  background: transparent !important;
+}
+.vp-doc mark mjx-container[display='true'],
+.vp-doc mark .katex-display {
+  margin: 0.25em 0;
+}
+
+/* 块公式 outside of mark:让 mathjax3 渲染的容器水平居中 */
+.vp-doc mjx-container[display='true'] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25em 0;
 }

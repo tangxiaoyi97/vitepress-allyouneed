@@ -32,6 +32,8 @@ export function resolveWikilink(
   index: VaultIndex,
   options: ResolvedOptions,
   kind: 'page' | 'transclusion' = 'page',
+  /** 写这个 wikilink 的源文件绝对路径(用于相对路径 fallback) */
+  currentSourcePath?: string,
 ): ResolveResult {
   // 1. 归一化:反斜杠 → 正斜杠、剥 markdown 扩展、trim
   let target = toPosix(rawTarget).trim()
@@ -46,7 +48,7 @@ export function resolveWikilink(
   target = stripMarkdownExt(target)
 
   // 3-4. 查 entry
-  const entry = lookupEntry(target, index, options)
+  const entry = lookupEntry(target, index, options, currentSourcePath)
 
   if (!entry) {
     return {
@@ -93,6 +95,7 @@ function lookupEntry(
   target: string,
   index: VaultIndex,
   options: ResolvedOptions,
+  currentSourcePath?: string,
 ): FileEntry | undefined {
   if (!target) return undefined
 
@@ -109,6 +112,30 @@ function lookupEntry(
     for (const v of variants) {
       const e = index.byRelativePath.get(v)
       if (e) return e
+    }
+    // Fallback:相对当前 source 文件目录(模仿 Obsidian 行为)
+    if (currentSourcePath) {
+      // currentSourcePath 是绝对路径,先转 vault 相对再拼
+      const srcDirAbs = index.srcDir
+      const rel = toPosix(currentSourcePath).startsWith(srcDirAbs + '/')
+        ? toPosix(currentSourcePath).slice(srcDirAbs.length + 1)
+        : ''
+      if (rel) {
+        const curDir = rel.split('/').slice(0, -1).join('/')
+        if (curDir) {
+          const relVariants = [
+            `${curDir}/${target}`,
+            `${curDir}/${target}.md`,
+            `${curDir}/${target}.markdown`,
+            `${curDir}/${target}/index.md`,
+            `${curDir}/${target}/index.markdown`,
+          ]
+          for (const v of relVariants) {
+            const e = index.byRelativePath.get(v)
+            if (e) return e
+          }
+        }
+      }
     }
     return undefined
   }

@@ -18,6 +18,7 @@ import {
 } from './render.js'
 import { handleImageEmbed } from '../embeds/image.js'
 import { handleTransclusion } from '../embeds/transclusion.js'
+import { classifyMediaExt, handleMediaEmbed } from '../embeds/media.js'
 
 /**
  * 构造 inline rule。
@@ -78,12 +79,16 @@ export function makeWikilinkRule(
     const aliasParts = parts.slice(1)
 
     if (isEmbed) {
-      // 判断是图片还是 transclusion
+      // 路由顺序:image → audio/video/pdf → transclusion(.md)
       const ext = extractExt(rawTarget)
       const isImage =
         ext && env.options.embeds.imageFileExt.includes(ext.toLowerCase())
       if (isImage) {
         return handleImageEmbed(state, rawTarget, aliasParts, env)
+      }
+      const mediaKind = ext ? classifyMediaExt(ext) : null
+      if (mediaKind) {
+        return handleMediaEmbed(state, mediaKind, rawTarget, aliasParts, env)
       }
       return handleTransclusion(state, rawTarget, aliasParts, env)
     }
@@ -116,7 +121,7 @@ function emitPageLink(
   const { index, options } = env
   const userAlias = aliasParts.length > 0 ? aliasParts.join('|').trim() : ''
   const processed = options.wikilinks.postProcessLinkTarget(rawTarget)
-  const result = resolveWikilink(processed, index, options, 'page')
+  const result = resolveWikilink(processed, index, options, 'page', env.currentPath)
 
   const label = userAlias
     ? options.wikilinks.postProcessLinkLabel(userAlias)

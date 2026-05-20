@@ -26,19 +26,23 @@ import DefaultTheme from 'vitepress/theme'
 import VaultGraph from './components/VaultGraph.vue'
 import VaultStats from './components/VaultStats.vue'
 import Tags from './components/Tags.vue'
+import Layout from './components/Layout.vue'
+import DocHeader from './components/DocHeader.vue'
 
 const theme: Theme = {
   extends: DefaultTheme,
+  Layout,
   enhanceApp({ app }) {
     app.component('VaultGraph', VaultGraph)
     app.component('VaultStats', VaultStats)
     app.component('Tags', Tags)
+    app.component('DocHeader', DocHeader)
   },
 }
 
 export default theme
 
-export { VaultGraph, VaultStats, Tags }
+export { VaultGraph, VaultStats, Tags, Layout, DocHeader }
 export { useVaultData } from './composables/useVaultData.js'
 export type {
   VaultData,

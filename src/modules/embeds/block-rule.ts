@@ -16,6 +16,12 @@ import type MarkdownIt from 'markdown-it'
 import type { AllYouNeedEnv } from '../../core/types.js'
 import { renderImageHtml } from './image.js'
 import { renderTransclusionHtml } from './transclusion.js'
+import {
+  classifyMediaExt,
+  renderAudioHtml,
+  renderVideoHtml,
+  renderPdfHtml,
+} from './media.js'
 
 const LINE_RE = /^!\[\[([^\n\]]+)\]\]\s*$/
 
@@ -54,10 +60,17 @@ function makeRule(md: MarkdownIt) {
     const ext = extractExt(rawTarget)
     const isImage =
       !!ext && env.options.embeds.imageFileExt.includes(ext.toLowerCase())
+    const mediaKind = ext ? classifyMediaExt(ext) : null
 
     let html: string
     if (isImage) {
       html = renderImageHtml(rawTarget, aliasParts, env)
+    } else if (mediaKind === 'audio') {
+      html = renderAudioHtml(rawTarget, aliasParts, env)
+    } else if (mediaKind === 'video') {
+      html = renderVideoHtml(rawTarget, aliasParts, env)
+    } else if (mediaKind === 'pdf') {
+      html = renderPdfHtml(rawTarget, aliasParts, env)
     } else {
       html = renderTransclusionHtml(md, rawTarget, aliasParts, env)
     }

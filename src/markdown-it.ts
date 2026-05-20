@@ -28,6 +28,11 @@ import {
   registerEmbedsOnly,
   registerEmbedBlockRule,
 } from './modules/embeds/index.js'
+import { registerCallouts } from './modules/callouts/index.js'
+import { registerHighlight } from './modules/highlight/index.js'
+import { registerComments } from './modules/comments/index.js'
+import { registerFootnotes } from './modules/footnotes/index.js'
+import { registerBlockRefs } from './modules/block-refs/index.js'
 
 /**
  * markdown-it 插件函数。
@@ -44,7 +49,15 @@ function allYouNeedMarkdownIt(
       ? options
       : resolveOptions(options as AllYouNeedOptions | undefined)
 
-  const { wikilinks: wlOn, embeds: emOn } = resolved.modules
+  const {
+    wikilinks: wlOn,
+    embeds: emOn,
+    callouts: coOn,
+    highlight: hlOn,
+    comments: cmOn,
+    footnotes: fnOn,
+    blockRefs: brOn,
+  } = resolved.modules
 
   if (wlOn && emOn) {
     registerWikilinks(md, 'both')
@@ -54,6 +67,31 @@ function allYouNeedMarkdownIt(
     // embeds 关掉时不注册 block rule
   } else if (emOn) {
     registerEmbedsOnly(md) // 内含 inline + block
+  }
+
+  // v0.3:Obsidian callouts(独立 core ruler,与 wikilinks/embeds 解耦)
+  if (coOn) {
+    registerCallouts(md)
+  }
+
+  // v0.3:`==text==` 高亮
+  if (hlOn) {
+    registerHighlight(md)
+  }
+
+  // v0.3:`%%comment%%` 注释(整段隐藏)
+  if (cmOn) {
+    registerComments(md)
+  }
+
+  // v0.3:Pandoc 风格 footnotes
+  if (fnOn) {
+    registerFootnotes(md)
+  }
+
+  // v0.3:block-ref `^id` 锚点(渲染层)
+  if (brOn) {
+    registerBlockRefs(md)
   }
 }
 

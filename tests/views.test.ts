@@ -105,7 +105,13 @@ describe('views — generate-data', () => {
 })
 
 describe('views — sidebar-inject', () => {
-  const opts = resolveOptions({ srcDir: VAULT, cleanUrls: true })
+  // v0.3:默认 injectInto: 'nav',不再污染 sidebar。
+  // 想测老的"末尾追加"行为,显式 views: { injectInto: 'sidebar' }
+  const opts = resolveOptions({
+    srcDir: VAULT,
+    cleanUrls: true,
+    views: { injectInto: 'sidebar' },
+  })
 
   it('array 形式 sidebar 末尾追加', () => {
     const sidebar = [{ text: 'Existing', link: '/x' }]
@@ -114,7 +120,7 @@ describe('views — sidebar-inject', () => {
     expect(r[r.length - 1]?.text).toBe('Perspectives')
   })
 
-  it('per-path object sidebar 每个 path 都追加', () => {
+  it('per-path object sidebar 每个 path 都追加(并附 _perspectives_ fallback)', () => {
     const sidebar = {
       '/guide/': [{ text: 'Guide', link: '/guide/' }],
       '/api/': [{ text: 'API', link: '/api/' }],
@@ -125,9 +131,11 @@ describe('views — sidebar-inject', () => {
     >
     expect(r['/guide/']?.length).toBe(2)
     expect(r['/api/']?.length).toBe(2)
+    // v0.3:额外有 /_perspectives_/ key 作为视图 URL 的 fallback sidebar
+    expect(r['/_perspectives_/']).toBeDefined()
   })
 
-  it('undefined sidebar 新建一个', () => {
+  it('undefined sidebar 新建一个(老兼容)', () => {
     const r = injectViewsSidebar(undefined, opts) as Array<{ text?: string }>
     expect(r.length).toBe(1)
     expect(r[0]?.text).toBe('Perspectives')

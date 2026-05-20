@@ -1,0 +1,220 @@
+/*
+ * vitepress-allyouneed v0.3 — Obsidian callouts CSS。
+ *
+ * 设计:
+ *   - 不用 border-left + border-radius 组合(避免左上左下不闭合的丑陋)
+ *     改成完整边框 + 顶部细色条
+ *   - 颜色全部走 --vp-c-* 变量,自动跟随 VitePress 主题
+ *   - 折叠 callout 用 <details>/<summary>,免 JS
+ *   - 13 种 type 各自一组 --ayn-callout-*-{bg,border,text,accent} 变量,
+ *     用户可在 :root 覆盖
+ */
+
+/*
+ * v0.3 callout 配色:
+ *   - 13 个 accent 用 hardcoded 高对比色作为**最终 fallback**,可被覆盖
+ *   - 不用不存在的 VitePress 内部变量(如 --vp-c-default-1 / --vp-c-purple-* )
+ *   - title 文字色由全局规则强制为 --vp-c-text-1(永远清晰),accent 只用在
+ *     左色条 + icon。这样无论用户主题如何,标题都看得清。
+ */
+:root {
+  --ayn-callout-note-accent:     #64748b;   /* slate-500 */
+  --ayn-callout-info-accent:     #3b82f6;   /* blue-500 */
+  --ayn-callout-tip-accent:      #10b981;   /* emerald-500 */
+  --ayn-callout-success-accent:  #16a34a;   /* green-600 */
+  --ayn-callout-question-accent: #8b5cf6;   /* violet-500 */
+  --ayn-callout-warning-accent:  #d97706;   /* amber-600 (light mode 对比够) */
+  --ayn-callout-failure-accent:  #ef4444;   /* red-500 */
+  --ayn-callout-danger-accent:   #dc2626;   /* red-600 */
+  --ayn-callout-bug-accent:      #f43f5e;   /* rose-500 */
+  --ayn-callout-example-accent:  #a855f7;   /* purple-500 */
+  --ayn-callout-quote-accent:    #64748b;   /* slate-500(同 note,中性)*/
+  --ayn-callout-abstract-accent: #06b6d4;   /* cyan-500 */
+  --ayn-callout-todo-accent:     #3b82f6;   /* blue-500 */
+}
+
+/* 暗色模式下亮一档,保证 dark theme 上色条/icon 不暗淡 */
+.dark {
+  --ayn-callout-note-accent:     #94a3b8;
+  --ayn-callout-info-accent:     #60a5fa;
+  --ayn-callout-tip-accent:      #34d399;
+  --ayn-callout-success-accent:  #4ade80;
+  --ayn-callout-question-accent: #a78bfa;
+  --ayn-callout-warning-accent:  #fbbf24;
+  --ayn-callout-failure-accent:  #f87171;
+  --ayn-callout-danger-accent:   #f87171;
+  --ayn-callout-bug-accent:      #fb7185;
+  --ayn-callout-example-accent:  #c084fc;
+  --ayn-callout-quote-accent:    #94a3b8;
+  --ayn-callout-abstract-accent: #22d3ee;
+  --ayn-callout-todo-accent:     #60a5fa;
+}
+
+/* ── 基础容器 ──────────────────────────────────────────────── */
+/* 设计:细边框 + 左侧 3px 彩色强调线(伪元素,不影响圆角)+ 极轻底色
+ *   - 不再 box-shadow 顶部色条
+ *   - 不用 border-left + radius(避免左上左下不闭合的丑陋)
+ *   - 底色用 --vp-c-bg-soft(中性灰)而非 type 染色,视觉不抢戏        */
+
+.callout {
+  position: relative;
+  margin: 1rem 0;
+  padding: 0 0 0 0.85rem;        /* 给左侧色条让位 */
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  background-color: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  overflow: hidden;
+}
+
+/* 左侧 3px 彩色强调线(伪元素,默认值 by type-scoped 规则覆盖) */
+.callout::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: var(--vp-c-divider);
+  pointer-events: none;
+}
+
+.callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  /* 强制主文本色 —— 标题始终清晰可读,不被 accent 染淡。
+     accent 只用在 ::before 左色条 + .callout-icon */
+  color: var(--vp-c-text-1) !important;
+  background-color: transparent;
+  line-height: 1.4;
+  user-select: none;
+}
+
+.callout-icon {
+  flex-shrink: 0;
+  width: 1.1em;
+  height: 1.1em;
+  /* icon 用 accent;type-scoped 规则给每种 type 设具体值 */
+  color: var(--vp-c-text-2);
+}
+
+.callout-title-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.callout-content {
+  padding: 0.25rem 1rem 0.75rem 1rem;
+  color: var(--vp-c-text-1);
+}
+
+/* 内部首段去掉 margin-top,末段去掉 margin-bottom,避免上下空隙不齐 */
+.callout-content > :first-child {
+  margin-top: 0;
+}
+.callout-content > :last-child {
+  margin-bottom: 0;
+}
+
+/* 嵌套 callout 收紧间距 */
+.callout .callout {
+  margin: 0.5rem 0;
+}
+
+/* ── 折叠 (details/summary) ─────────────────────────────────── */
+
+details.callout--foldable > summary.callout-title {
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Safari/Chrome 默认 marker */
+details.callout--foldable > summary.callout-title::-webkit-details-marker {
+  display: none;
+}
+details.callout--foldable > summary.callout-title::marker {
+  content: '';
+}
+
+/* 折叠箭头(纯 CSS),放在末尾 */
+details.callout--foldable > summary.callout-title::after {
+  content: '';
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+  opacity: 0.6;
+  margin-left: auto;
+}
+
+details.callout--foldable[open] > summary.callout-title::after {
+  transform: rotate(45deg);
+}
+
+/* ── 每种 type 的色系 ────────────────────────────────────────── */
+
+/* note:左色条 + accent 标题色;不染整体底色 */
+.callout--note::before { background-color: var(--ayn-callout-note-accent); }
+.callout--note .callout-icon  { color: var(--ayn-callout-note-accent); }
+
+/* info:左色条 + accent 标题色;不染整体底色 */
+.callout--info::before { background-color: var(--ayn-callout-info-accent); }
+.callout--info .callout-icon  { color: var(--ayn-callout-info-accent); }
+
+/* tip:左色条 + accent 标题色;不染整体底色 */
+.callout--tip::before { background-color: var(--ayn-callout-tip-accent); }
+.callout--tip .callout-icon  { color: var(--ayn-callout-tip-accent); }
+
+/* success:左色条 + accent 标题色;不染整体底色 */
+.callout--success::before { background-color: var(--ayn-callout-success-accent); }
+.callout--success .callout-icon  { color: var(--ayn-callout-success-accent); }
+
+/* question:左色条 + accent 标题色;不染整体底色 */
+.callout--question::before { background-color: var(--ayn-callout-question-accent); }
+.callout--question .callout-icon  { color: var(--ayn-callout-question-accent); }
+
+/* warning:左色条 + accent 标题色;不染整体底色 */
+.callout--warning::before { background-color: var(--ayn-callout-warning-accent); }
+.callout--warning .callout-icon  { color: var(--ayn-callout-warning-accent); }
+
+/* failure:左色条 + accent 标题色;不染整体底色 */
+.callout--failure::before { background-color: var(--ayn-callout-failure-accent); }
+.callout--failure .callout-icon  { color: var(--ayn-callout-failure-accent); }
+
+/* danger:左色条 + accent 标题色;不染整体底色 */
+.callout--danger::before { background-color: var(--ayn-callout-danger-accent); }
+.callout--danger .callout-icon  { color: var(--ayn-callout-danger-accent); }
+
+/* bug:左色条 + accent 标题色;不染整体底色 */
+.callout--bug::before { background-color: var(--ayn-callout-bug-accent); }
+.callout--bug .callout-icon  { color: var(--ayn-callout-bug-accent); }
+
+/* example:左色条 + accent 标题色;不染整体底色 */
+.callout--example::before { background-color: var(--ayn-callout-example-accent); }
+.callout--example .callout-icon  { color: var(--ayn-callout-example-accent); }
+
+/* quote:左色条 + accent 标题色;不染整体底色 */
+.callout--quote::before { background-color: var(--ayn-callout-quote-accent); }
+.callout--quote .callout-icon  { color: var(--ayn-callout-quote-accent); }
+
+/* abstract:左色条 + accent 标题色;不染整体底色 */
+.callout--abstract::before { background-color: var(--ayn-callout-abstract-accent); }
+.callout--abstract .callout-icon  { color: var(--ayn-callout-abstract-accent); }
+
+/* todo:左色条 + accent 标题色;不染整体底色 */
+.callout--todo::before { background-color: var(--ayn-callout-todo-accent); }
+.callout--todo .callout-icon  { color: var(--ayn-callout-todo-accent); }
+
+/* ── .vp-doc 内部细节 ─────────────────────────────────────── */
+/* VitePress 给 blockquote 加了 border-left;callout 已接管渲染不会变 blockquote,
+   不必再清。这里**不要**清 .callout 的 padding —— 左 padding 给左色条让位,
+   清了会让 ::before 遮住文字。 */
+.vp-doc .callout-content > p {
+  line-height: 1.65;
+}

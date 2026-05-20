@@ -50,8 +50,11 @@ export function renderPageLink(
 }
 
 /**
- * 渲染死链:href 还是用原 raw 编码后的值,加 wikilink--dead class,
- * label 仍是 user-supplied 或 fallback,不抛错。
+ * 渲染死链:**不输出 href**,避免点击跳转到不存在的页面误导用户。
+ * 用 <a class="wikilink wikilink--dead"> 不带 href → 视觉是链接、CSS 标红删除线、
+ * 鼠标 cursor: not-allowed 提示;**不可点**。
+ *
+ * 仍把 raw target 写到 data-attr 上方便用户自查;title 是 hover 提示。
  */
 export function renderDeadLink(
   state: StateInline,
@@ -62,7 +65,7 @@ export function renderDeadLink(
 ): boolean {
   const open = state.push('link_open', 'a', 1)
   const baseAttrs: Record<string, string> = {
-    href: url,
+    // ⚠ 不写 href:点击不会跳转
     class: 'wikilink wikilink--dead',
     'data-wikilink-target': rawTarget,
     title: `死链:找不到 [[${rawTarget}]]`,
