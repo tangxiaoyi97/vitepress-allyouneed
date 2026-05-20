@@ -2,6 +2,10 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0-beta.2] - 2026-05-20
+### Fixed
+- **build-mode base 双重 prefix bug**:`
+
 ## [0.3.0-beta.1] - 2026-05-20
 
 ### Fixed

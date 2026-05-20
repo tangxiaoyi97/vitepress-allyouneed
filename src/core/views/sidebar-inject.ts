@@ -50,15 +50,19 @@ export function injectViewsSidebar(
         }
       }
     }
-    // _perspectives_/ 自身的 fallback sidebar(无论哪种 injectInto 都加)
-    const base = options.base.endsWith('/') ? options.base : options.base + '/'
+    // _perspectives_/ 自身的 fallback sidebar(无论哪种 injectInto 都加)。
+    // **key 不带 base**(VitePress sidebar 用 site-root 相对前缀做 URL 匹配)
     const prefix = options.views.urlPrefix
       ? options.views.urlPrefix.replace(/^\/+|\/+$/g, '')
       : ''
     if (prefix) {
-      const persPath = `${base}${prefix}/`
+      const persPath = `/${prefix}/`
       if (!sidebar[persPath]) {
-        sidebar[persPath] = buildPerspectivesFallbackSidebar(sidebar, group, base)
+        sidebar[persPath] = buildPerspectivesFallbackSidebar(
+          sidebar,
+          group,
+          options.base.endsWith('/') ? options.base : options.base + '/',
+        )
       }
     }
     return sidebar
@@ -79,16 +83,19 @@ function buildPerspectivesFallbackSidebar(
   group: SidebarItem,
   base: string,
 ): SidebarItem[] {
-  const out: SidebarItem[] = [{ text: 'Home', link: base }]
+  // link 都 strip base(VitePress 会自动 prepend)
+  const out: SidebarItem[] = [{ text: 'Home', link: '/' }]
   const topPaths = Object.keys(allSidebars).filter(
     (p) => p !== base && !p.endsWith('/_perspectives_/'),
   )
   for (const p of topPaths) {
-    // text 用 path **最后一段**的 humanize(Title Case),保证显示 Guide/Tour/Test
     const seg =
       p.replace(/^\/|\/$/g, '').split('/').filter(Boolean).pop() ?? p
     const text = seg.charAt(0).toUpperCase() + seg.slice(1)
-    out.push({ text, link: p })
+    // p 形如 '/vitepress-allyouneed/guide/' → strip base 后 '/guide/'
+    const b = base.endsWith('/') ? base : base + '/'
+    const stripped = b !== '/' && p.startsWith(b) ? '/' + p.slice(b.length) : p
+    out.push({ text, link: stripped })
   }
   out.push(group)
   return out
@@ -96,29 +103,18 @@ function buildPerspectivesFallbackSidebar(
 
 function buildViewsGroup(options: ResolvedOptions): SidebarItem | null {
   const { enabled, names, sidebarText, urlPrefix } = options.views
-  const base = options.base.endsWith('/')
-    ? options.base.slice(0, -1)
-    : options.base
-  // 视图的 URL 段:`<base>/<prefix>/<name>`(prefix 为空时退化为 `<base>/<name>`)
+  // ⚠ link **不带 base** —— VitePress sidebar/nav 约定:配置里 link 用 site-root
+  // 相对路径,渲染时 VitePress 自动 prepend base。带了会双重 prefix 404(build 后)。
   const prefixSeg = urlPrefix ? `/${urlPrefix}` : ''
   const items: SidebarItem[] = []
   if (enabled.graph) {
-    items.push({
-      text: sidebarText.graph,
-      link: `${base}${prefixSeg}/${names.graph}`,
-    })
+    items.push({ text: sidebarText.graph, link: `${prefixSeg}/${names.graph}` })
   }
   if (enabled.stats) {
-    items.push({
-      text: sidebarText.stats,
-      link: `${base}${prefixSeg}/${names.stats}`,
-    })
+    items.push({ text: sidebarText.stats, link: `${prefixSeg}/${names.stats}` })
   }
   if (enabled.tags) {
-    items.push({
-      text: sidebarText.tags,
-      link: `${base}${prefixSeg}/${names.tags}`,
-    })
+    items.push({ text: sidebarText.tags, link: `${prefixSeg}/${names.tags}` })
   }
   if (items.length === 0) return null
   return {

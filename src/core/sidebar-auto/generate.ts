@@ -131,13 +131,43 @@ export function generateSidebar(
 
   // 3. 根据 mode 输出
   const layout = autoOptions.layout ?? 'tree'
+  let result: SidebarItem[] | Record<string, SidebarItem[]>
   if (layout === 'per-folder') {
-    return toPerFolderSidebar(root, opts, options, index)
+    result = toPerFolderSidebar(root, opts, options, index)
+  } else if (layout === 'flat') {
+    result = toFlatSidebar(root, opts)
+  } else {
+    result = toTreeSidebar(root, opts, index, options)
   }
-  if (layout === 'flat') {
-    return toFlatSidebar(root, opts)
+  // 4. **关键**:strip 掉 link 里的 base prefix。
+  //    VitePress sidebar/nav 配置约定:link 不带 base,VitePress 渲染时自己 prepend。
+  //    我们 entry.url 已经含 base(为了让 wikilink <a href> 直接可用),
+  //    sidebar 出口必须 strip,否则 build 后 (base !== '/') 会双重 prefix → 404。
+  stripBaseFromConfig(result, options.base)
+  return result
+}
+
+/** strip base prefix from all link fields, recursively */
+function stripBaseFromConfig(
+  cfg: SidebarItem[] | Record<string, SidebarItem[]>,
+  base: string,
+): void {
+  if (Array.isArray(cfg)) {
+    stripBaseFromItems(cfg, base)
+  } else {
+    for (const k of Object.keys(cfg)) {
+      stripBaseFromItems(cfg[k]!, base)
+    }
   }
-  return toTreeSidebar(root, opts, index, options)
+}
+function stripBaseFromItems(items: SidebarItem[], base: string): void {
+  const b = base.endsWith('/') ? base : base + '/'
+  for (const it of items) {
+    if (it.link && b !== '/' && it.link.startsWith(b)) {
+      it.link = '/' + it.link.slice(b.length)
+    }
+    if (it.items) stripBaseFromItems(it.items, base)
+  }
 }
 
 // ── 建 tree ─────────────────────────────────────────────────────
@@ -423,12 +453,12 @@ function toPerFolderSidebar(
   options: ResolvedOptions,
   index: VaultIndex,
 ): Record<string, SidebarItem[]> {
-  const out: Record<string, SidebarItem[]> = {}
-  const base = options.base.endsWith('/') ? options.base : options.base + '/'
+  // ⚠ Record 的 **key**(VitePress 用来匹配 URL 前缀)和**每个 item 的 link**
+  //   都用**不带 base 的形式**。VitePress 内部用 currentPath(已 strip base)
+  //   做匹配,且会自动给 link prepend base。带 base 会双重 prefix。
 
-  // 根 sidebar:根直接文件 + 每个顶层 dir 的一键入口(扁平链接,不嵌套子项)
-  // 这样用户在 / 浏览时,sidebar 像个目录导航,点任一进入对应区域(那时 URL
-  // 前缀切换,会换到该区域的完整 sidebar)
+  const out: Record<string, SidebarItem[]> = {}
+
   const rootItems: SidebarItem[] = []
   const sortedRootFiles = [...root.files].sort((a, b) => compareEntries(a, b, opts))
   for (const f of sortedRootFiles) {
@@ -440,29 +470,19 @@ function toPerFolderSidebar(
     if (child.files.length === 0 && child.children.size === 0 && !child.dirIndex) {
       continue
     }
-    // 根 sidebar 的"目录入口" link 选取顺序:
-    //   1. dirIndex 存在且非空 → dirIndex.url
-    //   2. 否则递归找子树第一个 page 当 fallback(用户没写 index 时也能点)
-    //   3. 都没有 → /dir/(VitePress 看 cleanUrls fallback)
-    // groupLink !== 'off' 才加 link;'off' 仍然纯文字。
     const labelText = computeGroupText(child.path, child.dirIndex, opts)
     if (shouldLinkGroup(opts, /* isTopLevel */ true)) {
       const firstUrl =
         child.dirIndex && !child.dirIndexEmpty
           ? child.dirIndex.url
-          : findFirstPageUrl(child, opts) ?? `${base}${key}/`
+          : findFirstPageUrl(child, opts) ?? `/${key}/`
       rootItems.push({ text: labelText, link: firstUrl })
     } else {
       rootItems.push({ text: labelText })
     }
   }
-  if (rootItems.length > 0) out[base] = rootItems
+  if (rootItems.length > 0) out['/'] = rootItems   // 根 key 用 '/'
 
-  // 每个顶层 dir → 独立 entry。
-  // **关键修复**:**不**把它包成 single group(VitePress 会渲染成不可折叠的
-  // level-0 section header);而是直接展开成 sibling items。这样里面的子组
-  // 都正常 level-0,可以正常 toggle。
-  // 如果 dirIndex 存在且 groupLink 允许,顶部加一个"返回本区首页"link 项。
   for (const key of topKeys) {
     const child = root.children.get(key)!
     const items = renderNode(child, opts, /* depth */ 1, /* isRoot */ false, index, options)
@@ -481,7 +501,7 @@ function toPerFolderSidebar(
     }
     sidebar.push(...items)
 
-    out[`${base}${key}/`] = sidebar
+    out[`/${key}/`] = sidebar    // key 不带 base
   }
   return out
 }
@@ -506,7 +526,8 @@ export function generateNav(
   const root = buildTree(visible)
 
   const base = options.base.endsWith('/') ? options.base : options.base + '/'
-  const out: NavItem[] = [{ text: opts.homeNavText, link: base }]
+  // nav link 不带 base(VitePress 渲染时自动 prepend);activeMatch 是正则,**也不带** base
+  const out: NavItem[] = [{ text: opts.homeNavText, link: '/' }]
 
   const topKeys = [...root.children.keys()].sort()
   for (const key of topKeys) {
@@ -515,16 +536,24 @@ export function generateNav(
       continue
     }
     const text = computeGroupText(child.path, child.dirIndex, opts)
-    const link = child.dirIndex?.url ?? `${base}${key}/`
-    // activeMatch:URL 在该子树下都高亮(escape `.` 等正则字符)
-    const escapedPrefix = `${base}${key}/`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    out.push({
-      text,
-      link,
-      activeMatch: '^' + escapedPrefix,
-    })
+    // 链接:dirIndex.url 已含 base,strip 掉;或 /<key>/(不带 base)
+    let link: string
+    if (child.dirIndex) {
+      link = stripBase(child.dirIndex.url, base)
+    } else {
+      link = `/${key}/`
+    }
+    // activeMatch 工作在 currentPath(VitePress 在 client 上已经去掉 base 的 URL)
+    const escapedPrefix = `/${key}/`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    out.push({ text, link, activeMatch: '^' + escapedPrefix })
   }
   return out
+}
+
+function stripBase(url: string, base: string): string {
+  const b = base.endsWith('/') ? base : base + '/'
+  if (b === '/' || !url.startsWith(b)) return url
+  return '/' + url.slice(b.length)
 }
 
 // ── helpers ───────────────────────────────────────────────────────
