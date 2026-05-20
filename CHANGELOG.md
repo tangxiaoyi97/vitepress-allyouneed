@@ -14,7 +14,10 @@
   - 自动生成的 nav tab:无 dirIndex 时,tab 链到第一个文件(不再 silently skip);
   - 用户手写的 `[[folder/]]` wikilink:同样兜底到第一个文件,label 用文件夹名(不用 first file 的 basename)。
   设为 `'none'` 退回老行为(无 link / 死链)。最常见用法:`autoFolderIndex: 'off'` + `folderLinkFallback: 'first-file'`,完全不在 vault 写 `index.md` 也能从导航走通。
-  > **注意**:**空 frontmatter-only dirIndex** 仍然是用户显式 opt-out 信号(读 frontmatter 中的 `sidebarTitle` / `sidebarCollapsed`,但 group 无 link)。这种文件**不会**触发 first-file 兜底 —— 兜底只在**完全没有** dirIndex 文件时生效。
+  > **注意 sidebar vs nav 的差异**:
+  > - **Sidebar group**:**空 frontmatter-only dirIndex** 是用户显式 opt-out 信号(读 frontmatter 中的 `sidebarTitle` / `sidebarCollapsed`,但 group **无 link**,只展开/折叠)。这种文件**不会**触发 first-file 兜底 —— 兜底只在**完全没有** dirIndex 文件时生效。
+  > - **Nav tab**:nav tab 没"展开/折叠"状态,空 dirIndex 不兜底就成了点不动的死 tab。所以 nav 一视同仁:空或无 dirIndex **都**走 first-file 兜底(若 `folderLinkFallback === 'first-file'`);兜底也找不到才 skip。
+  > - **`[[folder/]]` wikilink**:用户写 `[[folder/]]` 时本就期望"跳转",和 nav 同语义 —— 空 dirIndex 兜底到第一个文件。
 - **`resolveWikilink` 加同名 dirIndex 路径变体** —— `[[Themen/]]` 现在会查 `Themen/Themen.md` 当作索引(对应 `pickDirIndexes` 同名优先策略)。
 - **`[[folder/]]` 写法支持完整化**:之前 `[[Themen/]]` 由于 `target + '/index.md'` 拼出 `Themen//index.md` 双斜杠 bug,实际是死链。现在 normalize 时剥尾 `/` 并强制走 path-style 分支,变体查找正确。
 

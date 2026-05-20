@@ -578,18 +578,21 @@ export function generateNav(
     const text = computeGroupText(child.path, child.dirIndex, opts)
     // 链接选取(dirIndex.url 在 v0.3+ 已经不带 base,直接用即可):
     //   1. 非空 dirIndex → dirIndex.url
-    //   2. **完全无** dirIndex + folderLinkFallback === 'first-file' → 第一个 page
-    //   3. 都没有(包括空 dirIndex 的 opt-out 场景)→ **跳过这个 tab**
-    //      (nav tab 必须可点,否则点不动反而困惑;不像 sidebar 里没 link 还能展开/折叠)
+    //   2. 空 dirIndex 或无 dirIndex + folderLinkFallback === 'first-file'
+    //      → 找第一个 page。⚠ 与 sidebar group 不同:nav tab 没"只展开折叠"
+    //      的状态,空 dirIndex(opt-out)若不兜底就是死路(tab 点不动),没意义。
+    //      所以这里把"空"和"无"一视同仁,都尝试 fallback。
+    //      用户若**真的**不想要 tab,应改 nav 配置(或 groupLink: 'off')。
+    //   3. fallback 也找不到 → 跳过 tab。
     let link: string
     if (child.dirIndex && !child.dirIndexEmpty) {
       link = stripBase(child.dirIndex.url, base)
-    } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
+    } else if (opts.folderLinkFallback === 'first-file') {
       const first = findFirstPageUrl(child, opts)
       if (!first) continue // skip whole tab
       link = first
     } else {
-      // 空 dirIndex(opt-out)或 folderLinkFallback === 'none' → 跳过 tab
+      // folderLinkFallback === 'none' → 跳过 tab(老 v0.3.1 行为)
       continue
     }
     const escapedPrefix = `/${key}/`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
