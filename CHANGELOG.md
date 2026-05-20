@@ -2,9 +2,20 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [0.3.0-beta.2] - 2026-05-20
-### Fixed
-- **build-mode base 双重 prefix bug**:`
+## [0.3.0] - 2026-05-20
+
+正式版。汇集 v0.3 全部新功能(Obsidian 语法 6 模块、sidebar 自动生成全套、DocHeader banner、i18n 集成、`_sidebar.md` 覆盖等),并修两个 deploy 关键 bug。
+
+### Fixed(0.3.0-beta.0 → 0.3.0)
+- **build-mode base 双重 prefix → 404**:`entry.url` 之前**包含 base**(`/<base>/foo`),VitePress render 时**再** prepend base → `/<base>/<base>/foo` → GitHub Pages 等子路径部署全部 404。现 `computeUrl` 始终输出**不带 base 的 site-root 相对 URL**(`/foo`),VitePress 统一 prepend。影响 wikilink `<a href>`、sidebar/nav link、per-folder Record key、`_perspectives_/` fallback 等所有内部 URL。
+- **i18n nav 注入丢失**:VitePress i18n 下 `themeConfig.locales[lang].themeConfig.nav` 覆盖顶层 nav,Perspectives 下拉在 EN locale 消失。wrapper 现在给**所有 locale 的 nav** 都注入。
+- **跨 locale nav 链接 404**:EN locale 写 `link: '/test/'` 被解释为 locale-relative `/en/test/`。example 配置已修正(EN nav 只列已翻译 page)。
+- **Perspectives 视图页 sidebar 显示扁平 fallback 列表**(用户反馈不够有用)→ 视图页自动 frontmatter `sidebar: false`,只剩中间 graph/stats/tags 组件全屏展示。
+
+### Added(0.3.0-beta.0 → 0.3.0)
+- 11 篇 EN 翻译文档(`en/guide/{overview, docs×6, advanced×4}`)
+- VitePress 原生 i18n 集成:wrapper 自动识别 `themeConfig.locales`,给每个 non-root locale 用 `includePrefix` 生成独立 sidebar
+- `sidebarAuto.includePrefix` / `excludePrefixes` 公开选项
 
 ## [0.3.0-beta.1] - 2026-05-20
 

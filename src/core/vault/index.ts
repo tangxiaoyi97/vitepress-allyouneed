@@ -252,8 +252,8 @@ function computeUrl(rel: string, options: ResolvedOptions): string {
   // 路径段切片,各段 buildUrl 时再编码
   const segments = pathPart.split('/').filter(Boolean)
   if (segments.length === 0) {
-    // 根 index.md
-    return options.base
+    // 根 index.md —— **不带 base**(VitePress 会自动 prepend)
+    return '/'
   }
 
   // 应用 cleanUrls(若 false,末尾加 .html)
@@ -261,11 +261,13 @@ function computeUrl(rel: string, options: ResolvedOptions): string {
   if (!isIndex) {
     segments[segments.length - 1] = applyCleanUrls(last, options.cleanUrls)
   } else if (!options.cleanUrls) {
-    // isIndex 且非 cleanUrls,URL 是 /dir/index.html
     segments.push('index.html')
   }
 
-  return buildUrl(options.base, segments)
+  // ⚠ 关键:始终不带 base(用 '/' 做 site-root 相对 URL)。
+  // VitePress 在 render 阶段对所有 sidebar/nav link + markdown link 自动
+  // prepend base —— 带了会双重 prefix(GitHub Pages 等子路径部署 404)。
+  return buildUrl('/', segments)
 }
 
 /** Map<K, V[]> push 工具 */

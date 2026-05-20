@@ -1,6 +1,7 @@
 ---
 title: Tags
 layout: doc
+sidebar: false
 aside: false
 outline: false
 ---

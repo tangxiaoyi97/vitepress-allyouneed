@@ -119,10 +119,12 @@ function buildViewList(options: ResolvedOptions): ViewTemplate[] {
 function renderTemplate(v: ViewTemplate): string {
   // 关键:frontmatter `---` 必须是文件**第一行**,否则 VitePress / gray-matter
   // 不识别。sentinel HTML 注释放到 frontmatter 之后。
+  // 视图页全屏展示 — sidebar/aside/outline 都隐藏,只剩中间 graph/stats/tags 组件
   return [
     '---',
     `title: ${v.title}`,
     'layout: doc',
+    'sidebar: false',
     'aside: false',
     'outline: false',
     '---',
