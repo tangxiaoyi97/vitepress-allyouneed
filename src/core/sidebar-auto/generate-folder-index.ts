@@ -86,11 +86,13 @@ export function generateFolderIndexes(
   const exclude = folderOpts.exclude ?? []
   const template = folderOpts.template ?? defaultTemplate
 
-  const dirsToProcess = collectDirs(srcDir, srcDir, viewsPrefix, exclude, mode)
+  // 收集要处理的目录;0.3.2:把 srcDir 根**也加进去**,
+  // 避免用户没写 index.md 时 / 直接 404
+  const dirsToProcess = [srcDir, ...collectDirs(srcDir, srcDir, viewsPrefix, exclude, mode)]
 
   for (const dirAbs of dirsToProcess) {
     const dirRel = nodePath.relative(srcDir, dirAbs).split(nodePath.sep).join('/')
-    if (dirRel === '') continue // 不生成根 index
+    // 0.3.2:**根目录也生成**(模板会用 srcDir name 当标题)
 
     const entries = safeReaddir(dirAbs)
     if (entries.length === 0) continue
@@ -177,11 +179,15 @@ export function generateFolderIndexes(
     files.sort((a, b) => a.title.localeCompare(b.title))
     subDirs.sort((a, b) => a.title.localeCompare(b.title))
 
-    const lastSeg = dirRel.split('/').pop() ?? ''
+    // 根目录(dirRel === '')用 srcDir basename 当 title;否则用最后一段
+    const lastSeg =
+      dirRel === ''
+        ? nodePath.basename(srcDir)
+        : dirRel.split('/').pop() ?? ''
     const ctx: TemplateContext = {
       dirAbsPath: dirAbs,
       dirRelPath: dirRel,
-      title: humanize(lastSeg, strip),
+      title: humanize(lastSeg, strip) || 'Home',
       files,
       subDirs,
     }

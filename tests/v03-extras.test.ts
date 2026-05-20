@@ -163,7 +163,10 @@ describe('generateFolderIndexes 三模式', () => {
     write(nodePath.join(tmp2, 'c', 'c.md'), '---\nsidebarTitle: C Custom\n---\n')
     const opts = resolveOptions({ srcDir: tmp2, cleanUrls: true })
     const r = generateFolderIndexes(opts, { mode: 'top-level' })
-    expect(r.written.length).toBe(0)
+    // 0.3.2 起根目录也会被生成(根没 dirIndex,但有 c/ 子目录)
+    const writtenRels = r.written.map((p) => nodePath.relative(tmp2, p))
+    expect(writtenRels).toEqual(['index.md']) // 只根 index 被生成
+    // c/ 因为有用户空 dirIndex c.md → 跳过
     expect(r.skipped.some((s) => s.reason.includes('c.md'))).toBe(true)
     fs.rmSync(tmp2, { recursive: true, force: true })
   })
