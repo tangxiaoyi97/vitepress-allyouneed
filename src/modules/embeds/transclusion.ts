@@ -34,7 +34,14 @@ export function renderTransclusionHtml(
   env: AllYouNeedEnv,
 ): string {
   const { index, options } = env
-  const result = resolveWikilink(rawTarget, index, options, 'transclusion')
+  // v0.3.4:传 currentPath,支持 Obsidian "相对当前文件" 路径模式
+  const result = resolveWikilink(
+    rawTarget,
+    index,
+    options,
+    'transclusion',
+    env.currentPath,
+  )
 
   if (result.isDead || !result.target) {
     return `<div class="transclusion transclusion--dead" data-target="${escapeHtml(
@@ -159,7 +166,8 @@ export function handleTransclusion(
     )
   }
   const { index, options } = env
-  const result = resolveWikilink(rawTarget, index, options, 'page')
+  // v0.3.4:同样传 currentPath
+  const result = resolveWikilink(rawTarget, index, options, 'page', env.currentPath)
   const url = result.url
   const label = aliasParts.length
     ? aliasParts.join('|').trim()

@@ -2,6 +2,29 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.4] - 2026-05-20
+
+真实 Obsidian 物理笔记 vault 测试暴露的 9 个 bug + 3 个隐性问题的集中修复。
+
+### Fixed
+- **图片找不到**:`resolveAsset` 之前只查 vault 绝对相对路径(`assetsByRelativePath`),Obsidian "相对当前文件" 路径模式下写 `![[media/image4.png]]` 在 `Themen/X.md` 里时找不到 → 退化为 basename + base → `/image4.png` → Vite 当 public 根 → 404。现接 `currentSourcePath`,**先**查 vault 绝对路径、**再**查相对源文件 dir、**最后**走 basename fallback;`image.ts` / `media.ts` / `transclusion.ts` 三个调用方都已传 `env.currentPath`。
+- **`![[ ]]` transclusion 同样问题**:`renderTransclusionHtml` 和降级版 `handleTransclusion` 调 `resolveWikilink` 时漏传 `currentSourcePath`,现已补。
+- **`autoFolderIndex` 根目录生成 `[[/foo/]]` 死链**:`defaultTemplate` 拼路径时 `dirRelPath===''` 没特判,产出带前导 `/` 的 wikilink,resolver 不识别"绝对 wikilink"全死。改成根用空 prefix(`[[foo/]]`)。
+- **Obsidian 表格内 `\|` 转义被当成路径字符**:`[[Foo\|Bar]]` 是 Obsidian 在表格 cell 里转义 pipe 的标准写法。原 5 处 `inner.split('|')` 把 target 解析成 `Foo\`(带尾巴反斜杠)→ 找不到。统一抽 `utils/wikilink.ts:splitWikilinkInner`,5 处(`wikilinks/rule.ts`、`embeds/block-rule.ts`、`sidebar-auto/parse-sidebar-md.ts`、`views/generate-data.ts`、`core/scan-wikilinks.ts`)替换。
+- **`stripNumericPrefix` 把版本号吃掉**:`/^\d+[-_.\s]+/` 把 `1.2.3-formula.md` 误剥成 `2.3-formula`。`.` 不再算分隔符,只剩 `-` / `_` / 空白。
+- **行内 `#tag` 在 `cleanUrls: false` 下 404**:`<a class="ayn-tag" href>` 直接拼 `/_perspectives_/tags#xxx`,没考虑 `cleanUrls`。现走 `applyCleanUrls`,需要 `.html` 时自动加。
+- **`%% block comment %%` 包了 ``` fence 时提前结束**:扫描闭合 `%%` 没跟踪 fence 状态,fence 内的 `%%` 字面行会把注释关掉,导致 fence 残留。改成同时跟踪 ``` / ~~~ 配对状态,只在 fence 外才允许关闭。
+- **`views.urlPrefix` 自定义后 sidebar fallback 失效**:`buildPerspectivesFallbackSidebar` 硬编码 `_perspectives_/`,用户改 `views.urlPrefix: 'extras'` 后过滤失效,会在视图页 sidebar 看到一个指向自己的"前往 Extras"项。现接 `viewsPrefix` 参数。
+- **i18n locale Perspectives 注入不对称**:(a) per-locale sidebar 生成后没过 `injectViewsSidebar`,EN locale 等丢 Perspectives 组;(b) nav 注入老逻辑要求 `lc.themeConfig.nav !== undefined`,没自定义 nav 的 locale 拿不到下拉。两边都修。
+- **graph 视图丢相对路径 wikilink 边**:`resolveTargetSimple` 不接 `currentSourceRel`,与 `resolver.ts:117` 行为不一致,从而 sibling 笔记的相对链接在 Graph 上看不见。补齐相对路径 fallback。
+- **`_sidebar.md` fence 检测同 `%%` 同症**:`/^```|^~~~/` 任一 marker 都切状态,`~~~` 在 ``` 块里会提前结束。改成 marker 配对跟踪。
+- **`callout` 标题不解析 inline markdown**:`[!info] **Newton**` 之前显示字面 `**Newton**`。Obsidian 实际会渲染。现走 `md.renderInline`(用户传了自定义标题时)。
+- **`webm` 同时在 audio/video 列表**:`classifyMediaExt` video-first,所有 `.webm` 一律渲染为 `<video>`。从 `AUDIO_EXTS` 删掉。
+- **静默 `catch{}` 加日志**:`writeVaultData` 失败、`scanWikilinks` 失败之前都吞错,debug "Graph 不更新"非常难找。改成 `console.warn`。
+
+### Tests
+- 新增 `tests/v034-bugfixes.test.ts`,每个 RED bug 一条回归用例。
+
 ## [0.3.3] - 2026-05-20
 
 ### Added

@@ -158,8 +158,12 @@ export function defineConfigWithAllYouNeed(
         try {
           const report = scanWikilinks(index, resolvedForWrapper)
           logDeadLinks(report, resolvedForWrapper.deadLink)
-        } catch {
-          /* 不阻塞 */
+        } catch (e) {
+          // 不阻塞,但要让用户看见(否则 debug "为什么死链不报" 太痛苦)
+          console.warn(
+            'vitepress-allyouneed: scanWikilinks 失败,跳过死链汇总。',
+            e instanceof Error ? e.message : String(e),
+          )
         }
         // v0.3:i18n 支持 — 用户配了 themeConfig.locales(VitePress 原生 i18n),
         // 对每个 non-root locale 自动用 includePrefix 生成对应 sidebar,
@@ -219,18 +223,33 @@ export function defineConfigWithAllYouNeed(
       themeConfig.nav as Parameters<typeof injectViewsNav>[0],
       resolvedForWrapper,
     )
-    // v0.3 i18n:每个 locale 的 themeConfig.nav 也注入(否则 i18n 下顶层 nav 被覆盖,
-    // 下拉就消失了)
-    const localesForNav = (config as { locales?: Record<string, { themeConfig?: { nav?: unknown } }> }).locales
-    if (localesForNav) {
-      for (const lang of Object.keys(localesForNav)) {
-        const lc = localesForNav[lang]!
-        if (!lc.themeConfig) continue
-        if (lc.themeConfig.nav !== undefined) {
-          lc.themeConfig.nav = injectViewsNav(
-            lc.themeConfig.nav as Parameters<typeof injectViewsNav>[0],
+    // v0.3 i18n:每个 locale 的 themeConfig 也注入 sidebar + nav。
+    // v0.3.4 修两个对称性 bug:
+    //   (a) 非 root locale 的 sidebar 之前没过 injectViewsSidebar,Perspectives
+    //       组在 EN locale 下消失。
+    //   (b) nav 注入老逻辑要求 lc.themeConfig.nav 已存在 — 未自定义 nav 的
+    //       locale 拿不到 Perspectives 下拉。injectViewsNav 本身能接受 undefined
+    //       并返回新数组,直接调用即可。
+    const localesForViews = (config as { locales?: Record<string, { themeConfig?: Record<string, unknown> }> }).locales
+    if (localesForViews) {
+      for (const lang of Object.keys(localesForViews)) {
+        if (lang === 'root') continue
+        const lc = localesForViews[lang]!
+        if (!lc.themeConfig) lc.themeConfig = {}
+        // sidebar 注入(若已生成过则在原 sidebar 上加;否则保持 undefined 不动)
+        if (lc.themeConfig.sidebar !== undefined) {
+          lc.themeConfig.sidebar = injectViewsSidebar(
+            lc.themeConfig.sidebar as Parameters<typeof injectViewsSidebar>[0],
             resolvedForWrapper,
           )
+        }
+        // nav 注入(undefined / array 都接受)
+        const navInjected = injectViewsNav(
+          lc.themeConfig.nav as Parameters<typeof injectViewsNav>[0],
+          resolvedForWrapper,
+        )
+        if (navInjected !== undefined) {
+          lc.themeConfig.nav = navInjected
         }
       }
     }

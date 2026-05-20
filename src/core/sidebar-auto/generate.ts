@@ -76,10 +76,13 @@ function defaultItemTitle(entry: FileEntry, strip: boolean): string {
   return humanize(entry.basename, strip)
 }
 
-/** 共用 humanize:剥可选前缀数字 → 替换 -/_ → Title Case */
+/** 共用 humanize:剥可选前缀数字 → 替换 -/_ → Title Case
+ *
+ *  v0.3.4:删掉 . 分隔符。详见 generate-folder-index.ts:humanize 同名说明。
+ */
 function humanize(name: string, strip: boolean): string {
   let s = name
-  if (strip) s = s.replace(/^\d+[-_.\s]+/, '')
+  if (strip) s = s.replace(/^\d+[-_\s]+/, '')
   return s
     .replace(/[-_]+/g, ' ')
     .replace(/\s+/g, ' ')

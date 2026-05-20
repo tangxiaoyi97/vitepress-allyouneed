@@ -84,19 +84,38 @@ export function makeCommentBlockRule(): (
     if (silent) return true
 
     // 找闭合:下一行起,寻找以 `%%` 独占的一行
+    // v0.3.4:跟踪 ``` / ~~~ fence 状态,跳过 fence 内的 `%%` 行
+    //   例:%%\n  ```js\n  console.log('%% inside')\n  %%\n  ```\n  %%
+    //       原实现在 `%%` 行就关闭注释,导致 ``` 残留 → 渲染错。
     let next = startLine + 1
     let closed = false
+    let fenceMarker: '`' | '~' | null = null
     while (next < endLine) {
       const lpos = state.bMarks[next]! + state.tShift[next]!
       const lmax = state.eMarks[next]!
-      if (
-        lpos + 2 <= lmax &&
-        state.src.charCodeAt(lpos) === PCT &&
-        state.src.charCodeAt(lpos + 1) === PCT &&
-        state.src.slice(lpos + 2, lmax).trim() === ''
-      ) {
-        closed = true
-        break
+      const lineText = state.src.slice(lpos, lmax)
+      const trimmed = lineText.trim()
+      // fence open/close tracking
+      const fm = /^(`{3,}|~{3,})/.exec(trimmed)
+      if (fm) {
+        const ch = fm[1]![0] as '`' | '~'
+        if (fenceMarker === null) fenceMarker = ch
+        else if (fenceMarker === ch) fenceMarker = null
+        // 不同 marker 不切换
+        next += 1
+        continue
+      }
+      if (fenceMarker === null) {
+        // 只在 fence 外才允许 %% 关闭注释
+        if (
+          lpos + 2 <= lmax &&
+          state.src.charCodeAt(lpos) === PCT &&
+          state.src.charCodeAt(lpos + 1) === PCT &&
+          state.src.slice(lpos + 2, lmax).trim() === ''
+        ) {
+          closed = true
+          break
+        }
       }
       next += 1
     }

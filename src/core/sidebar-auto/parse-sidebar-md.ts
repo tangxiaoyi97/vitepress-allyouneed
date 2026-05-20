@@ -35,6 +35,7 @@
 import type { FileEntry, VaultIndex, ResolvedOptions } from '../types.js'
 import type { SidebarItem } from './types.js'
 import { stripMarkdownExt, toPosix } from '../../utils/path.js'
+import { splitWikilinkInner } from '../../utils/wikilink.js'
 
 /** 检查一个 FileEntry 是不是 _sidebar.md(大小写不敏感) */
 export function isSidebarOverrideFile(entry: FileEntry): boolean {
@@ -85,7 +86,9 @@ interface ParsedLine {
 }
 
 const LINE_RE = /^(\s*)-\s+(.*)$/
-const WIKILINK_RE = /^\[\[([^\]\n|#]+)(?:#[^\]\n|]*)?(?:\|([^\]\n]+))?\]\]/
+// v0.3.4:简化为只匹配整段 [[...]],内部 pipe / heading 拆分交给 splitWikilinkInner
+// (老正则 [^\]\n|#] 把 \| 中的 \ 留在 target 里,导致死链)
+const WIKILINK_RE = /^\[\[([^\]\n]+)\]\]/
 const MD_LINK_RE = /^\[([^\]]+)\]\(([^)]+)\)/
 
 function parseList(
@@ -96,13 +99,19 @@ function parseList(
 ): SidebarItem[] {
   const lines = src.split(/\r?\n/)
   const parsed: ParsedLine[] = []
-  let inFence = false
+  // v0.3.4:fence 状态记 marker 类型,避免 ``` 内的 ~~~ 误关闭(反之同理)
+  let fenceMarker: '`' | '~' | null = null
   for (const raw of lines) {
-    if (/^```|^~~~/.test(raw.trim())) {
-      inFence = !inFence
+    const trimmed = raw.trim()
+    const fenceMatch = /^(`{3,}|~{3,})/.exec(trimmed)
+    if (fenceMatch) {
+      const ch = fenceMatch[1]![0] as '`' | '~'
+      if (fenceMarker === null) fenceMarker = ch
+      else if (fenceMarker === ch) fenceMarker = null
+      // 不同 marker 一律忽略(不切换状态)
       continue
     }
-    if (inFence) continue
+    if (fenceMarker !== null) continue
     const m = LINE_RE.exec(raw)
     if (!m) continue
     const indent = m[1]!.replace(/\t/g, '  ').length
@@ -119,15 +128,20 @@ function parseLineBody(
   index: VaultIndex,
   options: ResolvedOptions,
 ): ParsedLine {
-  // [[wikilink|text]] / [[wikilink]]
+  // [[wikilink|text]] / [[wikilink]] / [[wikilink\|text]](Obsidian 表格转义)
   const wl = WIKILINK_RE.exec(body)
   if (wl) {
-    const target = wl[1]!.trim()
-    const customText = wl[2]?.trim()
-    const resolved = resolveTarget(target, index, options, entry)
+    const inner = wl[1]!
+    const parts = splitWikilinkInner(inner)
+    let rawTarget = parts[0]!
+    const customText = parts[1] ?? undefined
+    // 拆 #heading(只关心 target,不打 anchor)
+    const hashIdx = rawTarget.indexOf('#')
+    if (hashIdx >= 0) rawTarget = rawTarget.slice(0, hashIdx)
+    const resolved = resolveTarget(rawTarget, index, options, entry)
     return {
       indent,
-      text: customText ?? defaultTextForTarget(target, resolved),
+      text: customText ?? defaultTextForTarget(rawTarget, resolved),
       link: resolved?.url ?? null,
     }
   }

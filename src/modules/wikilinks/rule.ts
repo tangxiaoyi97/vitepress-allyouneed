@@ -19,6 +19,7 @@ import {
 import { handleImageEmbed } from '../embeds/image.js'
 import { handleTransclusion } from '../embeds/transclusion.js'
 import { classifyMediaExt, handleMediaEmbed } from '../embeds/media.js'
+import { splitWikilinkInner } from '../../utils/wikilink.js'
 
 /**
  * 构造 inline rule。
@@ -74,7 +75,8 @@ export function makeWikilinkRule(
 
     state.pos = closeIdx + 2 // 推进游标
 
-    const parts = inner.split('|').map((p) => p.trim())
+    // v0.3.4:用 splitWikilinkInner 处理 Obsidian 表格内的 `\|` 转义
+    const parts = splitWikilinkInner(inner)
     const rawTarget = parts[0]!
     const aliasParts = parts.slice(1)
 

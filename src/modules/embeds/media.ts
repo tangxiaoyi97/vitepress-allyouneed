@@ -21,7 +21,8 @@ import { basename } from '../../utils/path.js'
 import { escapeHtml } from '../../utils/escape.js'
 import { buildPlaceholderUrl } from '../../core/asset-pipeline/build-emit.js'
 
-const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'webm']
+// webm 实际多为 video/webm,这里只放 video 列表;classifyMediaExt video-first
+const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac']
 const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv']
 const PDF_EXTS = ['pdf']
 
@@ -73,7 +74,8 @@ function parseAliasDim(parts: string[]): ParsedDim {
 function resolveSrc(rawTarget: string, env: AllYouNeedEnv): string {
   const { index, options } = env
   const processedTarget = options.embeds.postProcessImageTarget(rawTarget)
-  const { asset } = resolveAsset(processedTarget, index, options)
+  // v0.3.4:同 image.ts,把 currentPath 传下去支持相对路径
+  const { asset } = resolveAsset(processedTarget, index, options, env.currentPath)
   if (asset) {
     asset.referencedBy.add(env.currentPath ?? '<unknown>')
     env.referencedAssets?.add(asset)

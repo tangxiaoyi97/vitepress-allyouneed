@@ -73,7 +73,8 @@ export function registerCalloutsCore(md: MarkdownIt): void {
         if (!header) continue
         // 提取剩余内容(去掉 header 行后的所有内容)
         const bodyHtml = renderBody(inner, header.firstLineRest, md, state.env)
-        const html = renderCallout(header.parsed, bodyHtml)
+        // v0.3.4:标题走 inline 渲染,**bold**/`code`/[[wiki]] 等都生效
+        const html = renderCallout(header.parsed, bodyHtml, md, state.env)
         // 用 html_block 替换 blockquote_open...blockquote_close
         const newToken = new state.Token('html_block', '', 0)
         newToken.content = html + '\n'
@@ -180,10 +181,23 @@ function renderBody(
 
 /**
  * 渲染 callout 最终 HTML。
+ *
+ * v0.3.4:displayTitle 走 md.renderInline (Obsidian 行为) —— `**bold**` /
+ * `[[wikilink]]` / `==高亮==` 等行内语法在 callout 标题里都生效。
+ * 默认标题(无自定义,纯类型名)还是 escape 一次 + 包 span。
  */
-function renderCallout(header: CalloutHeader, bodyHtml: string): string {
+function renderCallout(
+  header: CalloutHeader,
+  bodyHtml: string,
+  md: MarkdownIt,
+  env: object,
+): string {
   const { type, foldable, title } = header
-  const displayTitle = title || DEFAULT_TITLES[type]
+  const rawTitle = title || DEFAULT_TITLES[type]
+  // 有用户自定义标题就走 inline parse;没有就 escape 一下纯字符串
+  const titleHtml = title
+    ? md.renderInline(rawTitle, env)
+    : escapeHtml(rawTitle)
   const iconSvg =
     `<svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
     `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
@@ -196,7 +210,7 @@ function renderCallout(header: CalloutHeader, bodyHtml: string): string {
     const isOpen = foldable === 'open'
     return (
       `<details class="${cls}" data-callout="${type}"${isOpen ? ' open' : ''}>` +
-      `<summary class="callout-title">${iconSvg}<span class="callout-title-text">${escapeHtml(displayTitle)}</span></summary>` +
+      `<summary class="callout-title">${iconSvg}<span class="callout-title-text">${titleHtml}</span></summary>` +
       `<div class="callout-content">${bodyHtml}</div>` +
       `</details>`
     )
@@ -204,7 +218,7 @@ function renderCallout(header: CalloutHeader, bodyHtml: string): string {
 
   return (
     `<div class="${cls}" data-callout="${type}">` +
-    `<div class="callout-title">${iconSvg}<span class="callout-title-text">${escapeHtml(displayTitle)}</span></div>` +
+    `<div class="callout-title">${iconSvg}<span class="callout-title-text">${titleHtml}</span></div>` +
     `<div class="callout-content">${bodyHtml}</div>` +
     `</div>`
   )

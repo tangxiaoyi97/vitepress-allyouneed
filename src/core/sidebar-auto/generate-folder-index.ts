@@ -283,11 +283,15 @@ function matchGlob(path: string, pat: string): boolean {
   return new RegExp('^' + re + '$').test(path)
 }
 
-/** 文件夹名 humanize:`my-dir` / `01-foo_bar` → `My Dir` / `Foo Bar`(开 strip 时) */
+/** 文件夹名 humanize:`my-dir` / `01-foo_bar` → `My Dir` / `Foo Bar`(开 strip 时)
+ *
+ *  v0.3.4:删掉 . 分隔符。原 `\d+[-_.\s]+` 把 `1.2.3-formula.md` 误剥成
+ *  `2.3-formula`。只剩 `-` / `_` / whitespace 当分隔符,版本号能完整保留。
+ */
 export function humanize(name: string, stripNumeric: boolean): string {
   let s = name
   if (stripNumeric) {
-    s = s.replace(/^\d+[-_.\s]+/, '')
+    s = s.replace(/^\d+[-_\s]+/, '')
   }
   return s
     .replace(/[-_]+/g, ' ')
@@ -297,6 +301,10 @@ export function humanize(name: string, stripNumeric: boolean): string {
 }
 
 function defaultTemplate(ctx: TemplateContext): string {
+  // v0.3.4 修:dirRelPath === '' 时(根目录),不能拼前导 '/',否则 wikilink
+  // 变成 [[/foo/]] —— resolver 不识别 / 开头的"绝对" wikilink,全死。
+  // 用 prefix 变量统一:根 → ''(直接 [[foo/]]),子目录 → 'sub/' (拼后 [[sub/foo/]])
+  const prefix = ctx.dirRelPath === '' ? '' : `${ctx.dirRelPath}/`
   const lines: string[] = []
   lines.push('---')
   lines.push(`title: ${ctx.title}`)
@@ -310,7 +318,7 @@ function defaultTemplate(ctx: TemplateContext): string {
     lines.push('## Sections')
     lines.push('')
     for (const d of ctx.subDirs) {
-      lines.push(`- [[${ctx.dirRelPath}/${d.name}/|${d.title}]]`)
+      lines.push(`- [[${prefix}${d.name}/|${d.title}]]`)
     }
     lines.push('')
   }
@@ -318,7 +326,7 @@ function defaultTemplate(ctx: TemplateContext): string {
     lines.push('## Pages')
     lines.push('')
     for (const f of ctx.files) {
-      lines.push(`- [[${ctx.dirRelPath}/${f.relPath}|${f.title}]]`)
+      lines.push(`- [[${prefix}${f.relPath}|${f.title}]]`)
     }
     lines.push('')
   }

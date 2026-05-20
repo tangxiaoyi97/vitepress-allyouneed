@@ -43,7 +43,8 @@ export function renderImageHtml(
   const { altText, dim } = parseAltAndDim(aliasParts)
 
   const processedTarget = options.embeds.postProcessImageTarget(rawTarget)
-  const { asset } = resolveAsset(processedTarget, index, options)
+  // v0.3.4:传 currentPath,让 resolveAsset 支持 Obsidian 相对当前文件路径
+  const { asset } = resolveAsset(processedTarget, index, options, env.currentPath)
 
   let src: string
   if (asset) {

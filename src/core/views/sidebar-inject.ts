@@ -62,6 +62,7 @@ export function injectViewsSidebar(
           sidebar,
           group,
           options.base.endsWith('/') ? options.base : options.base + '/',
+          prefix,
         )
       }
     }
@@ -77,16 +78,21 @@ export function injectViewsSidebar(
  *   - 然后每个**其它顶层 path**(/guide/, /tour/, /test/ 等)做成一个简单 link 项,
  *     让用户从视图页能跳回任何 tab(VitePress 不会保留"之前在哪",这是 URL 决定的)
  *   - 最后是 perspectives 组本身
+ *
+ * v0.3.4:viewsPrefix 参数化(原来硬编码 '_perspectives_')。用户改
+ * views.urlPrefix 后,自身路径不再被过滤掉,会冒出一个"前往自己"的死项。
  */
 function buildPerspectivesFallbackSidebar(
   allSidebars: Record<string, SidebarItem[]>,
   group: SidebarItem,
   base: string,
+  viewsPrefix: string,
 ): SidebarItem[] {
   // link 都 strip base(VitePress 会自动 prepend)
   const out: SidebarItem[] = [{ text: 'Home', link: '/' }]
+  const persSuffix = `/${viewsPrefix}/`
   const topPaths = Object.keys(allSidebars).filter(
-    (p) => p !== base && !p.endsWith('/_perspectives_/'),
+    (p) => p !== base && !p.endsWith(persSuffix),
   )
   for (const p of topPaths) {
     const seg =

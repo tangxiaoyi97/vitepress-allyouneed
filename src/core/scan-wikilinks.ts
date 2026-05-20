@@ -7,8 +7,10 @@
 
 import type { ResolvedOptions, VaultIndex } from './types.js'
 import { stripMarkdownExt, toPosix } from '../utils/path.js'
+import { splitWikilinkInner } from '../utils/wikilink.js'
 
-const WIKILINK_RE = /(!?)\[\[([^\]\n|#]+)(?:#[^\]\n|]*)?(?:\|[^\]\n]*)?\]\]/g
+// v0.3.4:简化为捕获整段 inner,target 拆分交给 splitWikilinkInner(支持 \|)
+const WIKILINK_RE = /(!?)\[\[([^\]\n]+)\]\]/g
 
 export interface DeadLinkReport {
   /** 总扫描的 wikilink 数 */
@@ -45,7 +47,13 @@ export function scanWikilinks(
     for (const m of matches) {
       total += 1
       const isEmbed = m[1] === '!'
-      const rawTarget = m[2]!.trim()
+      // v0.3.4:拆 \| 转义,只看 target 段;再剥 #heading
+      const inner = m[2]!
+      let rawTarget = splitWikilinkInner(inner)[0] ?? ''
+      const hashIdx = rawTarget.indexOf('#')
+      if (hashIdx >= 0) rawTarget = rawTarget.slice(0, hashIdx)
+      rawTarget = rawTarget.trim()
+      if (!rawTarget) continue
       // image/audio/video/pdf/transclusion 走 embed 通道,不参与 wikilink 死链检测
       if (isEmbed) {
         const ext = extractExt(rawTarget)

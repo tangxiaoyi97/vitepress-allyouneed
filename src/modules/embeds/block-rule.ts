@@ -22,6 +22,7 @@ import {
   renderVideoHtml,
   renderPdfHtml,
 } from './media.js'
+import { splitWikilinkInner } from '../../utils/wikilink.js'
 
 const LINE_RE = /^!\[\[([^\n\]]+)\]\]\s*$/
 
@@ -53,7 +54,8 @@ function makeRule(md: MarkdownIt) {
     if (!env || !env.index || !env.options) return false
 
     const inner = m[1]!
-    const parts = inner.split('|').map((p) => p.trim())
+    // v0.3.4:用 splitWikilinkInner 处理 \| 转义
+    const parts = splitWikilinkInner(inner)
     const rawTarget = parts[0]!
     const aliasParts = parts.slice(1)
 

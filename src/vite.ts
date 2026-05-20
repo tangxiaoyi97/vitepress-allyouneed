@@ -156,8 +156,12 @@ export function viteAllYouNeed(
       if (resolved.modules.views) {
         try {
           writeVaultData(index, resolved)
-        } catch {
-          /* */
+        } catch (e) {
+          // v0.3.4:加 warn — Graph/Stats/Tags 不更新通常就是这里失败了
+          console.warn(
+            'vitepress-allyouneed: 重新写 vault-data.json 失败,Graph/Stats/Tags 可能不更新。',
+            e instanceof Error ? e.message : String(e),
+          )
         }
       }
     },

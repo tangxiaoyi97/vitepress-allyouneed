@@ -6,6 +6,7 @@ import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs'
 import type MarkdownIt from 'markdown-it'
 import type { AllYouNeedEnv } from '../../core/types.js'
 import { escapeHtml } from '../../utils/escape.js'
+import { applyCleanUrls } from '../../utils/url.js'
 
 const TAG_RE = /^#([\p{L}_][\p{L}\p{N}_/-]*)/u
 
@@ -39,8 +40,11 @@ export function makeTagRule(): (state: StateInline, silent: boolean) => boolean 
     const tagsViewName = env.options?.views?.names?.tags ?? 'tags'
     const urlPrefix = env.options?.views?.urlPrefix ?? '_perspectives_'
     const base = env.options?.base ?? '/'
+    const cleanUrls = env.options?.cleanUrls ?? true
     const prefixSeg = urlPrefix ? `${urlPrefix}/` : ''
-    const href = `${base}${prefixSeg}${tagsViewName}#${encodeURIComponent(tag)}`
+    // v0.3.4:cleanUrls=false 时要加 .html,否则浏览器直接访问 /...../tags 404
+    const pagePath = applyCleanUrls(`${prefixSeg}${tagsViewName}`, cleanUrls)
+    const href = `${base}${pagePath}#${encodeURIComponent(tag)}`
     const html =
       `<a class="ayn-tag" data-tag="${escapeHtml(tag)}" ` +
       `href="${escapeHtml(href)}">#${escapeHtml(tag)}</a>`

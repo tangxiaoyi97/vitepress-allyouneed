@@ -215,22 +215,71 @@ function defaultLabel(
 /**
  * 解析 image embed target → AssetEntry。
  * 与 resolveWikilink 类似,但走 assets 索引。
+ *
+ * v0.3.4:加 currentSourcePath 相对 fallback。Obsidian "新建链接格式 = 相对当前文件"
+ * 模式下,`![[media/foo.png]]` 写在 `Themen/X.md` 里时,Obsidian 解读为
+ * `Themen/media/foo.png`。原实现只查 `assetsByRelativePath.get('media/foo.png')`
+ * 直接找不到 → 退化为 basename + base → `/foo.png` → Vite 当成 public 根 → 404。
  */
 export function resolveAsset(
   rawTarget: string,
   index: VaultIndex,
   options: ResolvedOptions,
+  /** 写这个 embed 的源文件绝对路径(用于相对路径 fallback,模仿 Obsidian) */
+  currentSourcePath?: string,
 ): {
   asset: import('./types.js').AssetEntry | undefined
   rawBasename: string
 } {
   const target = toPosix(rawTarget).trim()
-  // 含 '/':按 assetsByRelativePath 查
+  // 含 '/':先按 vault 绝对相对路径查,再尝试相对当前 source 文件
   if (target.includes('/')) {
-    return {
-      asset: index.assetsByRelativePath.get(target),
-      rawBasename: basename(target),
+    const direct = index.assetsByRelativePath.get(target)
+    if (direct) {
+      return { asset: direct, rawBasename: basename(target) }
     }
+    // Obsidian 相对当前文件 dir 的 fallback
+    if (currentSourcePath) {
+      const srcDirAbs = index.srcDir
+      const cur = toPosix(currentSourcePath)
+      const rel = cur.startsWith(srcDirAbs + '/')
+        ? cur.slice(srcDirAbs.length + 1)
+        : ''
+      if (rel) {
+        const curDir = rel.split('/').slice(0, -1).join('/')
+        if (curDir) {
+          const relAsset = index.assetsByRelativePath.get(`${curDir}/${target}`)
+          if (relAsset) {
+            return { asset: relAsset, rawBasename: basename(target) }
+          }
+        }
+      }
+    }
+    // 最后 fallback:用 basename 查(Obsidian 的 shortest path 模式)
+    const bn0 = options.caseSensitive
+      ? basename(target)
+      : basename(target).toLowerCase()
+    const map0 = options.caseSensitive
+      ? index.assetsByBasename
+      : index.assetsByBasenameLower
+    const fallback = map0.get(bn0)
+    if (fallback && fallback.length === 1) {
+      return { asset: fallback[0], rawBasename: basename(target) }
+    }
+    if (fallback && fallback.length > 1) {
+      switch (options.onConflict) {
+        case 'shortest':
+          return {
+            asset: sortByShortestPath(fallback)[0],
+            rawBasename: basename(target),
+          }
+        case 'first':
+          return { asset: fallback[0], rawBasename: basename(target) }
+        case 'error':
+          return { asset: undefined, rawBasename: basename(target) }
+      }
+    }
+    return { asset: undefined, rawBasename: basename(target) }
   }
   const bn = options.caseSensitive ? target : target.toLowerCase()
   const map = options.caseSensitive
