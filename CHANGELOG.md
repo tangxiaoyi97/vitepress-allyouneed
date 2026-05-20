@@ -2,6 +2,47 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.5] - 2026-05-20
+
+零配置导航更顺手:不写 `index.md` 也能从导航 / sidebar / 用户手写 wikilink 进到一个文件夹;默认 index 模板换成"文件管理器风格"(子文件夹在上、文件在下)。
+
+### Added
+
+- **`sidebarAuto.folderLinkFallback: 'first-file' | 'none'`(默认 `'first-file'`)**
+  控制"文件夹链接缺 index 时怎么办"。三处效果一致:
+  - 自动生成的 sidebar group:无 dirIndex 时,group title 链到该文件夹第一个文件;
+  - 自动生成的 nav tab:无 dirIndex 时,tab 链到第一个文件(不再 silently skip);
+  - 用户手写的 `[[folder/]]` wikilink:同样兜底到第一个文件,label 用文件夹名(不用 first file 的 basename)。
+  设为 `'none'` 退回老行为(无 link / 死链)。最常见用法:`autoFolderIndex: 'off'` + `folderLinkFallback: 'first-file'`,完全不在 vault 写 `index.md` 也能从导航走通。
+  > **注意**:**空 frontmatter-only dirIndex** 仍然是用户显式 opt-out 信号(读 frontmatter 中的 `sidebarTitle` / `sidebarCollapsed`,但 group 无 link)。这种文件**不会**触发 first-file 兜底 —— 兜底只在**完全没有** dirIndex 文件时生效。
+- **`resolveWikilink` 加同名 dirIndex 路径变体** —— `[[Themen/]]` 现在会查 `Themen/Themen.md` 当作索引(对应 `pickDirIndexes` 同名优先策略)。
+- **`[[folder/]]` 写法支持完整化**:之前 `[[Themen/]]` 由于 `target + '/index.md'` 拼出 `Themen//index.md` 双斜杠 bug,实际是死链。现在 normalize 时剥尾 `/` 并强制走 path-style 分支,变体查找正确。
+
+### Changed
+
+- **默认 `autoFolderIndex` 模板 = "Folders 在上、Files 在下"**(像文件管理器 / Tags 视图)。
+  - 段标题改成 `## Folders` + `## Files`(原 `## Sections` + `## Pages`)。
+  - 子文件夹位置:**上面**(老模板在下面)。
+  - 子文件夹标题是否可点接 `sidebarAuto.groupLink`(等同 sidebar 配置语义):
+    - `'all'`(默认):所有子文件夹标题都用 wikilink 可点
+    - `'top-level'`:仅根 `index.md` 内可点;深层 `index.md` 内为纯文字
+    - `'off'`:全部纯文字
+  - 子文件夹的"可点目的地"再走 `folderLinkFallback` 兜底,所以即使子文件夹无 index,点了也能进。
+- **`FolderIndexOptions` / `TemplateContext` 扩展**:新增 `groupLink` 字段;`TemplateContext` 新增 `isRoot` / `groupLink`。
+- **`resolveWikilink` 的 `defaultLabel`**:wasFolderForm 时(`[[folder/]]`),label 用文件夹名,而不是兜底文件的 basename。
+
+### Migration
+
+老用户若觉得新默认行为"不对路":
+```ts
+sidebarAuto: {
+  folderLinkFallback: 'none',  // 回到 v0.3.4 行为
+  autoFolderIndex: {
+    template: oldTemplate,       // 自己写模板覆盖
+  },
+}
+```
+
 ## [0.3.4] - 2026-05-20
 
 真实 Obsidian 物理笔记 vault 测试暴露的 9 个 bug + 3 个隐性问题的集中修复。

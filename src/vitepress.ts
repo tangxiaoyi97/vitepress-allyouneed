@@ -143,6 +143,9 @@ export function defineConfigWithAllYouNeed(
           sidebarAuto.autoFolderIndex,
           sidebarAuto.stripNumericPrefix,
         )
+        // v0.3.5:把 sidebarAuto.groupLink 透传给模板(默认 'all'),让默认
+        // 模板里的子文件夹标题遵守和 sidebar 一致的可点性规则。
+        folderOpts.groupLink = sidebarAuto.groupLink ?? 'all'
         if (folderOpts.mode !== 'off') {
           try {
             generateFolderIndexes(resolvedForWrapper, folderOpts)
@@ -278,6 +281,8 @@ function normalizeAutoFolderIndex(
   exclude?: string[]
   stripNumericPrefix?: boolean
   template?: import('./core/sidebar-auto/generate-folder-index.js').FolderIndexOptions['template']
+  /** v0.3.5:caller 再覆盖 */
+  groupLink?: 'all' | 'top-level' | 'off'
 } {
   let mode: 'off' | 'top-level' | 'all' = 'top-level'
   let exclude: string[] | undefined

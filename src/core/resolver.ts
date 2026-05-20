@@ -44,16 +44,28 @@ export function resolveWikilink(
     headingPart = target.slice(hashIdx + 1).trim()
     target = target.slice(0, hashIdx).trim()
   }
+  // v0.3.5:用户写 `[[Themen/]]` 这种带尾 `/` 的"文件夹形式" wikilink,
+  // 记录意图;后面 defaultLabel 用 folder 段名而不是被解析到的文件 basename
+  const wasFolderForm = /\/$/.test(target)
+  if (wasFolderForm) target = target.replace(/\/+$/, '')
   // 剥 .md / .markdown
   target = stripMarkdownExt(target)
 
-  // 3-4. 查 entry
-  const entry = lookupEntry(target, index, options, currentSourcePath)
+  // 3-4. 查 entry。v0.3.5:wasFolderForm 时,即使剥了尾 `/` 也强制走
+  // path-style 分支(否则 `[[Themen/]]` → strip → `Themen` 没斜杠 → 走 basename
+  // 分支 → 找不到 `Themen/index.md`)
+  const entry = lookupEntry(
+    target,
+    index,
+    options,
+    currentSourcePath,
+    wasFolderForm,
+  )
 
   if (!entry) {
     return {
       url: buildDeadUrl(rawTarget, options),
-      defaultLabel: defaultLabel(target, headingPart, undefined, options),
+      defaultLabel: defaultLabel(target, headingPart, undefined, options, wasFolderForm),
       isDead: true,
       hasUnmatchedAnchor: false,
       kind,
@@ -80,7 +92,7 @@ export function resolveWikilink(
 
   return {
     url,
-    defaultLabel: defaultLabel(target, headingPart, entry, options),
+    defaultLabel: defaultLabel(target, headingPart, entry, options, wasFolderForm),
     isDead: false,
     hasUnmatchedAnchor,
     target: entry,
@@ -96,18 +108,26 @@ function lookupEntry(
   index: VaultIndex,
   options: ResolvedOptions,
   currentSourcePath?: string,
+  /** v0.3.5:用户写了 `Foo/` 形式 → 强制 path-style 分支 */
+  forcePathStyle = false,
 ): FileEntry | undefined {
   if (!target) return undefined
 
-  // 含 '/':按路径查
-  if (target.includes('/')) {
+  // 含 '/':按路径查;v0.3.5:forcePathStyle 时也走这里
+  if (target.includes('/') || forcePathStyle) {
     // 用户写 'notes/a' → 找 'notes/a.md' 或 'notes/a.markdown'
+    // v0.3.5:加同名 dirIndex 变体(`Themen/Themen.md` 当 `Themen/` 的索引)
+    const lastSeg = target.split('/').pop() ?? ''
     const variants = [
       target,
       target + '.md',
       target + '.markdown',
       target + '/index.md',
       target + '/index.markdown',
+      // 同名文件夹索引(和 pickDirIndexes 优先级 1 对齐)
+      ...(lastSeg
+        ? [target + '/' + lastSeg + '.md', target + '/' + lastSeg + '.markdown']
+        : []),
     ]
     for (const v of variants) {
       const e = index.byRelativePath.get(v)
@@ -136,6 +156,14 @@ function lookupEntry(
           }
         }
       }
+    }
+    // v0.3.5:folderLinkFallback === 'first-file' 时,文件夹路径找不到 index
+    //   就落到该文件夹下"第一个文件"。让 [[folder/]] 始终可点。
+    const folderFallback =
+      options.sidebarAuto?.folderLinkFallback ?? 'first-file'
+    if (folderFallback === 'first-file') {
+      const first = findFirstFileInFolder(target, index)
+      if (first) return first
     }
     return undefined
   }
@@ -169,6 +197,32 @@ function lookupEntry(
 }
 
 /**
+ * v0.3.5:在文件夹下找"第一个文件"作为 [[folder/]] 的兜底目标。
+ *
+ * 顺序:浅层路径优先(直接子文件 → 孙子 → ...),同深度按 relativePath
+ * 字母序。这和 sidebar-auto 的 findFirstPageUrl 行为接近(那边按 sortBy
+ * 排序,这里没 sidebarAuto 上下文,简化用 path 字母序,够"稳定可预测")。
+ */
+function findFirstFileInFolder(
+  folderPath: string,
+  index: VaultIndex,
+): FileEntry | undefined {
+  const prefix = folderPath + '/'
+  const candidates: FileEntry[] = []
+  for (const f of index.files.values()) {
+    if (f.relativePath.startsWith(prefix)) candidates.push(f)
+  }
+  if (candidates.length === 0) return undefined
+  candidates.sort((a, b) => {
+    const da = a.relativePath.split('/').length
+    const db = b.relativePath.split('/').length
+    if (da !== db) return da - db
+    return a.relativePath.localeCompare(b.relativePath)
+  })
+  return candidates[0]
+}
+
+/**
  * 死链 URL —— 给一个尽量接近用户意图的 href,便于用户点开诊断。
  * 不抛错,渲染时附 wikilink--dead class。
  */
@@ -183,20 +237,28 @@ function buildDeadUrl(rawTarget: string, options: ResolvedOptions): string {
  * - 用户传了 alias 优先,这里只算"没有 alias 时" fallback。
  * - linkText='basename' / 'fullPath' / 自定义函数
  * - 带 heading 时:basename > heading
+ *
+ * v0.3.5:wasFolderForm 表示用户写的是 `[[folder/]]` 形式 —— 此时即便
+ * resolve 到一个文件(folderLinkFallback 兜底),label 也应该是**文件夹名**,
+ * 而不是 first file 的 basename(否则 `[[Themen/]]` 显示成 "Konstanten",
+ * 用户摸不着头脑)。
  */
 function defaultLabel(
   target: string,
   headingPart: string,
   entry: FileEntry | undefined,
   options: ResolvedOptions,
+  wasFolderForm = false,
 ): string {
   const lt = options.wikilinks.linkText
   let base: string
-  if (typeof lt === 'function') {
+  if (wasFolderForm) {
+    // 强制用 target 最后一段作为 label(文件夹名)
+    base = basename(target) || target
+  } else if (typeof lt === 'function') {
     if (entry) {
       base = lt(entry, target)
     } else {
-      // 死链时拿不到 entry,降级到 raw target 的 basename
       base = basename(target)
     }
   } else if (lt === 'fullPath') {
@@ -206,7 +268,6 @@ function defaultLabel(
     base = entry ? entry.basename : basename(target)
   }
   if (headingPart) {
-    // Obsidian 风格 "basename > 章节"
     return `${base} > ${headingPart}`
   }
   return base

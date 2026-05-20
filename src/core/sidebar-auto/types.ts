@@ -112,6 +112,20 @@ export interface SidebarAutoOptions {
    */
   foldersFirst?: boolean
 
+  /**
+   * v0.3.5:文件夹链接缺 index 时怎么办。
+   *   - 'first-file'(默认) 自动落到该文件夹下**第一个文件**;
+   *                          影响:auto-sidebar group link、auto-nav tab、
+   *                          用户手写 [[folder/]] 的解析。
+   *   - 'none'             兼容老行为:无 index → 无 link;
+   *                          sidebar group 只展开折叠;nav tab 跳过;
+   *                          [[folder/]] 死链。
+   *
+   * 配合 autoFolderIndex='off' 使用最自然 —— 不写 index 文件也能从导航
+   * 进到一个文件夹。
+   */
+  folderLinkFallback?: 'first-file' | 'none'
+
   /** 给缺 index.md 的文件夹自动生成"目录页"。
    *  默认 'top-level'(只为顶级目录生成,保证 nav/`/dir/` URL 能落地)。
    *  详见 SidebarAutoUserOptions 同字段注释。 */
@@ -153,4 +167,5 @@ export interface ResolvedSidebarAutoOptions {
   includePrefix: string | undefined
   excludePrefixes: string[]
   foldersFirst: boolean
+  folderLinkFallback: 'first-file' | 'none'
 }

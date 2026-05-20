@@ -44,6 +44,17 @@ export interface FolderIndexOptions {
   /** humanize 时剥 `01-foo` 等数字前缀,默认 true */
   stripNumericPrefix?: boolean
 
+  /**
+   * v0.3.5:从 sidebarAuto.groupLink 透传过来,模板用它决定子文件夹
+   * 标题是否渲染成可点 wikilink。
+   *   - 'all'        所有子文件夹标题都可点(默认)
+   *   - 'top-level'  仅当生成的 index 在根目录(dirRelPath === ''),
+   *                   该 index 内的子文件夹标题才可点;深层 index 内
+   *                   的子文件夹标题为纯文字
+   *   - 'off'        所有子文件夹标题都为纯文字
+   */
+  groupLink?: 'all' | 'top-level' | 'off'
+
   /** @deprecated 老 v0.3 字段,等价 mode: enabled?'top-level':'off' */
   enabled?: boolean
 }
@@ -57,6 +68,10 @@ export interface TemplateContext {
   files: Array<{ name: string; relPath: string; title: string }>
   /** 直接子目录(已有内容的) */
   subDirs: Array<{ name: string; title: string }>
+  /** v0.3.5:本 index 是不是根 index(用于 groupLink: 'top-level' 判断) */
+  isRoot: boolean
+  /** v0.3.5:groupLink 透传,模板决定子文件夹标题可不可点 */
+  groupLink: 'all' | 'top-level' | 'off'
 }
 
 const MD_RE = /\.(md|markdown)$/i
@@ -190,6 +205,8 @@ export function generateFolderIndexes(
       title: humanize(lastSeg, strip) || 'Home',
       files,
       subDirs,
+      isRoot: dirRel === '',
+      groupLink: folderOpts.groupLink ?? 'all',
     }
 
     try {
@@ -300,11 +317,26 @@ export function humanize(name: string, stripNumeric: boolean): string {
     .replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
+/**
+ * v0.3.5 模板:子文件夹**在上**,文件**在下**(像文件管理器 / Tags 视图风格)。
+ *
+ * 子文件夹标题(##)是否渲染成可点链接,由 ctx.groupLink + ctx.isRoot 决定:
+ *   - 'all'        所有子文件夹标题都用 wikilink(可点)
+ *   - 'top-level'  仅根 index(ctx.isRoot)内的子文件夹可点;深层 index 内
+ *                  的子文件夹为纯文字标题(用户从根进来已是 top-level 入口)
+ *   - 'off'        全部纯文字标题
+ *
+ * 子文件夹链接的目的地由 resolver 处理(v0.3.5 加了 folderLinkFallback):
+ *   - 该文件夹有自己的 index.md → 跳到 index
+ *   - 没有 + folderLinkFallback='first-file' → 跳到第一个文件
+ *   - 没有 + folderLinkFallback='none' → 死链(模板会照旧渲染 wikilink,
+ *     但 resolver 标 dead;用户体感上等同于"不可点")
+ */
 function defaultTemplate(ctx: TemplateContext): string {
-  // v0.3.4 修:dirRelPath === '' 时(根目录),不能拼前导 '/',否则 wikilink
-  // 变成 [[/foo/]] —— resolver 不识别 / 开头的"绝对" wikilink,全死。
-  // 用 prefix 变量统一:根 → ''(直接 [[foo/]]),子目录 → 'sub/' (拼后 [[sub/foo/]])
+  // v0.3.4 修:dirRelPath === '' 时(根),不能拼前导 '/'(否则 [[/foo/]] 死)
   const prefix = ctx.dirRelPath === '' ? '' : `${ctx.dirRelPath}/`
+  const subDirLinkable = subFolderClickable(ctx.groupLink, ctx.isRoot)
+
   const lines: string[] = []
   lines.push('---')
   lines.push(`title: ${ctx.title}`)
@@ -314,16 +346,26 @@ function defaultTemplate(ctx: TemplateContext): string {
   lines.push('')
   lines.push(`# ${ctx.title}`)
   lines.push('')
+
+  // ── Folders 段(子文件夹在前)───────────────────────────────
   if (ctx.subDirs.length > 0) {
-    lines.push('## Sections')
+    lines.push('## Folders')
     lines.push('')
     for (const d of ctx.subDirs) {
-      lines.push(`- [[${prefix}${d.name}/|${d.title}]]`)
+      if (subDirLinkable) {
+        // 用 [[name/|Title]] 形式,resolver 处理"index 或 first-file"兜底
+        lines.push(`- [[${prefix}${d.name}/|${d.title}]]`)
+      } else {
+        // 纯文字标题(不可点)
+        lines.push(`- ${d.title}`)
+      }
     }
     lines.push('')
   }
+
+  // ── Files 段(本目录下的直接文件)───────────────────────────
   if (ctx.files.length > 0) {
-    lines.push('## Pages')
+    lines.push('## Files')
     lines.push('')
     for (const f of ctx.files) {
       lines.push(`- [[${prefix}${f.relPath}|${f.title}]]`)
@@ -331,4 +373,14 @@ function defaultTemplate(ctx: TemplateContext): string {
     lines.push('')
   }
   return lines.join('\n')
+}
+
+/** 决定子文件夹标题(在 index.md 模板里)是否可点 */
+function subFolderClickable(
+  groupLink: 'all' | 'top-level' | 'off',
+  isRoot: boolean,
+): boolean {
+  if (groupLink === 'off') return false
+  if (groupLink === 'top-level') return isRoot
+  return true // 'all'
 }

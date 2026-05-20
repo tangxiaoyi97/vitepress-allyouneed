@@ -61,6 +61,7 @@ export function resolveSidebarAutoOptions(
     includePrefix: user.includePrefix,
     excludePrefixes: user.excludePrefixes ?? [],
     foldersFirst: user.foldersFirst ?? false,
+    folderLinkFallback: user.folderLinkFallback ?? 'first-file',
   }
 }
 
@@ -323,12 +324,17 @@ function renderNode(
       collapsed: resolveGroupCollapsed(child.dirIndex, opts),
       items: childItems,
     }
-    if (
-      child.dirIndex &&
-      !child.dirIndexEmpty &&
-      shouldLinkGroup(opts, isRoot)
-    ) {
-      group.link = child.dirIndex.url
+    if (shouldLinkGroup(opts, isRoot)) {
+      // v0.3.5:dirIndex 优先;**完全没有** dirIndex + folderLinkFallback ===
+      // 'first-file' 时,递归找子树第一个 page。
+      // ⚠ 空 frontmatter-only dirIndex 是用户**显式不要 link** 的 opt-out
+      // 信号(只读 frontmatter 的 sidebarTitle / sidebarCollapsed),不走兜底。
+      if (child.dirIndex && !child.dirIndexEmpty) {
+        group.link = child.dirIndex.url
+      } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
+        const first = findFirstPageUrl(child, opts)
+        if (first) group.link = first
+      }
     }
     folderItems.push(group)
   }
@@ -441,8 +447,15 @@ function toFlatSidebar(root: DirNode, opts: ResolvedSidebarAutoOptions): Sidebar
       items,
     }
     // flat 模式所有 group 都在"顶层" — 用 isTopLevel=true
-    if (d.dirIndex && !d.dirIndexEmpty && shouldLinkGroup(opts, true)) {
-      group.link = d.dirIndex.url
+    // v0.3.5:同 tree 模式;**完全没有** dirIndex 才走兜底,空 dirIndex 是
+    // 用户 opt-out 信号(读 frontmatter,不要 link)
+    if (shouldLinkGroup(opts, true)) {
+      if (d.dirIndex && !d.dirIndexEmpty) {
+        group.link = d.dirIndex.url
+      } else if (!d.dirIndex && opts.folderLinkFallback === 'first-file') {
+        const first = findFirstPageUrl(d, opts)
+        if (first) group.link = first
+      }
     }
     out.push(group)
   }
@@ -485,10 +498,14 @@ function toPerFolderSidebar(
     }
     const labelText = computeGroupText(child.path, child.dirIndex, opts)
     if (shouldLinkGroup(opts, /* isTopLevel */ true)) {
-      const firstUrl =
-        child.dirIndex && !child.dirIndexEmpty
-          ? child.dirIndex.url
-          : findFirstPageUrl(child, opts)
+      // v0.3.5:首推 dirIndex;**完全没有** dirIndex 才走 first-file 兜底。
+      // 空 dirIndex(只有 frontmatter)是用户 opt-out,不兜底
+      let firstUrl: string | null = null
+      if (child.dirIndex && !child.dirIndexEmpty) {
+        firstUrl = child.dirIndex.url
+      } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
+        firstUrl = findFirstPageUrl(child, opts)
+      }
       // ⚠ 没有真实页面就**不加 link**(避免点击 → 假 URL → 404 → router 报模块加载失败)
       if (firstUrl) {
         rootItems.push({ text: labelText, link: firstUrl })
@@ -507,15 +524,20 @@ function toPerFolderSidebar(
     if (items.length === 0 && !child.dirIndex) continue
 
     const sidebar: SidebarItem[] = []
-    const canLink =
-      child.dirIndex &&
-      !child.dirIndexEmpty &&
-      shouldLinkGroup(opts, /* isTopLevel */ true)
-    if (canLink) {
-      sidebar.push({
-        text: computeGroupText(child.path, child.dirIndex, opts),
-        link: child.dirIndex!.url,
-      })
+    // v0.3.5:per-folder sidebar 顶部"自己"链接同规则:空 dirIndex 不兜底
+    if (shouldLinkGroup(opts, /* isTopLevel */ true)) {
+      let selfUrl: string | null = null
+      if (child.dirIndex && !child.dirIndexEmpty) {
+        selfUrl = child.dirIndex.url
+      } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
+        selfUrl = findFirstPageUrl(child, opts)
+      }
+      if (selfUrl) {
+        sidebar.push({
+          text: computeGroupText(child.path, child.dirIndex, opts),
+          link: selfUrl,
+        })
+      }
     }
     sidebar.push(...items)
 
@@ -556,16 +578,19 @@ export function generateNav(
     const text = computeGroupText(child.path, child.dirIndex, opts)
     // 链接选取(dirIndex.url 在 v0.3+ 已经不带 base,直接用即可):
     //   1. 非空 dirIndex → dirIndex.url
-    //   2. 否则递归找第一个有效 page
-    //   3. 都没有 → **跳过这个 tab**(nav tab 必须可点,否则点不动反而困惑;
-    //      不像 sidebar 里没 link 还能展开/折叠)
+    //   2. **完全无** dirIndex + folderLinkFallback === 'first-file' → 第一个 page
+    //   3. 都没有(包括空 dirIndex 的 opt-out 场景)→ **跳过这个 tab**
+    //      (nav tab 必须可点,否则点不动反而困惑;不像 sidebar 里没 link 还能展开/折叠)
     let link: string
     if (child.dirIndex && !child.dirIndexEmpty) {
       link = stripBase(child.dirIndex.url, base)
-    } else {
+    } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
       const first = findFirstPageUrl(child, opts)
       if (!first) continue // skip whole tab
       link = first
+    } else {
+      // 空 dirIndex(opt-out)或 folderLinkFallback === 'none' → 跳过 tab
+      continue
     }
     const escapedPrefix = `/${key}/`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     out.push({ text, link, activeMatch: '^' + escapedPrefix })
