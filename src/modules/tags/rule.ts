@@ -8,7 +8,8 @@ import type { AllYouNeedEnv } from '../../core/types.js'
 import { escapeHtml } from '../../utils/escape.js'
 import { applyCleanUrls } from '../../utils/url.js'
 
-const TAG_RE = /^#([\p{L}_][\p{L}\p{N}_/-]*)/u
+// v0.3.9:默认 TAG_RE 仍用老 pattern,但 ruleFn 优先读 env.options.views.inlineTagPattern
+const DEFAULT_TAG_RE = /^#([\p{L}_][\p{L}\p{N}_/-]*)/u
 
 function isValidPrecedingChar(c: string | undefined): boolean {
   if (c === undefined) return true
@@ -27,13 +28,15 @@ export function makeTagRule(): (state: StateInline, silent: boolean) => boolean 
     if (!isValidPrecedingChar(prev)) return false
 
     const slice = src.slice(start)
-    const m = TAG_RE.exec(slice)
+    // v0.3.9:优先从 env.options.views.inlineTagPattern 读;没注入就用默认
+    const env = state.env as AllYouNeedEnv & { referencedTags?: Set<string> }
+    const pattern = env.options?.views?.inlineTagPattern ?? DEFAULT_TAG_RE
+    const m = pattern.exec(slice)
     if (!m) return false
 
     const tag = m[1]!
     if (silent) return true
 
-    const env = state.env as AllYouNeedEnv & { referencedTags?: Set<string> }
     if (!env.referencedTags) env.referencedTags = new Set()
     env.referencedTags.add(tag)
 

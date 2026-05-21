@@ -37,7 +37,7 @@ import { resolveOptions } from './core/config-bridge.js'
 import { registerTagsInline } from './modules/tags/index.js'
 import { injectViewsSidebar, injectViewsNav } from './core/views/sidebar-inject.js'
 import { generateSidebar, generateNav } from './core/sidebar-auto/index.js'
-import { generateFolderIndexes } from './core/sidebar-auto/generate-folder-index.js'
+import { generateSidebarMaterializations } from './core/sidebar-auto/generate-sidebar-materialize.js'
 import { scanVault } from './core/vault/index.js'
 import { scanWikilinks, logDeadLinks } from './core/scan-wikilinks.js'
 
@@ -136,22 +136,30 @@ export function defineConfigWithAllYouNeed(
       // 解决:这里立即跑一次 scanVault(成本约 100ms,可接受),用结果生成 sidebar。
       // Vite buildStart 时 viteplugin 会再扫一次,index 实例不同但内容一致。
       try {
-        // v0.3:autoFolderIndex —— 在 scan 前给缺 index 的目录建一份 index.md。
-        // 支持三种模式:'off' / 'top-level'(默认) / 'all'。
-        // 兼容旧写法:true → 'top-level',false → 'off'。
-        const folderOpts = normalizeAutoFolderIndex(
-          sidebarAuto.autoFolderIndex,
-          sidebarAuto.stripNumericPrefix,
-        )
-        // v0.3.5:把 sidebarAuto.groupLink 透传给模板(默认 'all'),让默认
-        // 模板里的子文件夹标题遵守和 sidebar 一致的可点性规则。
-        folderOpts.groupLink = sidebarAuto.groupLink ?? 'all'
-        if (folderOpts.mode !== 'off') {
+        // v0.3.10:autoFolderIndex 已删除。文件夹链接由 folderLinkOrder
+        // 配置在 sidebar / nav / wikilink 解析时直接解决 —— 不再写文件。
+        // 用户仍传 autoFolderIndex(老配置)→ 提示一次。
+        if (sidebarAuto.autoFolderIndex !== undefined) {
+          console.warn(
+            'vitepress-allyouneed: `sidebarAuto.autoFolderIndex` was removed in v0.3.10. ' +
+              'Folder URLs are now resolved via `folderLinkOrder` (default: same-name → index → README → first-file). ' +
+              'Previously generated index.md files (with our sentinel) are safe to delete manually.',
+          )
+        }
+        // v0.3.9:materialize _sidebar.md(默认 off,opt-in 才生成)
+        const materializeMode = (sidebarAuto.materialize as
+          | 'off'
+          | 'top-level'
+          | 'all'
+          | undefined) ?? 'off'
+        if (materializeMode !== 'off') {
           try {
-            generateFolderIndexes(resolvedForWrapper, folderOpts)
+            generateSidebarMaterializations(resolvedForWrapper, {
+              mode: materializeMode,
+            })
           } catch (e) {
             console.warn(
-              'vitepress-allyouneed: autoFolderIndex 生成失败,跳过。',
+              'vitepress-allyouneed: sidebar materialize generation failed, skipping.',
               e instanceof Error ? e.message : String(e),
             )
           }
@@ -164,7 +172,7 @@ export function defineConfigWithAllYouNeed(
         } catch (e) {
           // 不阻塞,但要让用户看见(否则 debug "为什么死链不报" 太痛苦)
           console.warn(
-            'vitepress-allyouneed: scanWikilinks 失败,跳过死链汇总。',
+            'vitepress-allyouneed: scanWikilinks failed, skipping dead-link summary.',
             e instanceof Error ? e.message : String(e),
           )
         }
@@ -209,7 +217,7 @@ export function defineConfigWithAllYouNeed(
         }
       } catch (e) {
         console.warn(
-          'vitepress-allyouneed: sidebar 自动生成失败,跳过。',
+          'vitepress-allyouneed: sidebar auto-generation failed, skipping.',
           e instanceof Error ? e.message : String(e),
         )
       }
@@ -270,59 +278,6 @@ export function defineConfigWithAllYouNeed(
       config: newMarkdownConfig,
     },
   }
-}
-
-/**
- * 把 sidebarAuto.autoFolderIndex(union 类型)归一化成 generateFolderIndexes
- * 接受的对象形式。**默认 mode = 'top-level'**(用户没显式传时)。
- */
-function normalizeAutoFolderIndex(
-  v: unknown,
-  globalStripNumericPrefix: boolean | undefined,
-): {
-  mode: 'off' | 'top-level' | 'all'
-  exclude?: string[]
-  stripNumericPrefix?: boolean
-  template?: import('./core/sidebar-auto/generate-folder-index.js').FolderIndexOptions['template']
-  /** v0.3.5:caller 再覆盖 */
-  groupLink?: 'all' | 'top-level' | 'off'
-} {
-  let mode: 'off' | 'top-level' | 'all' = 'top-level'
-  let exclude: string[] | undefined
-  let strip: boolean | undefined = globalStripNumericPrefix
-  let template:
-    | import('./core/sidebar-auto/generate-folder-index.js').FolderIndexOptions['template']
-    | undefined
-
-  if (v === undefined || v === null) {
-    // 用默认 'top-level'
-  } else if (v === false || v === 'off') {
-    mode = 'off'
-  } else if (v === true || v === 'top-level') {
-    mode = 'top-level'
-  } else if (v === 'all') {
-    mode = 'all'
-  } else if (typeof v === 'object') {
-    const obj = v as {
-      mode?: 'off' | 'top-level' | 'all'
-      enabled?: boolean
-      exclude?: string[]
-      stripNumericPrefix?: boolean
-      template?: import('./core/sidebar-auto/generate-folder-index.js').FolderIndexOptions['template']
-    }
-    if (obj.mode) {
-      mode = obj.mode
-    } else if (obj.enabled === false) {
-      mode = 'off'
-    } else if (obj.enabled === true) {
-      mode = 'top-level'
-    }
-    exclude = obj.exclude
-    if (obj.stripNumericPrefix !== undefined) strip = obj.stripNumericPrefix
-    template = obj.template
-  }
-
-  return { mode, exclude, stripNumericPrefix: strip, template }
 }
 
 /**

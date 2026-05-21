@@ -114,7 +114,7 @@ function ingestMarkdown(
   } catch (err) {
     index.warnings.push({
       kind: 'unreadable-file',
-      message: `无法读取文件: ${absPath} (${
+      message: `Cannot read file: ${absPath} (${
         err instanceof Error ? err.message : String(err)
       })`,
       affected: [absPath],
@@ -126,7 +126,7 @@ function ingestMarkdown(
   if (error) {
     index.warnings.push({
       kind: 'invalid-frontmatter',
-      message: `frontmatter 解析失败 (${absPath}): ${error}`,
+      message: `Frontmatter parse failed (${absPath}): ${error}`,
       affected: [absPath],
     })
   }
@@ -204,9 +204,9 @@ function registerFileEntry(
     index.warnings.push({
       kind: 'unknown',
       message:
-        `URL 冲突:文件 "${entry.relativePath}" 和 "${existingAtUrl.relativePath}" ` +
-        `都路由到 "${entry.url}"。VitePress 会让其中一个 404。` +
-        `建议在 .vitepress/config 加 srcExclude: ['${entry.relativePath}'](或另一个)。`,
+        `URL conflict: "${entry.relativePath}" and "${existingAtUrl.relativePath}" ` +
+        `both route to "${entry.url}". One of them will 404 in VitePress. ` +
+        `Add srcExclude: ['${entry.relativePath}'] (or the other) in .vitepress/config to fix.`,
       affected: [existingAtUrl.absolutePath, entry.absolutePath],
     })
   }
@@ -221,7 +221,7 @@ function registerFileEntry(
     if (index.byAlias.has(key)) {
       index.warnings.push({
         kind: 'duplicate-alias',
-        message: `alias "${alias}" 同时被多个文件声明,按 onAliasConflict='${options.onAliasConflict}' 处理`,
+        message: `alias "${alias}" declared by multiple files; resolving per onAliasConflict='${options.onAliasConflict}'`,
         affected: [index.byAlias.get(key)!.absolutePath, entry.absolutePath],
       })
       if (options.onAliasConflict === 'first') continue

@@ -13,8 +13,8 @@ import MarkdownIt from 'markdown-it'
 import { resolveOptions } from '../src/core/config-bridge.js'
 import { scanVault } from '../src/core/vault/index.js'
 import { resolveAsset, resolveWikilink } from '../src/core/resolver.js'
-import { generateFolderIndexes } from '../src/core/sidebar-auto/generate-folder-index.js'
-import { humanize } from '../src/core/sidebar-auto/generate-folder-index.js'
+// v0.3.10:autoFolderIndex 删除;humanize 从 internal.ts 引用
+import { humanize } from '../src/core/sidebar-auto/internal.js'
 import allYouNeedMarkdownIt from '../src/markdown-it.js'
 import { splitWikilinkInner } from '../src/utils/wikilink.js'
 import { registerTagsInline } from '../src/modules/tags/index.js'
@@ -73,36 +73,7 @@ describe('Bug 1: resolveAsset 相对当前文件 fallback', () => {
   })
 })
 
-// ── Bug 2:autoFolderIndex 根目录死链 ────────────────────────────
-
-describe('Bug 2: 生成 index.md 根目录不带 /', () => {
-  let tmp: string
-  beforeAll(() => {
-    tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-b2-'))
-    write(nodePath.join(tmp, 'foo.md'), '# Foo\n')
-    write(nodePath.join(tmp, 'bar', 'baz.md'), '# Baz\n')
-  })
-  afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }))
-
-  it('根目录生成的 index.md 链接不带前导 /', () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    generateFolderIndexes(opts, { mode: 'top-level' })
-    const rootIdx = fs.readFileSync(nodePath.join(tmp, 'index.md'), 'utf8')
-    // [[bar/|...]] 而不是 [[/bar/|...]]
-    expect(rootIdx).toMatch(/\[\[bar\/\|/)
-    expect(rootIdx).not.toMatch(/\[\[\/bar\//)
-    expect(rootIdx).toMatch(/\[\[foo\|/)
-    expect(rootIdx).not.toMatch(/\[\[\/foo\|/)
-  })
-
-  it('子目录生成的 index.md 仍带子目录前缀', () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    generateFolderIndexes(opts, { mode: 'all' })
-    const subIdx = fs.readFileSync(nodePath.join(tmp, 'bar', 'index.md'), 'utf8')
-    // bar/ 目录下生成的 index 引用 baz,路径前缀应该是 'bar/'
-    expect(subIdx).toMatch(/\[\[bar\/baz\|/)
-  })
-})
+// v0.3.10:Bug 2 测试块删除 — autoFolderIndex 功能整个移除
 
 // ── Bug 3:splitWikilinkInner 处理 \| ─────────────────────────────
 
@@ -198,7 +169,21 @@ describe('Bug 6: comments block 不被内部 fence 提前关闭', () => {
     const tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-b6-'))
     try {
       write(nodePath.join(tmp, 'a.md'), 'x')
-      const { md, env } = buildMd(tmp)
+      // v0.3.9+:preserveAsHtmlComment 默认 true。本 bug 要的是"整段被吃掉"
+      // 行为,所以显式关掉。
+      const opts = resolveOptions({
+        srcDir: tmp,
+        cleanUrls: true,
+        comments: { preserveAsHtmlComment: false },
+      })
+      const idx = scanVault(opts)
+      const md = new MarkdownIt({ html: true })
+      allYouNeedMarkdownIt(md, {
+        srcDir: tmp,
+        cleanUrls: true,
+        comments: { preserveAsHtmlComment: false },
+      })
+      const env: AllYouNeedEnv = { index: idx, options: opts }
       const src = [
         '%%',
         '```js',

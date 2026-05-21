@@ -8,6 +8,7 @@
 import type { ResolvedOptions, VaultIndex } from './types.js'
 import { stripMarkdownExt, toPosix } from '../utils/path.js'
 import { splitWikilinkInner } from '../utils/wikilink.js'
+import { findAmbiguousLeadingNumberMatches } from './resolver.js'
 
 // v0.3.4:简化为捕获整段 inner,target 拆分交给 splitWikilinkInner(支持 \|)
 const WIKILINK_RE = /(!?)\[\[([^\]\n]+)\]\]/g
@@ -17,6 +18,17 @@ export interface DeadLinkReport {
   total: number
   /** 死链(target 解析不到的)*/
   dead: Array<{ source: string; target: string; raw: string }>
+  /**
+   * v0.3.9:leading-number 模式下"歧义锚点"——`#7.2` 同时匹配多个 heading,
+   * resolver 取第一个但用户可能没察觉。这里汇总,scanWikilinks 启动时 warn 一次。
+   */
+  ambiguous: Array<{
+    source: string
+    raw: string
+    headingPart: string
+    chosen: string
+    others: string[]
+  }>
 }
 
 /**
@@ -39,7 +51,11 @@ export function scanWikilinks(
   options: ResolvedOptions,
 ): DeadLinkReport {
   const dead: DeadLinkReport['dead'] = []
+  const ambiguous: DeadLinkReport['ambiguous'] = []
   let total = 0
+  // v0.3.9:仅 leading-number 模式才扫歧义(exact 不会;fuzzy 用户自己背锅)
+  const anchorMode = options.wikilinks.anchorMatch ?? 'leading-number'
+  const scanAmbig = anchorMode === 'leading-number'
 
   for (const f of index.files.values()) {
     const cleaned = stripCodeForScan(f.content)
@@ -49,11 +65,11 @@ export function scanWikilinks(
       const isEmbed = m[1] === '!'
       // v0.3.4:拆 \| 转义,只看 target 段;再剥 #heading
       const inner = m[2]!
-      let rawTarget = splitWikilinkInner(inner)[0] ?? ''
-      const hashIdx = rawTarget.indexOf('#')
-      if (hashIdx >= 0) rawTarget = rawTarget.slice(0, hashIdx)
-      rawTarget = rawTarget.trim()
-      if (!rawTarget) continue
+      let rawTargetFull = splitWikilinkInner(inner)[0] ?? ''
+      const hashIdx = rawTargetFull.indexOf('#')
+      const headingPart = hashIdx >= 0 ? rawTargetFull.slice(hashIdx + 1).trim() : ''
+      const rawTarget = (hashIdx >= 0 ? rawTargetFull.slice(0, hashIdx) : rawTargetFull).trim()
+      if (!rawTarget && !headingPart) continue
       // image/audio/video/pdf/transclusion 走 embed 通道,不参与 wikilink 死链检测
       if (isEmbed) {
         const ext = extractExt(rawTarget)
@@ -69,36 +85,120 @@ export function scanWikilinks(
         dead.push({
           source: f.relativePath,
           target: rawTarget,
-          raw: `${isEmbed ? '!' : ''}[[${rawTarget}]]`,
+          raw: `${isEmbed ? '!' : ''}[[${rawTargetFull}]]`,
         })
+        continue
+      }
+      // v0.3.9:成功 resolve,继续看锚点歧义
+      if (scanAmbig && headingPart) {
+        // 取出目标 entry 来扫 heading
+        const targetEntry = resolveSimpleEntry(rawTarget, index, options, f.relativePath)
+        if (!targetEntry) continue
+        const matches2 = findAmbiguousLeadingNumberMatches(targetEntry, headingPart)
+        if (matches2.length > 1) {
+          // 仅当 exact text/slug 都没命中(意味着真走了 leading-number 兜底)
+          const exactHit = targetEntry.headings.some(
+            (h) =>
+              h.text === headingPart ||
+              h.slug === headingPart ||
+              h.slug === options.slugify(headingPart),
+          )
+          if (!exactHit) {
+            ambiguous.push({
+              source: f.relativePath,
+              raw: `${isEmbed ? '!' : ''}[[${rawTargetFull}]]`,
+              headingPart,
+              chosen: matches2[0]!.text,
+              others: matches2.slice(1).map((h) => h.text),
+            })
+          }
+        }
       }
     }
   }
-  return { total, dead }
+  return { total, dead, ambiguous }
+}
+
+/** 同 resolveSimple 但返回 FileEntry */
+function resolveSimpleEntry(
+  raw: string,
+  index: VaultIndex,
+  options: ResolvedOptions,
+  currentSourceRel?: string,
+) {
+  const target = stripMarkdownExt(toPosix(raw))
+  if (!target) return undefined
+  if (target.includes('/')) {
+    const e =
+      index.byRelativePath.get(target) ??
+      index.byRelativePath.get(target + '.md') ??
+      index.byRelativePath.get(target + '.markdown')
+    if (e) return e
+    if (currentSourceRel) {
+      const curDir = currentSourceRel.split('/').slice(0, -1).join('/')
+      if (curDir) {
+        return (
+          index.byRelativePath.get(`${curDir}/${target}`) ??
+          index.byRelativePath.get(`${curDir}/${target}.md`) ??
+          index.byRelativePath.get(`${curDir}/${target}.markdown`)
+        )
+      }
+    }
+    return undefined
+  }
+  const aliasKey = options.caseSensitive ? target : target.toLowerCase()
+  const aliased = index.byAlias.get(aliasKey)
+  if (aliased) return aliased
+  const map = options.caseSensitive ? index.byBasename : index.byBasenameLower
+  const key = options.caseSensitive ? target : target.toLowerCase()
+  return map.get(key)?.[0]
 }
 
 /** vitepress.ts wrapper 用:扫完打印汇总 */
 export function logDeadLinks(report: DeadLinkReport, deadLink: 'silent' | 'warn' | 'error'): void {
-  if (report.dead.length === 0) return
   if (deadLink === 'silent') return
-  const head = `vitepress-allyouneed: 共扫描 ${report.total} 个 wikilink, ` +
-    `发现 ${report.dead.length} 个死链:`
-  if (deadLink === 'error') {
-    console.error(head)
-  } else {
-    console.warn(head)
+  if (report.dead.length > 0) {
+    const head = `vitepress-allyouneed: scanned ${report.total} wikilinks, ` +
+      `found ${report.dead.length} dead link(s):`
+    if (deadLink === 'error') {
+      console.error(head)
+    } else {
+      console.warn(head)
+    }
+    // 按 source 分组打印,便于人眼看
+    const bySource = new Map<string, typeof report.dead>()
+    for (const d of report.dead) {
+      const arr = bySource.get(d.source) ?? []
+      arr.push(d)
+      bySource.set(d.source, arr)
+    }
+    for (const [src, items] of [...bySource.entries()].sort()) {
+      console.warn(`  ${src}`)
+      for (const it of items) {
+        console.warn(`    ${it.raw}`)
+      }
+    }
   }
-  // 按 source 分组打印,便于人眼看
-  const bySource = new Map<string, typeof report.dead>()
-  for (const d of report.dead) {
-    const arr = bySource.get(d.source) ?? []
-    arr.push(d)
-    bySource.set(d.source, arr)
-  }
-  for (const [src, items] of [...bySource.entries()].sort()) {
-    console.warn(`  ${src}`)
-    for (const it of items) {
-      console.warn(`    ${it.raw}`)
+  // v0.3.9:歧义锚点汇总
+  if (report.ambiguous.length > 0) {
+    console.warn(
+      `vitepress-allyouneed: ${report.ambiguous.length} ambiguous anchor(s) ` +
+        `(leading-number matched multiple headings; first chosen):`,
+    )
+    const bySource = new Map<string, DeadLinkReport['ambiguous']>()
+    for (const a of report.ambiguous) {
+      const arr = bySource.get(a.source) ?? []
+      arr.push(a)
+      bySource.set(a.source, arr)
+    }
+    for (const [src, items] of [...bySource.entries()].sort()) {
+      console.warn(`  ${src}`)
+      for (const it of items) {
+        console.warn(
+          `    ${it.raw} #${it.headingPart} → "${it.chosen}" ` +
+            `(also matches: ${it.others.map((o) => `"${o}"`).join(', ')})`,
+        )
+      }
     }
   }
 }

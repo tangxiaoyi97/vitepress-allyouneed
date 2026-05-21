@@ -7,6 +7,7 @@
  *   - 每行:FileText icon + 标题 + inline 其它 tags + 右侧 mono path + date
  */
 import { computed, ref, onMounted, watch } from 'vue'
+import { withBase } from 'vitepress'
 import { useVaultData } from '../composables/useVaultData.js'
 
 const { data, loading, error } = useVaultData()
@@ -131,7 +132,7 @@ function basename(p: string): string {
             :key="f.id"
             class="ayn-tag-note-row"
           >
-            <a :href="f.url" class="ayn-tag-note-row-link">
+            <a :href="withBase(f.url)" class="ayn-tag-note-row-link">
               <div class="ayn-tag-note-row-left">
                 <span class="ayn-tag-note-row-title">{{ f.title }}</span>
                 <span

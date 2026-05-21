@@ -120,6 +120,8 @@ export function resolveOptions(
         wikilinksUser.allowLinkLabelFormatting ?? false,
       linkText: wikilinksUser.linkText ?? 'basename',
       htmlAttributes: wikilinksHtmlAttrs,
+      // v0.3.9:锚点匹配模式,默认 leading-number(按章节号前缀匹配)
+      anchorMatch: wikilinksUser.anchorMatch ?? 'leading-number',
     },
 
     embeds: {
@@ -147,13 +149,22 @@ export function resolveOptions(
         tags: viewsUser.names?.tags ?? 'tags',
       },
       // 'injectInto' 优先(v0.3+);否则从老的 'sidebar' 字段推断;再否则默认 'nav'
+      // v0.4.0:用户仍传老 sidebar 字段时 console.warn 一次(v0.5 将删)
       injectInto:
         viewsUser.injectInto ??
-        (viewsUser.sidebar === false
-          ? 'off'
-          : viewsUser.sidebar === 'auto'
-            ? 'sidebar'
-            : 'nav'),
+        (() => {
+          if (viewsUser.sidebar !== undefined) {
+            console.warn(
+              "vitepress-allyouneed: views.sidebar ('auto'|false) is deprecated and will be removed in v0.5. " +
+                "Use views.injectInto: 'sidebar' | 'nav' | 'both' | 'off' instead.",
+            )
+          }
+          return viewsUser.sidebar === false
+            ? 'off'
+            : viewsUser.sidebar === 'auto'
+              ? 'sidebar'
+              : 'nav'
+        })(),
       sidebar: viewsUser.sidebar ?? 'auto',
       sidebarText: {
         group: viewsUser.sidebarText?.group ?? 'Perspectives',
@@ -164,6 +175,9 @@ export function resolveOptions(
       graphMaxNodes: viewsUser.graphMaxNodes ?? 500,
       dataFileName: viewsUser.dataFileName ?? 'vault-data.json',
       parseInlineTags: viewsUser.parseInlineTags ?? true,
+      // v0.3.9:行内 #tag 默认正则。tags/rule.ts + views/generate-data.ts 都读这个
+      inlineTagPattern:
+        viewsUser.inlineTagPattern ?? /^#([\p{L}_][\p{L}\p{N}_/-]*)/u,
     },
 
     modules: {
@@ -178,6 +192,11 @@ export function resolveOptions(
     },
 
     sidebarAuto: user.sidebarAuto ?? {},
+
+    // v0.3.9:comments 模块的细配置
+    comments: {
+      preserveAsHtmlComment: user.comments?.preserveAsHtmlComment ?? true,
+    },
 
     slugify,
   }

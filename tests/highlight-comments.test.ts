@@ -85,7 +85,12 @@ describe('Comments — %%...%%', () => {
   let env: AllYouNeedEnv
 
   beforeAll(() => {
-    const opts = resolveOptions({ srcDir: VAULT, cleanUrls: true })
+    // 测试"去掉 comment"行为 → 显式关掉 preserveAsHtmlComment(0.3.9+ 默认 true)
+    const opts = resolveOptions({
+      srcDir: VAULT,
+      cleanUrls: true,
+      comments: { preserveAsHtmlComment: false },
+    })
     const idx = scanVault(opts)
     ;({ md, env } = makeMd(opts, idx))
   })

@@ -56,15 +56,15 @@ export function generateViewMarkdown(
       try {
         existing = fs.readFileSync(target, 'utf8')
       } catch {
-        report.skipped.push({ path: target, reason: '文件不可读,跳过' })
+        report.skipped.push({ path: target, reason: 'file not readable, skipping' })
         continue
       }
       if (!existing.includes(VIEW_SENTINEL)) {
         report.skipped.push({
           path: target,
           reason:
-            `用户已有同名文件,不覆盖。要启用此视图请:` +
-            `(a) 删除该文件 / (b) views.names.${v.kind} 改名 / (c) views.enabled.${v.kind}: false 关掉`,
+            `user-owned file present (no sentinel), not overwriting. To enable this view: ` +
+            `(a) delete the file, (b) rename via views.names.${v.kind}, or (c) disable via views.enabled.${v.kind}: false`,
         })
         continue
       }
@@ -77,7 +77,7 @@ export function generateViewMarkdown(
     } catch (err) {
       report.skipped.push({
         path: target,
-        reason: `写入失败: ${err instanceof Error ? err.message : String(err)}`,
+        reason: `write failed: ${err instanceof Error ? err.message : String(err)}`,
       })
     }
   }

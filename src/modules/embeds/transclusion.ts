@@ -44,9 +44,10 @@ export function renderTransclusionHtml(
   )
 
   if (result.isDead || !result.target) {
+    // v0.3.9:UI 文案统一英文
     return `<div class="transclusion transclusion--dead" data-target="${escapeHtml(
       rawTarget,
-    )}">⚠️ 找不到笔记 <code>${escapeHtml(rawTarget)}</code></div>`
+    )}">⚠️ Note not found: <code>${escapeHtml(rawTarget)}</code></div>`
   }
 
   const target = result.target
@@ -68,16 +69,16 @@ export function renderTransclusionHtml(
   if (stack.includes(target.absolutePath)) {
     return `<div class="transclusion transclusion--cycle" data-target="${escapeHtml(
       rawTarget,
-    )}">⚠️ 循环引用:<code>${escapeHtml(
+    )}">⚠️ Cyclic transclusion: <code>${escapeHtml(
       rawTarget,
-    )}</code> 已在 transclusion 链上</div>`
+    )}</code> is already in the transclusion chain</div>`
   }
 
   const depth = env.transclusionDepth ?? 0
   if (depth >= options.embeds.transclusionMaxDepth) {
     return `<div class="transclusion transclusion--too-deep" data-target="${escapeHtml(
       rawTarget,
-    )}">⚠️ transclusion 嵌套过深(&gt; ${options.embeds.transclusionMaxDepth})</div>`
+    )}">⚠️ Transclusion nesting too deep (&gt; ${options.embeds.transclusionMaxDepth})</div>`
   }
 
   const headingPart = extractHeading(rawTarget)
@@ -88,7 +89,7 @@ export function renderTransclusionHtml(
   if (fragment == null) {
     return `<div class="transclusion transclusion--unmatched-anchor" data-target="${escapeHtml(
       rawTarget,
-    )}">⚠️ 找不到章节 <code>#${escapeHtml(
+    )}">⚠️ Heading not found: <code>#${escapeHtml(
       headingPart,
     )}</code></div>`
   }
@@ -162,7 +163,7 @@ export function handleTransclusion(
 ): boolean {
   if (env.options.deadLink !== 'silent') {
     console.warn(
-      `vitepress-allyouneed: ![[${rawTarget}]] 在段落中无法 transclude(会产生不合法 HTML),已降级为链接。请单独放一行。`,
+      `vitepress-allyouneed: ![[${rawTarget}]] cannot be transcluded inline (would produce invalid HTML), degraded to a link. Put it on its own line for full transclusion.`,
     )
   }
   const { index, options } = env
@@ -177,7 +178,7 @@ export function handleTransclusion(
     `<a class="wikilink wikilink--inline-transclusion-degraded" ` +
     `href="${escapeHtml(url)}" ` +
     `data-wikilink-target="${escapeHtml(rawTarget)}" ` +
-    `title="行内 transclusion 已降级,见控制台">` +
+    `title="Inline transclusion degraded; see console">` +
     `${escapeHtml(label)}</a>`
 
   const token = state.push('html_inline', '', 0)

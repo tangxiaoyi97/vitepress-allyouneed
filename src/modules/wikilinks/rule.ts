@@ -160,7 +160,7 @@ function registerBacklink(
 /** 死链 → 按 deadLink 策略输出告警 */
 function handleDeadLink(env: AllYouNeedEnv, rawTarget: string): void {
   const { options } = env
-  const msg = `vitepress-allyouneed: 死链 [[${rawTarget}]]${
+  const msg = `vitepress-allyouneed: dead link [[${rawTarget}]]${
     env.currentPath ? ` (in ${env.currentPath})` : ''
   }`
   if (options.deadLink === 'silent') return

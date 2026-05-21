@@ -85,11 +85,11 @@ export function viteAllYouNeed(
         if (resolved.modules.views) {
           const mdReport = generateViewMarkdown(resolved, index)
           for (const written of mdReport.written) {
-            cfg.logger.info(`[vitepress-allyouneed] 生成视图 ${written}`)
+            cfg.logger.info(`[vitepress-allyouneed] generated view ${written}`)
           }
           for (const skipped of mdReport.skipped) {
             cfg.logger.warn(
-              `[vitepress-allyouneed] 跳过 ${skipped.path}: ${skipped.reason}`,
+              `[vitepress-allyouneed] skipped ${skipped.path}: ${skipped.reason}`,
             )
           }
           if (mdReport.written.length > 0) {
@@ -98,11 +98,11 @@ export function viteAllYouNeed(
           try {
             const dataReport = writeVaultData(index, resolved)
             cfg.logger.info(
-              `[vitepress-allyouneed] 写 ${dataReport.path} (${dataReport.bytes}B)`,
+              `[vitepress-allyouneed] wrote ${dataReport.path} (${dataReport.bytes}B)`,
             )
           } catch (err) {
             cfg.logger.warn(
-              `[vitepress-allyouneed] vault-data.json 写入失败: ${
+              `[vitepress-allyouneed] failed to write vault-data.json: ${
                 err instanceof Error ? err.message : String(err)
               }`,
             )
@@ -116,15 +116,15 @@ export function viteAllYouNeed(
           }
           if (index.warnings.length > top.length) {
             cfg.logger.warn(
-              `[vitepress-allyouneed] (...还有 ${
+              `[vitepress-allyouneed] (...and ${
                 index.warnings.length - top.length
-              } 条告警)`,
+              } more warnings)`,
             )
           }
         }
       } catch (err) {
         cfg.logger.error(
-          `[vitepress-allyouneed] vault 扫描失败: ${
+          `[vitepress-allyouneed] vault scan failed: ${
             err instanceof Error ? err.message : String(err)
           }`,
         )
@@ -165,14 +165,31 @@ export function viteAllYouNeed(
         removeFile(index, ctx.file, resolved)
         if (wasIndexed) structuralChange = 'remove'
       }
-      if (structuralChange) {
-        // toPosix 处理 Windows 反斜杠
+      // v0.3.10:`_sidebar.md` 修改也视作结构变化(其内容直接决定该文件夹的 sidebar)
+      const baseName = ctx.file.split(/[\\/]/).pop() ?? ''
+      const isSidebarFile = /^_sidebar\.(md|markdown)$/i.test(baseName)
+      const needRestart = structuralChange !== null || isSidebarFile
+      if (needRestart) {
         const rel = toPosix(ctx.file).replace(toPosix(resolved.srcDir) + '/', '')
+        const reason = isSidebarFile
+          ? `_sidebar.md changed (${rel})`
+          : `${structuralChange === 'add' ? 'added' : 'removed'} ${rel}`
         console.warn(
-          `vitepress-allyouneed: 检测到结构变化(${
-            structuralChange === 'add' ? '新增' : '删除'
-          } ${rel}),sidebar/nav 已被烘焙到 VitePress 配置中,**重启 dev 服务器**才能反映;wikilink/asset 已实时刷新。`,
+          `vitepress-allyouneed: structural change detected (${reason}). ` +
+            'sidebar/nav are baked into VitePress config at startup. ' +
+            'Auto-restarting dev server...',
         )
+        // v0.3.10:**自动重启** dev server。比 user 手动 Ctrl+C 友好得多。
+        // ctx.server 是 ViteDevServer,有 restart() 方法。
+        try {
+          // 异步触发(不要 await,handleHotUpdate 应快速返回)
+          void ctx.server.restart()
+        } catch (e) {
+          console.warn(
+            'vitepress-allyouneed: auto-restart failed; please restart manually.',
+            e instanceof Error ? e.message : String(e),
+          )
+        }
       }
       // v0.2:数据变了 → 重新生成 vault-data.json
       if (resolved.modules.views) {
@@ -181,7 +198,7 @@ export function viteAllYouNeed(
         } catch (e) {
           // v0.3.4:加 warn — Graph/Stats/Tags 不更新通常就是这里失败了
           console.warn(
-            'vitepress-allyouneed: 重新写 vault-data.json 失败,Graph/Stats/Tags 可能不更新。',
+            'vitepress-allyouneed: failed to rewrite vault-data.json; Graph/Stats/Tags may be stale.',
             e instanceof Error ? e.message : String(e),
           )
         }

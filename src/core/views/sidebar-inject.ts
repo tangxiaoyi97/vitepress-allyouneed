@@ -194,7 +194,7 @@ export function injectViewsNav(
         arr = Array.isArray(r) ? [...r] : []
       } catch (e) {
         console.warn(
-          'vitepress-allyouneed: themeConfig.nav 函数执行失败,仅返回 Perspectives 下拉。',
+          'vitepress-allyouneed: themeConfig.nav function threw; returning only the Perspectives dropdown.',
           e instanceof Error ? e.message : String(e),
         )
         arr = []

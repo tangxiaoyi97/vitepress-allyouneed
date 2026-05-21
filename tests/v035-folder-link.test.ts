@@ -13,10 +13,7 @@ import {
   generateSidebar,
   generateNav,
 } from '../src/core/sidebar-auto/index.js'
-import {
-  generateFolderIndexes,
-  FOLDER_INDEX_SENTINEL,
-} from '../src/core/sidebar-auto/index.js'
+// v0.3.10:autoFolderIndex removed; generateFolderIndexes/FOLDER_INDEX_SENTINEL gone
 import { resolveWikilink } from '../src/core/resolver.js'
 import type { SidebarItem } from '../src/core/sidebar-auto/index.js'
 
@@ -127,60 +124,4 @@ describe('F1.3: [[folder/]] wikilink 兜底', () => {
   })
 })
 
-// ── F2: 新默认模板 ─────────────────────────────────────────────────
-
-describe('F2: defaultTemplate 新样式', () => {
-  let tmp: string
-  beforeAll(() => {
-    tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-f2-'))
-    write(nodePath.join(tmp, 'A.md'), '# A')
-    write(nodePath.join(tmp, 'B.md'), '# B')
-    write(nodePath.join(tmp, 'sub1', 'x.md'), '# X')
-    write(nodePath.join(tmp, 'sub2', 'y.md'), '# Y')
-  })
-  afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }))
-
-  it('子文件夹在前 (Folders) ,文件在后 (Files)', () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    generateFolderIndexes(opts, { mode: 'top-level' })
-    const rootIdx = fs.readFileSync(nodePath.join(tmp, 'index.md'), 'utf8')
-    expect(rootIdx).toContain(FOLDER_INDEX_SENTINEL)
-    // Folders 段在前
-    const folderIdx = rootIdx.indexOf('## Folders')
-    const fileIdx = rootIdx.indexOf('## Files')
-    expect(folderIdx).toBeGreaterThan(-1)
-    expect(fileIdx).toBeGreaterThan(-1)
-    expect(folderIdx).toBeLessThan(fileIdx)
-    // 子文件夹用 wikilink(默认 groupLink='all')
-    expect(rootIdx).toMatch(/- \[\[sub1\/\|Sub1\]\]/)
-    expect(rootIdx).toMatch(/- \[\[sub2\/\|Sub2\]\]/)
-    // 文件
-    expect(rootIdx).toMatch(/- \[\[A\|A\]\]/)
-    expect(rootIdx).toMatch(/- \[\[B\|B\]\]/)
-  })
-
-  it("groupLink='off' 时:子文件夹纯文字标题", () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    generateFolderIndexes(opts, { mode: 'top-level', groupLink: 'off' })
-    const rootIdx = fs.readFileSync(nodePath.join(tmp, 'index.md'), 'utf8')
-    // 不应该有 [[sub1/|...]]
-    expect(rootIdx).not.toMatch(/\[\[sub1\//)
-    // 应有纯文字
-    expect(rootIdx).toMatch(/- Sub1/)
-    expect(rootIdx).toMatch(/- Sub2/)
-  })
-
-  it("groupLink='top-level':根 index 内可点,深层 index 内不可点", () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    // 加深度:sub1/inner/z.md
-    write(nodePath.join(tmp, 'sub1', 'inner', 'z.md'), '# Z')
-    generateFolderIndexes(opts, { mode: 'all', groupLink: 'top-level' })
-    const rootIdx = fs.readFileSync(nodePath.join(tmp, 'index.md'), 'utf8')
-    const sub1Idx = fs.readFileSync(nodePath.join(tmp, 'sub1', 'index.md'), 'utf8')
-    // 根:子文件夹用 wikilink
-    expect(rootIdx).toMatch(/\[\[sub1\//)
-    // sub1/index.md:深层,子文件夹纯文字(inner 不可点)
-    expect(sub1Idx).not.toMatch(/\[\[sub1\/inner/)
-    expect(sub1Idx).toMatch(/- Inner/)
-  })
-})
+// v0.3.10:F2 默认模板测试已删除 —— autoFolderIndex feature 整个移除

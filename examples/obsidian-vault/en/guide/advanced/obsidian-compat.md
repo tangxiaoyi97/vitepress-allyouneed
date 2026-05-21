@@ -43,12 +43,12 @@ tags: [advanced, obsidian, compat]
 
 | Item | Status | Note |
 |---|---|---|
-| `[[note#^block-id]]` cross-page jump | ⚠️ partial | Anchor in DOM; **browser URL hash works**. But wikilink resolver doesn't yet parse `#^id` (v0.4 planned) |
+| `[[note#^block-id]]` cross-page jump | ⚠️ partial | Anchor in DOM; **browser URL hash works**. But wikilink resolver doesn't yet parse `#^id` (v0.5 planned) |
 | Math `$x^2$` / `$$...$$` | ⚠️ user enables | VitePress built-in `markdown.math: true` (needs `markdown-it-mathjax3` or similar) |
 | `cssclasses:` frontmatter | ✅ | DocHeader Layout auto-applies to `<body>` |
 | Excalidraw / Canvas (`.canvas` / `.excalidraw`) | ⚠️ | Files copied as assets; wikilink/embed doesn't render them. Export to svg/png in Obsidian first |
 | `<%`/`<%+`/`<%-` (Templater) | ❌ | Preserved as-is; Templater is dynamic, VitePress is static-build |
-| ` ```dataview` / ` ```dataviewjs` | ❌ | Preserved as code blocks (v0.4 roadmap: static eval) |
+| ` ```dataview` / ` ```dataviewjs` | ❌ | Preserved as code blocks (v0.5 roadmap: static eval) |
 | Tasks plugin queries | ❌ | Same |
 | Daily notes UI / Calendar | ❌ | Those are Obsidian app UI, not markdown |
 | `[[]]` with `../` relative path | ❌ | Obsidian doesn't support it either; use basename or absolute path |
@@ -79,5 +79,5 @@ tags: [advanced, obsidian, compat]
 | Custom theme | Limited | Full freedom (VitePress theme system) |
 | Search | Built-in | VitePress built-in (local index) |
 | Graph view | Built-in | Built-in (see [[v0.3-tour|tour]]) |
-| Dataview | Partial | Not yet (v0.4 roadmap) |
+| Dataview | Partial | Not yet (v0.5 roadmap) |
 | Speed | Slow (runtime render) | Fast (static gen + Vite HMR) |

@@ -11,10 +11,7 @@ import os from 'node:os'
 import { resolveOptions } from '../src/core/config-bridge.js'
 import { scanVault } from '../src/core/vault/index.js'
 import { generateSidebar } from '../src/core/sidebar-auto/index.js'
-import {
-  generateFolderIndexes,
-  FOLDER_INDEX_SENTINEL,
-} from '../src/core/sidebar-auto/index.js'
+// v0.3.10:generateFolderIndexes / FOLDER_INDEX_SENTINEL 已删除
 import { parseSidebarOverride } from '../src/core/sidebar-auto/parse-sidebar-md.js'
 import { scanWikilinks } from '../src/core/scan-wikilinks.js'
 import { resolveWikilink } from '../src/core/resolver.js'
@@ -101,76 +98,7 @@ describe('_sidebar.md 手动覆盖', () => {
   })
 })
 
-// ── generateFolderIndexes ──────────────────────────────────────
-
-describe('generateFolderIndexes 三模式', () => {
-  let tmp: string
-  beforeAll(() => {
-    tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-fi-'))
-    write(nodePath.join(tmp, 'index.md'), '# Root\n')
-    // 顶级 a/:无 index
-    write(nodePath.join(tmp, 'a', 'page1.md'), '# P1\n')
-    write(nodePath.join(tmp, 'a', 'page2.md'), '# P2\n')
-    // 顶级 b/:有 index(用户文件)
-    write(nodePath.join(tmp, 'b', 'index.md'), '# user b index\n')
-    write(nodePath.join(tmp, 'b', 'inner.md'), '# inner\n')
-    // 嵌套 a/sub/:无 index
-    write(nodePath.join(tmp, 'a', 'sub', 'child.md'), '# child\n')
-    // _drafts 应被忽略
-    write(nodePath.join(tmp, '_drafts', 'wip.md'), '# wip\n')
-  })
-  afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }))
-
-  it("mode='off' 不生成任何 index", () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    const r = generateFolderIndexes(opts, { mode: 'off' })
-    expect(r.written.length).toBe(0)
-  })
-
-  it("mode='top-level' 仅给顶级目录建 index", () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    const r = generateFolderIndexes(opts, { mode: 'top-level' })
-    const writtenRels = r.written.map((p) => nodePath.relative(tmp, p))
-    expect(writtenRels).toContain('a/index.md')
-    // b 已有用户 index → 跳过
-    expect(writtenRels).not.toContain('b/index.md')
-    // 嵌套子目录 a/sub/ 不应生成
-    expect(writtenRels).not.toContain(nodePath.join('a', 'sub', 'index.md'))
-    // 写出的文件含 sentinel
-    const content = fs.readFileSync(r.written[0]!, 'utf8')
-    expect(content).toContain(FOLDER_INDEX_SENTINEL)
-    // cleanup
-    for (const p of r.written) fs.unlinkSync(p)
-  })
-
-  it("mode='all' 所有非空非 _ 目录都生成", () => {
-    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
-    const r = generateFolderIndexes(opts, { mode: 'all' })
-    const writtenRels = r.written.map((p) => nodePath.relative(tmp, p))
-    expect(writtenRels).toContain('a/index.md')
-    expect(writtenRels).toContain(nodePath.join('a', 'sub', 'index.md'))
-    // _drafts 仍不生成
-    expect(writtenRels.some((p) => p.startsWith('_drafts'))).toBe(false)
-    // b 仍跳过
-    expect(writtenRels).not.toContain('b/index.md')
-    for (const p of r.written) fs.unlinkSync(p)
-  })
-
-  it('不覆盖空 frontmatter-only 的用户文件', () => {
-    const tmp2 = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-fi2-'))
-    write(nodePath.join(tmp2, 'c', 'page.md'), '# p\n')
-    // 空 dirIndex(只有 frontmatter)
-    write(nodePath.join(tmp2, 'c', 'c.md'), '---\nsidebarTitle: C Custom\n---\n')
-    const opts = resolveOptions({ srcDir: tmp2, cleanUrls: true })
-    const r = generateFolderIndexes(opts, { mode: 'top-level' })
-    // 0.3.2 起根目录也会被生成(根没 dirIndex,但有 c/ 子目录)
-    const writtenRels = r.written.map((p) => nodePath.relative(tmp2, p))
-    expect(writtenRels).toEqual(['index.md']) // 只根 index 被生成
-    // c/ 因为有用户空 dirIndex c.md → 跳过
-    expect(r.skipped.some((s) => s.reason.includes('c.md'))).toBe(true)
-    fs.rmSync(tmp2, { recursive: true, force: true })
-  })
-})
+// v0.3.10:generateFolderIndexes 测试块整个删除 — autoFolderIndex 功能不再存在
 
 // ── scanWikilinks ──────────────────────────────────────────────
 

@@ -76,7 +76,9 @@ export function resolveWikilink(
   let url = entry.url
   let hasUnmatchedAnchor = false
   if (headingPart) {
-    const heading = matchHeading(entry, headingPart, options.slugify)
+    // v0.3.9:按 options.wikilinks.anchorMatch 选模式
+    const mode = options.wikilinks.anchorMatch ?? 'leading-number'
+    const heading = matchHeading(entry, headingPart, options.slugify, mode)
     if (heading) {
       url = entry.url + '#' + heading.slug
     } else {
@@ -110,27 +112,52 @@ function lookupEntry(
 
   // 含 '/':按路径查;v0.3.5:forcePathStyle 时也走这里
   if (target.includes('/') || forcePathStyle) {
-    // 用户写 'notes/a' → 找 'notes/a.md' 或 'notes/a.markdown'
-    // v0.3.5:加同名 dirIndex 变体(`Themen/Themen.md` 当 `Themen/` 的索引)
+    // 1. 直接 target lookup(不算 dirIndex 解析,就找精确路径)
+    const direct =
+      index.byRelativePath.get(target) ??
+      index.byRelativePath.get(target + '.md') ??
+      index.byRelativePath.get(target + '.markdown')
+    if (direct) return direct
+
+    // 2. v0.4.0:按 folderLinkOrder iterate,每个 kind 对应一种 dirIndex 候选 lookup
     const lastSeg = target.split('/').pop() ?? ''
-    const variants = [
-      target,
-      target + '.md',
-      target + '.markdown',
-      target + '/index.md',
-      target + '/index.markdown',
-      // 同名文件夹索引(和 pickDirIndexes 优先级 1 对齐)
-      ...(lastSeg
-        ? [target + '/' + lastSeg + '.md', target + '/' + lastSeg + '.markdown']
-        : []),
-    ]
-    for (const v of variants) {
-      const e = index.byRelativePath.get(v)
-      if (e) return e
+    const sa = options.sidebarAuto ?? {}
+    const order: ReadonlyArray<'same-name' | 'index' | 'readme' | 'first-file'> =
+      Array.isArray(sa.folderLinkOrder)
+        ? sa.folderLinkOrder as Array<'same-name' | 'index' | 'readme' | 'first-file'>
+        : (sa.folderLinkFallback === 'none'
+            ? []
+            : ['same-name', 'index', 'readme', 'first-file'])
+    for (const kind of order) {
+      if (kind === 'first-file') {
+        const first = findFirstFileInFolder(target, index)
+        if (first) return first
+      } else if (kind === 'index') {
+        const e =
+          index.byRelativePath.get(target + '/index.md') ??
+          index.byRelativePath.get(target + '/index.markdown')
+        if (e) return e
+      } else if (kind === 'readme') {
+        // case-insensitive lookup(README.md / readme.md 都行)
+        const lower = target + '/'
+        for (const path of index.byRelativePath.keys()) {
+          if (!path.startsWith(lower)) continue
+          const rest = path.slice(lower.length)
+          if (/^readme\.(md|markdown)$/i.test(rest)) {
+            const e = index.byRelativePath.get(path)
+            if (e) return e
+          }
+        }
+      } else if (kind === 'same-name' && lastSeg) {
+        const e =
+          index.byRelativePath.get(target + '/' + lastSeg + '.md') ??
+          index.byRelativePath.get(target + '/' + lastSeg + '.markdown')
+        if (e) return e
+      }
     }
-    // Fallback:相对当前 source 文件目录(模仿 Obsidian 行为)
+
+    // 3. Fallback:相对当前 source 文件目录(模仿 Obsidian 行为)
     if (currentSourcePath) {
-      // currentSourcePath 是绝对路径,先转 vault 相对再拼
       const srcDirAbs = index.srcDir
       const rel = toPosix(currentSourcePath).startsWith(srcDirAbs + '/')
         ? toPosix(currentSourcePath).slice(srcDirAbs.length + 1)
@@ -151,14 +178,6 @@ function lookupEntry(
           }
         }
       }
-    }
-    // v0.3.5:folderLinkFallback === 'first-file' 时,文件夹路径找不到 index
-    //   就落到该文件夹下"第一个文件"。让 [[folder/]] 始终可点。
-    const folderFallback =
-      options.sidebarAuto?.folderLinkFallback ?? 'first-file'
-    if (folderFallback === 'first-file') {
-      const first = findFirstFileInFolder(target, index)
-      if (first) return first
     }
     return undefined
   }
@@ -192,27 +211,33 @@ function lookupEntry(
 }
 
 /**
- * v0.3.8 — 柔性 heading 匹配。Obsidian 用户经常这么写表格内的 wikilink:
+ * v0.3.9 — heading 锚点匹配,三模式。
  *
- *   [[X#7.2]]            想匹配 "## 7.2 Antike — Vorsokratiker"
- *   [[X#11.2 Kepler]]    想匹配 "## 11.2 Die drei Kepler'schen Gesetze"
- *   [[X#4.2 Cavendish]]  想匹配 "## 4.2 Cavendish-Experiment (1798)"
+ * **'exact'**(对齐 Obsidian,严格):
+ *   - h.text / h.slug / slugify(headingPart) 三种精确匹配
  *
- * 匹配优先级(返回首个命中):
- *   1. **exact text** —— h.text === headingPart
- *   2. **slug 原样** —— h.slug === headingPart
- *   3. **slug 标准化** —— h.slug === slugify(headingPart)
- *   4. **prefix-with-boundary** —— h.text 以 headingPart 开头,且下一个字符是
- *      whitespace 或字符串末尾(避免 #7.2 误匹配 "7.21 Foo")
- *   5. **token match** —— headingPart 按空白拆 token,所有 token 都(忽略
- *      大小写)出现在 h.text 中;多 candidate 取**最短** text(最精确那个)
+ * **'leading-number'**(默认,physics/math/chem 风格章节号):
+ *   - 先走 exact;失败提取 headingPart 的"前导数字"(如 `7`、`7.2`、`4.2.1`)
+ *   - 找 heading.text 以该数字开头 + 后跟 whitespace 或字符串末尾的所有 heading
+ *   - 多个 → 取**第一个**(按 vault 中出现顺序)并记 ambiguous(scanWikilinks 报)
+ *   - 一个 → 返回
+ *   - 零个 → undefined
+ *
+ * **'fuzzy'**(实验性,99% 可用):
+ *   - leading-number 的全套
+ *   - 再加 token-match:headingPart 按空白拆 token,所有 token 都(case-insensitive)
+ *     在 h.text 中出现 → match;多 candidate 选最短 text
+ *
+ * 返回 { heading, ambiguous? }。ambiguous=true 时 resolver 仍返回 heading,
+ * 但调用方(scanWikilinks)可以读出来做汇总告警。
  */
 function matchHeading(
   entry: FileEntry,
   headingPart: string,
   slugify: (s: string) => string,
+  mode: 'exact' | 'leading-number' | 'fuzzy',
 ): import('./types.js').HeadingEntry | undefined {
-  // 1-3. 老的三种精确匹配
+  // 全模式共用:exact 文本/ slug 匹配
   const exact = entry.headings.find(
     (h) =>
       h.text === headingPart ||
@@ -220,20 +245,33 @@ function matchHeading(
       h.slug === slugify(headingPart),
   )
   if (exact) return exact
+  if (mode === 'exact') return undefined
 
-  // 4. prefix-with-boundary(忽略大小写)
+  // leading-number:提取 headingPart 的"前导数字" pattern
+  // e.g. "7.2" → "7.2";"7.2 Antike" → "7.2";"" → ""
+  const leadingNum = /^(\d+(?:\.\d+)*)/.exec(headingPart.trim())?.[1] ?? ''
+  if (leadingNum) {
+    const matches = entry.headings.filter((h) => isLeadingNumberMatch(h.text, leadingNum))
+    if (matches.length > 0) {
+      // 多个 → 第一个(后续可在 scanWikilinks 汇总警告)
+      // 暂时不在这里 console.warn,避免每次渲染都吵
+      return matches[0]
+    }
+  }
+
+  if (mode === 'leading-number') return undefined
+
+  // fuzzy 额外:prefix 匹配(headingPart 整体作前缀,word boundary 保护)
   const lc = headingPart.toLowerCase()
   const prefix = entry.headings.find((h) => {
     const t = h.text.toLowerCase()
     if (!t.startsWith(lc)) return false
-    // 完全相等已经在 step 1 命中过,这里 lc.length < t.length
     if (t.length === lc.length) return true
-    // 下一个字符必须是 whitespace(避免 7.2 匹配 7.21)
     return /\s/.test(h.text[lc.length]!)
   })
   if (prefix) return prefix
 
-  // 5. token match —— 所有空白分隔 token 都出现
+  // fuzzy 额外:token match
   const tokens = headingPart
     .split(/\s+/)
     .map((t) => t.trim())
@@ -245,8 +283,38 @@ function matchHeading(
   })
   if (candidates.length === 0) return undefined
   if (candidates.length === 1) return candidates[0]
-  // 多个 —— 选最短 text(信息量最少 = 最像目标"指向的那段")
   return [...candidates].sort((a, b) => a.text.length - b.text.length)[0]
+}
+
+/**
+ * v0.3.10:leading-number 匹配的 separator 检查。
+ *
+ * 要求 heading.text 以 `leadingNum` 开头,且**之后是一个"分隔符"**:
+ *   - whitespace `\s`(经典 `13 Foo`)
+ *   - 非字非点字符(`)` `:` `,` `—` 等),如 `13) Foo` / `13: Foo` / `13, Foo`
+ *   - 字符串末尾(heading 文本就是 `13`)
+ *
+ * **故意**排除 `.`(避免 `1.2.3-formula` 被 `#1` 误匹)
+ * **故意**排除 word char(避免 `13` 误匹 `131 Foo`)
+ */
+function isLeadingNumberMatch(text: string, leadingNum: string): boolean {
+  if (!text.startsWith(leadingNum)) return false
+  if (text.length === leadingNum.length) return true
+  const nextChar = text[leadingNum.length]!
+  if (/\s/.test(nextChar)) return true
+  // 非字、非点 → 视为分隔符(`)` `:` `,` `—` `(` 等都行)
+  return !/[\w.]/.test(nextChar)
+}
+
+/** 给 leading-number / fuzzy 用:返回匹配的 heading 列表,供 scanWikilinks 汇总
+ *  ambiguous 警告。**仅 leading-number 模式下需要**汇总,exact / fuzzy 不汇总。 */
+export function findAmbiguousLeadingNumberMatches(
+  entry: FileEntry,
+  headingPart: string,
+): import('./types.js').HeadingEntry[] {
+  const leadingNum = /^(\d+(?:\.\d+)*)/.exec(headingPart.trim())?.[1] ?? ''
+  if (!leadingNum) return []
+  return entry.headings.filter((h) => isLeadingNumberMatch(h.text, leadingNum))
 }
 
 /**

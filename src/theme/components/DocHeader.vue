@@ -160,10 +160,12 @@ function formatDate(raw: unknown): string | null {
   try {
     const d = raw instanceof Date ? raw : new Date(String(raw))
     if (Number.isNaN(d.getTime())) return null
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${y}-${m}-${day}`
+    // v0.3.9:所有 UI 文案以英文为基准。date 用 en-US "May 21, 2026" 风格
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }).format(d)
   } catch {
     return null
   }
@@ -312,7 +314,7 @@ watch([visible, () => cfg.value.hideH1, pageTitle, () => page.value.relativePath
             <circle cx="12" cy="12" r="10"/>
             <polyline points="12 6 12 12 16 14"/>
           </svg>
-          预计阅读 {{ readingTime }} 分钟
+          {{ readingTime }} min read
         </span>
 
         <span
@@ -329,7 +331,7 @@ watch([visible, () => cfg.value.hideH1, pageTitle, () => page.value.relativePath
             <line x1="8" y1="2" x2="8" y2="6"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
-          创建于 {{ createdAt }}
+          Created {{ createdAt }}
         </span>
 
         <span
@@ -344,7 +346,7 @@ watch([visible, () => cfg.value.hideH1, pageTitle, () => page.value.relativePath
             <polygon points="14 2 18 6 7 17 3 17 3 13 14 2"/>
             <line x1="3" y1="22" x2="21" y2="22"/>
           </svg>
-          最后编辑 {{ updatedAt }}
+          Updated {{ updatedAt }}
         </span>
       </div>
 

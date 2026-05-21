@@ -68,7 +68,7 @@ export function renderDeadLink(
     // ⚠ 不写 href:点击不会跳转
     class: 'wikilink wikilink--dead',
     'data-wikilink-target': rawTarget,
-    title: `死链:找不到 [[${rawTarget}]]`,
+    title: `Dead link: [[${rawTarget}]] not found`,
   }
   const extra = resolveExtraAttrs(env.options.wikilinks.htmlAttributes, {
     originalHref: url,

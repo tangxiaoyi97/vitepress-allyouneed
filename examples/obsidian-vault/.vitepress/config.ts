@@ -67,7 +67,8 @@ export default defineConfigWithAllYouNeed(
       collapsed: false,
       sortBy: 'order-then-title',
       groupLink: 'all',
-      autoFolderIndex: 'off',
+      // v0.4.0:autoFolderIndex 已删除,文件夹链接由 folderLinkOrder 直接解析
+      folderLinkOrder: ['same-name', 'index', 'readme', 'first-file'],
       stripNumericPrefix: true,
       groupOrder: ['Guide', 'Tour', 'Test'],
       // i18n:wrapper 会自动给 root 加 excludePrefixes: ['en'],

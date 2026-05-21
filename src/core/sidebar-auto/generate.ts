@@ -39,16 +39,22 @@ export function resolveSidebarAutoOptions(
   user: SidebarAutoOptions = {},
 ): ResolvedSidebarAutoOptions {
   const strip = user.stripNumericPrefix ?? true
+  // v0.3.9:Pattern 优先;否则用 Separators 构造;再否则用默认
+  const stripPattern =
+    user.stripNumericPrefixPattern ??
+    (user.stripNumericPrefixSeparators
+      ? buildStripPatternFromSeparators(user.stripNumericPrefixSeparators)
+      : /^\d+[-_\s]+/)
   return {
     mode: user.mode ?? 'fill-if-empty',
     exclude: user.exclude ?? [],
     collapsed: user.collapsed ?? true,
     sortBy: user.sortBy ?? 'order-then-title',
-    // **闭包**绑定 stripNumericPrefix,让 user 设 false 时 default formatter 也尊重
+    // **闭包**绑定 stripNumericPrefix + pattern
     formatGroupTitle:
-      user.formatGroupTitle ?? ((d: string) => humanize(d, strip)),
+      user.formatGroupTitle ?? ((d: string) => humanize(d, strip, stripPattern)),
     formatItemTitle:
-      user.formatItemTitle ?? ((e: FileEntry) => defaultItemTitle(e, strip)),
+      user.formatItemTitle ?? ((e: FileEntry) => defaultItemTitle(e, strip, stripPattern)),
     hiddenKey: user.hiddenKey ?? 'sidebarHidden',
     titleKey: user.titleKey ?? 'sidebarTitle',
     orderKey: user.orderKey ?? 'order',
@@ -61,12 +67,18 @@ export function resolveSidebarAutoOptions(
     includePrefix: user.includePrefix,
     excludePrefixes: user.excludePrefixes ?? [],
     foldersFirst: user.foldersFirst ?? false,
-    folderLinkFallback: user.folderLinkFallback ?? 'first-file',
+    // v0.3.10:folderLinkOrder 优先;否则从老 folderLinkFallback 翻译
+    folderLinkOrder:
+      user.folderLinkOrder ??
+      (user.folderLinkFallback === 'none'
+        ? []
+        : ['same-name', 'index', 'readme', 'first-file']),
+    stripNumericPrefixPattern: stripPattern,
   }
 }
 
-/** item 标题计算(接收 stripNumericPrefix,在 resolveSidebarAutoOptions 阶段绑定) */
-function defaultItemTitle(entry: FileEntry, strip: boolean): string {
+/** item 标题计算(接收 stripNumericPrefix + pattern,在 resolveSidebarAutoOptions 阶段绑定) */
+function defaultItemTitle(entry: FileEntry, strip: boolean, pattern: RegExp): string {
   const fm = entry.frontmatter
   const sidebarTitle = typeof fm.sidebarTitle === 'string' ? fm.sidebarTitle : ''
   if (sidebarTitle.trim()) return sidebarTitle.trim()
@@ -74,16 +86,26 @@ function defaultItemTitle(entry: FileEntry, strip: boolean): string {
   if (title.trim()) return title.trim()
   const firstH1 = entry.headings.find((h) => h.level === 1)
   if (firstH1) return firstH1.text
-  return humanize(entry.basename, strip)
+  return humanize(entry.basename, strip, pattern)
 }
 
-/** 共用 humanize:剥可选前缀数字 → 替换 -/_ → Title Case
- *
- *  v0.3.4:删掉 . 分隔符。详见 generate-folder-index.ts:humanize 同名说明。
+/**
+ * v0.3.9:从 separators 字符串构造 `/^\d+[<chars>]+/`。
+ * 默认 `'-_\s'` → /^\d+[-_\s]+/。
  */
-function humanize(name: string, strip: boolean): string {
+export function buildStripPatternFromSeparators(separators: string): RegExp {
+  // 用户给的是"字符类内部"的字符串,直接拼进 [ ... ];已转义的 \s \. 等照样工作
+  return new RegExp(`^\\d+[${separators}]+`)
+}
+
+/** 共用 humanize:剥可选前缀数字 → 替换 -/_ → Title Case。
+ *
+ *  v0.3.9:pattern 参数化(默认 `/^\d+[-_\s]+/`)。
+ *  v0.3.4:删掉 . 分隔符。
+ */
+function humanize(name: string, strip: boolean, pattern: RegExp): string {
   let s = name
-  if (strip) s = s.replace(/^\d+[-_\s]+/, '')
+  if (strip) s = s.replace(pattern, '')
   return s
     .replace(/[-_]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -93,23 +115,80 @@ function humanize(name: string, strip: boolean): string {
 
 // ── tree 数据结构 ───────────────────────────────────────────────
 
+/** v0.3.10:dirIndex 候选种类(对应 folderLinkOrder token,除 'first-file') */
+type DirIndexKind = 'same-name' | 'index' | 'readme'
+
 interface DirNode {
   /** 'folder1/sub' 形式;根节点为 '' */
   path: string
-  /** 这层目录下的"普通"文件(不含 index/README/_sidebar) */
+  /** 这层目录下的"普通"文件(包含 index/README/same-name —— 它们留在 files 里;
+   *  渲染时只过滤掉**当前 folderLinkOrder 选中的那一个**作为 group link) */
   files: FileEntry[]
   /** 子目录(map key = 段名,如 'sub') */
   children: Map<string, DirNode>
-  /** 这层目录的 dirIndex 文件(同名 > index > README,大小写不敏感) */
-  dirIndex?: FileEntry
-  /** dirIndex 文件**正文为空**(只有 frontmatter)→ 不当 link,仅取 frontmatter */
-  dirIndexEmpty?: boolean
+  /**
+   * v0.3.10:dirIndex 候选,key = 类型,value = 该候选文件。
+   * 由 pickDirIndexCandidates 填充。**不再独立 pick 一个 dirIndex** —— 选哪个
+   * 由 resolveFolderLink(opts.folderLinkOrder) 决定。
+   */
+  dirIndexCandidates: Map<DirIndexKind, FileEntry>
   /** 这层目录的 _sidebar.md (手动 override 文件) */
   sidebarOverride?: FileEntry
 }
 
 function newNode(path: string): DirNode {
-  return { path, files: [], children: new Map() }
+  return { path, files: [], children: new Map(), dirIndexCandidates: new Map() }
+}
+
+/**
+ * v0.3.10:group title 仍可以从 dirIndex 候选的 frontmatter 读 sidebarTitle
+ * 等。挑一个稳定的"标题源候选"(优先级同 folderLinkOrder 自然顺序:same-name
+ * → index → README;无候选返回 undefined)。
+ */
+function pickTitleSourceCandidate(node: DirNode): FileEntry | undefined {
+  for (const kind of ['same-name', 'index', 'readme'] as const) {
+    const c = node.dirIndexCandidates.get(kind)
+    if (c) return c
+  }
+  return undefined
+}
+
+/**
+ * v0.4.0:按 folderLinkOrder 解析"这个文件夹的 link 目标"。返回 winning
+ * entry(和 kind),供 renderer 加 group.link。找不到返回 null。
+ *
+ * **`respectEmptyOptOut` 参数**(默认 true,用于 sidebar group):
+ *   - true:遇到**空 frontmatter-only** candidate → **整个 resolve 失败返 null**。
+ *     这是用户显式 opt-out 信号(0.3.5 语义)—— "我有 dirIndex 但只想要
+ *     frontmatter,不想要 link"。即使 order 后面有 'first-file' 也不兜底。
+ *   - false:遇到空 candidate → 跳过该 kind,继续找下一个(用于 nav tab、
+ *     wikilink 等"必须可点"的场景)。
+ */
+function resolveFolderLink(
+  node: DirNode,
+  opts: ResolvedSidebarAutoOptions,
+  respectEmptyOptOut = true,
+): { entry: FileEntry; kind: DirIndexKind | 'first-file' } | null {
+  for (const kind of opts.folderLinkOrder) {
+    if (kind === 'first-file') {
+      // 排除 dirIndex 候选(避免和 candidate-kind 兜底重叠 / 产生奇怪结果)
+      const dirIndexCands = new Set<FileEntry>(node.dirIndexCandidates.values())
+      const sorted = [...node.files]
+        .filter((f) => !dirIndexCands.has(f))
+        .sort((a, b) => compareEntries(a, b, opts))
+      if (sorted.length > 0) return { entry: sorted[0]!, kind: 'first-file' }
+    } else {
+      const cand = node.dirIndexCandidates.get(kind)
+      if (!cand) continue
+      if (cand.content.trim() === '') {
+        // 空 candidate:opt-out(sidebar)or 跳过继续找(nav/wikilink)
+        if (respectEmptyOptOut) return null
+        continue
+      }
+      return { entry: cand, kind }
+    }
+  }
+  return null
 }
 
 // ── 主入口 ──────────────────────────────────────────────────────
@@ -140,6 +219,11 @@ export function generateSidebar(
   if (layout === 'per-folder') {
     result = toPerFolderSidebar(root, opts, options, index)
   } else if (layout === 'flat') {
+    // v0.4.0:flat 已 @deprecated,v0.5 将删除
+    console.warn(
+      "vitepress-allyouneed: sidebarAuto.layout='flat' is deprecated and will be removed in v0.5. " +
+        "Use 'tree' (nested groups) or 'per-folder' (one sidebar per top-level folder).",
+    )
     result = toFlatSidebar(root, opts)
   } else {
     result = toTreeSidebar(root, opts, index, options)
@@ -199,46 +283,42 @@ function buildTree(files: FileEntry[]): DirNode {
     // 先全部塞进 files,稍后 pickDirIndexes 挑出最优先级的当 dirIndex
     node.files.push(f)
   }
-  pickDirIndexes(root)
+  pickDirIndexCandidates(root)
   return root
 }
 
 /**
- * 在 tree 建好后,为每个非根 DirNode 选出"文件夹索引页"。
+ * v0.3.10:在 tree 建好后,识别每个 DirNode 的 dirIndex **候选**(三种 kind)。
+ *   - 'same-name'  与文件夹同名的 .md(e.g. `tour/tour.md`)
+ *   - 'index'      `index.md`
+ *   - 'readme'     `README.md`
  *
- * 优先级(大小写不敏感):
- *   1. 与文件夹同名的 .md —— 例 `tour/tour.md` 给 tour/
- *   2. index.md
- *   3. README.md
+ * **不再独立选出"the one dirIndex"** —— 选哪个由 resolveFolderLink 在渲染时
+ * 按 folderLinkOrder 决定。所有候选都先留在 node.files 里;renderer 调
+ * resolveFolderLink 拿到 winning entry 后,把那一个**从 items 列表里 exclude**。
  *
- * 选中的从 files 移到 node.dirIndex,作为 group 的 link 来源。
- * 用户文件不会被覆盖(这里只是"找出来当 link",不写文件)。
- *
- * 额外:若该 dirIndex 文件**只有 frontmatter、无正文内容**,记 dirIndexEmpty,
- * 渲染时不当 link(但 frontmatter 的 sidebarTitle / sidebarCollapsed 仍读)。
+ * 大小写不敏感。
  */
-function pickDirIndexes(node: DirNode): void {
+function pickDirIndexCandidates(node: DirNode): void {
   const folderName = node.path.split('/').pop() ?? ''
-  if (folderName) {
-    const folderLc = folderName.toLowerCase()
-    let best: { entry: FileEntry; priority: number } | null = null
-    for (const f of node.files) {
-      const bnLc = f.basename.toLowerCase()
-      let p = 0
-      if (bnLc === folderLc) p = 1
-      else if (bnLc === 'index') p = 2
-      else if (bnLc === 'readme') p = 3
-      if (p > 0 && (best === null || p < best.priority)) {
-        best = { entry: f, priority: p }
+  const folderLc = folderName.toLowerCase()
+  for (const f of node.files) {
+    const bnLc = f.basename.toLowerCase()
+    if (folderName && bnLc === folderLc) {
+      if (!node.dirIndexCandidates.has('same-name')) {
+        node.dirIndexCandidates.set('same-name', f)
+      }
+    } else if (bnLc === 'index') {
+      if (!node.dirIndexCandidates.has('index')) {
+        node.dirIndexCandidates.set('index', f)
+      }
+    } else if (bnLc === 'readme') {
+      if (!node.dirIndexCandidates.has('readme')) {
+        node.dirIndexCandidates.set('readme', f)
       }
     }
-    if (best) {
-      node.dirIndex = best.entry
-      node.dirIndexEmpty = best.entry.content.trim() === ''
-      node.files = node.files.filter((f) => f !== best!.entry)
-    }
   }
-  for (const child of node.children.values()) pickDirIndexes(child)
+  for (const child of node.children.values()) pickDirIndexCandidates(child)
 }
 
 // ── tree 模式:嵌套 group ───────────────────────────────────────
@@ -276,10 +356,16 @@ function renderNode(
     if (override) return override
   }
 
+  // v0.4.0:dirIndex 候选(same-name/index/readme)永远不进 items(它们是 group link
+  // 来源)。**first-file winner 不排除** —— 保持 v0.3.x 行为(first-file 既是 link
+  // 又是 sibling item;轻微重复但符合预期)。
+  const dirIndexCandidatesSet = new Set<FileEntry>(node.dirIndexCandidates.values())
+
   // 抽出 sidebarGroup 标记的文件(虚拟 group)
   const virtualGroups = new Map<string, FileEntry[]>()
   const normalFiles: FileEntry[] = []
   for (const f of node.files) {
+    if (dirIndexCandidatesSet.has(f)) continue
     const g = readVirtualGroup(f)
     if (g) {
       const arr = virtualGroups.get(g) ?? []
@@ -317,24 +403,18 @@ function renderNode(
   for (const key of childKeys) {
     const child = node.children.get(key)!
     const childItems = renderNode(child, opts, depth + 1, false, index, options)
-    if (childItems.length === 0 && !child.dirIndex) continue
+    const childWinner = resolveFolderLink(child, opts)
+    if (childItems.length === 0 && !childWinner) continue
 
+    // group title:若有 dirIndex 候选,用 candidate 的 frontmatter 优先(老语义保留)
+    const titleSource = pickTitleSourceCandidate(child)
     const group: SidebarItem = {
-      text: computeGroupText(child.path, child.dirIndex, opts),
-      collapsed: resolveGroupCollapsed(child.dirIndex, opts),
+      text: computeGroupText(child.path, titleSource, opts),
+      collapsed: resolveGroupCollapsed(titleSource, opts),
       items: childItems,
     }
-    if (shouldLinkGroup(opts, isRoot)) {
-      // v0.3.5:dirIndex 优先;**完全没有** dirIndex + folderLinkFallback ===
-      // 'first-file' 时,递归找子树第一个 page。
-      // ⚠ 空 frontmatter-only dirIndex 是用户**显式不要 link** 的 opt-out
-      // 信号(只读 frontmatter 的 sidebarTitle / sidebarCollapsed),不走兜底。
-      if (child.dirIndex && !child.dirIndexEmpty) {
-        group.link = child.dirIndex.url
-      } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
-        const first = findFirstPageUrl(child, opts)
-        if (first) group.link = first
-      }
+    if (shouldLinkGroup(opts, isRoot) && childWinner) {
+      group.link = childWinner.entry.url
     }
     folderItems.push(group)
   }
@@ -349,18 +429,15 @@ function renderNode(
 }
 
 /**
- * 递归找 DirNode 子树的"第一个可访问 page"的 url,作为 fallback link。
- * 顺序:本节点 dirIndex(若非空) → 本节点 files 排序后第一个 → 各子目录递归。
+ * v0.4.0:递归找 DirNode 子树的"第一个可访问 page"的 url。
+ * 用于 nav / per-folder root / 其它"必须可点"的场景 —— **不**尊重 empty opt-out。
  */
 function findFirstPageUrl(
   node: DirNode,
   opts: ResolvedSidebarAutoOptions,
 ): string | null {
-  if (node.dirIndex && !node.dirIndexEmpty) return node.dirIndex.url
-  if (node.files.length > 0) {
-    const sorted = [...node.files].sort((a, b) => compareEntries(a, b, opts))
-    return sorted[0]!.url
-  }
+  const winner = resolveFolderLink(node, opts, /* respectEmptyOptOut */ false)
+  if (winner) return winner.entry.url
   const childKeys = [...node.children.keys()].sort()
   for (const k of childKeys) {
     const u = findFirstPageUrl(node.children.get(k)!, opts)
@@ -398,7 +475,7 @@ function sortChildKeys(
   for (const k of keys) {
     const title = computeGroupText(
       node.children.get(k)!.path,
-      node.children.get(k)!.dirIndex,
+      pickTitleSourceCandidate(node.children.get(k)!),
       opts,
     )
     if (orderMap.has(k) || orderMap.has(title)) {
@@ -410,12 +487,12 @@ function sortChildKeys(
   indexed.sort((a, b) => {
     const ta = computeGroupText(
       node.children.get(a)!.path,
-      node.children.get(a)!.dirIndex,
+      pickTitleSourceCandidate(node.children.get(a)!),
       opts,
     )
     const tb = computeGroupText(
       node.children.get(b)!.path,
-      node.children.get(b)!.dirIndex,
+      pickTitleSourceCandidate(node.children.get(b)!),
       opts,
     )
     const oa = orderMap.has(a) ? orderMap.get(a)! : orderMap.get(ta)!
@@ -429,33 +506,36 @@ function sortChildKeys(
 // ── flat 模式(老版兼容):所有目录摊到顶层 ───────────────────
 
 function toFlatSidebar(root: DirNode, opts: ResolvedSidebarAutoOptions): SidebarItem[] {
-  // 遍历整 tree,把每个非根节点都做成顶层 group(items 只含直系文件)
+  // v0.3.10:flat 已 @deprecated,保留实现以兼容旧用户
   const out: SidebarItem[] = []
-  // 先根
-  const rootFiles = [...root.files].sort((a, b) => compareEntries(a, b, opts))
+  // 根 — 排除 dirIndex 候选 + first-file winner
+  const rootWinner = resolveFolderLink(root, opts)
+  const rootCandidates = new Set<FileEntry>(root.dirIndexCandidates.values())
+  if (rootWinner) rootCandidates.add(rootWinner.entry)
+  const rootFiles = [...root.files]
+    .filter((f) => !rootCandidates.has(f))
+    .sort((a, b) => compareEntries(a, b, opts))
   for (const f of rootFiles) out.push({ text: opts.formatItemTitle(f), link: f.url })
 
   const allDirs: DirNode[] = []
   walkDirs(root, allDirs)
   for (const d of allDirs) {
-    const files = [...d.files].sort((a, b) => compareEntries(a, b, opts))
+    const winner = resolveFolderLink(d, opts)
+    const candidates = new Set<FileEntry>(d.dirIndexCandidates.values())
+    if (winner) candidates.add(winner.entry)
+    const files = [...d.files]
+      .filter((f) => !candidates.has(f))
+      .sort((a, b) => compareEntries(a, b, opts))
     const items = files.map((f) => ({ text: opts.formatItemTitle(f), link: f.url }))
-    if (items.length === 0 && !d.dirIndex) continue
+    if (items.length === 0 && !winner) continue
+    const titleSource = pickTitleSourceCandidate(d)
     const group: SidebarItem = {
-      text: computeGroupText(d.path, d.dirIndex, opts),
-      collapsed: resolveGroupCollapsed(d.dirIndex, opts),
+      text: computeGroupText(d.path, titleSource, opts),
+      collapsed: resolveGroupCollapsed(titleSource, opts),
       items,
     }
-    // flat 模式所有 group 都在"顶层" — 用 isTopLevel=true
-    // v0.3.5:同 tree 模式;**完全没有** dirIndex 才走兜底,空 dirIndex 是
-    // 用户 opt-out 信号(读 frontmatter,不要 link)
-    if (shouldLinkGroup(opts, true)) {
-      if (d.dirIndex && !d.dirIndexEmpty) {
-        group.link = d.dirIndex.url
-      } else if (!d.dirIndex && opts.folderLinkFallback === 'first-file') {
-        const first = findFirstPageUrl(d, opts)
-        if (first) group.link = first
-      }
+    if (shouldLinkGroup(opts, true) && winner) {
+      group.link = winner.entry.url
     }
     out.push(group)
   }
@@ -486,27 +566,28 @@ function toPerFolderSidebar(
   const out: Record<string, SidebarItem[]> = {}
 
   const rootItems: SidebarItem[] = []
-  const sortedRootFiles = [...root.files].sort((a, b) => compareEntries(a, b, opts))
+  // v0.3.10:根 files 也排除 dirIndex 候选 + winner
+  const rootWinner = resolveFolderLink(root, opts)
+  const rootCands = new Set<FileEntry>(root.dirIndexCandidates.values())
+  if (rootWinner) rootCands.add(rootWinner.entry)
+  const sortedRootFiles = [...root.files]
+    .filter((f) => !rootCands.has(f))
+    .sort((a, b) => compareEntries(a, b, opts))
   for (const f of sortedRootFiles) {
     rootItems.push({ text: opts.formatItemTitle(f), link: f.url })
   }
   const topKeys = [...root.children.keys()].sort()
   for (const key of topKeys) {
     const child = root.children.get(key)!
-    if (child.files.length === 0 && child.children.size === 0 && !child.dirIndex) {
+    // root items 是 nav 风格的"跳转入口",empty opt-out 不适用
+    const childWinner = resolveFolderLink(child, opts, /* respectEmptyOptOut */ false)
+    if (child.files.length === 0 && child.children.size === 0 && !childWinner) {
       continue
     }
-    const labelText = computeGroupText(child.path, child.dirIndex, opts)
+    const titleSource = pickTitleSourceCandidate(child)
+    const labelText = computeGroupText(child.path, titleSource, opts)
     if (shouldLinkGroup(opts, /* isTopLevel */ true)) {
-      // v0.3.5:首推 dirIndex;**完全没有** dirIndex 才走 first-file 兜底。
-      // 空 dirIndex(只有 frontmatter)是用户 opt-out,不兜底
-      let firstUrl: string | null = null
-      if (child.dirIndex && !child.dirIndexEmpty) {
-        firstUrl = child.dirIndex.url
-      } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
-        firstUrl = findFirstPageUrl(child, opts)
-      }
-      // ⚠ 没有真实页面就**不加 link**(避免点击 → 假 URL → 404 → router 报模块加载失败)
+      const firstUrl = childWinner ? childWinner.entry.url : findFirstPageUrl(child, opts)
       if (firstUrl) {
         rootItems.push({ text: labelText, link: firstUrl })
       } else {
@@ -521,23 +602,17 @@ function toPerFolderSidebar(
   for (const key of topKeys) {
     const child = root.children.get(key)!
     const items = renderNode(child, opts, /* depth */ 1, /* isRoot */ false, index, options)
-    if (items.length === 0 && !child.dirIndex) continue
+    // per-folder 顶部"self link" 是 nav-tab 风格,不尊重 empty opt-out
+    const childWinner = resolveFolderLink(child, opts, /* respectEmptyOptOut */ false)
+    if (items.length === 0 && !childWinner) continue
 
     const sidebar: SidebarItem[] = []
-    // v0.3.5:per-folder sidebar 顶部"自己"链接同规则:空 dirIndex 不兜底
-    if (shouldLinkGroup(opts, /* isTopLevel */ true)) {
-      let selfUrl: string | null = null
-      if (child.dirIndex && !child.dirIndexEmpty) {
-        selfUrl = child.dirIndex.url
-      } else if (!child.dirIndex && opts.folderLinkFallback === 'first-file') {
-        selfUrl = findFirstPageUrl(child, opts)
-      }
-      if (selfUrl) {
-        sidebar.push({
-          text: computeGroupText(child.path, child.dirIndex, opts),
-          link: selfUrl,
-        })
-      }
+    if (shouldLinkGroup(opts, /* isTopLevel */ true) && childWinner) {
+      const titleSource = pickTitleSourceCandidate(child)
+      sidebar.push({
+        text: computeGroupText(child.path, titleSource, opts),
+        link: childWinner.entry.url,
+      })
     }
     sidebar.push(...items)
 
@@ -572,28 +647,21 @@ export function generateNav(
   const topKeys = [...root.children.keys()].sort()
   for (const key of topKeys) {
     const child = root.children.get(key)!
-    if (child.files.length === 0 && child.children.size === 0 && !child.dirIndex) {
+    // nav 是"必须可点",不尊重 empty opt-out
+    const winner = resolveFolderLink(child, opts, /* respectEmptyOptOut */ false)
+    if (child.files.length === 0 && child.children.size === 0 && !winner) {
       continue
     }
-    const text = computeGroupText(child.path, child.dirIndex, opts)
-    // 链接选取(dirIndex.url 在 v0.3+ 已经不带 base,直接用即可):
-    //   1. 非空 dirIndex → dirIndex.url
-    //   2. 空 dirIndex 或无 dirIndex + folderLinkFallback === 'first-file'
-    //      → 找第一个 page。⚠ 与 sidebar group 不同:nav tab 没"只展开折叠"
-    //      的状态,空 dirIndex(opt-out)若不兜底就是死路(tab 点不动),没意义。
-    //      所以这里把"空"和"无"一视同仁,都尝试 fallback。
-    //      用户若**真的**不想要 tab,应改 nav 配置(或 groupLink: 'off')。
-    //   3. fallback 也找不到 → 跳过 tab。
+    const titleSource = pickTitleSourceCandidate(child)
+    const text = computeGroupText(child.path, titleSource, opts)
+    // v0.4.0:winner 直接用;否则递归找子树第一个 page。**还**找不到 → skip tab。
     let link: string
-    if (child.dirIndex && !child.dirIndexEmpty) {
-      link = stripBase(child.dirIndex.url, base)
-    } else if (opts.folderLinkFallback === 'first-file') {
+    if (winner) {
+      link = stripBase(winner.entry.url, base)
+    } else {
       const first = findFirstPageUrl(child, opts)
       if (!first) continue // skip whole tab
       link = first
-    } else {
-      // folderLinkFallback === 'none' → 跳过 tab(老 v0.3.1 行为)
-      continue
     }
     const escapedPrefix = `/${key}/`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     out.push({ text, link, activeMatch: '^' + escapedPrefix })

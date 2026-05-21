@@ -79,7 +79,9 @@ export default defineConfig({
 
 ## 选项
 
-完整列表见 [`src/core/types.ts`](./src/core/types.ts) 的 `AllYouNeedOptions`。常用如下:
+📖 **完整配置参考 + 可复制 cheat sheet:[`DOCS.md`](./DOCS.md)** — 所有可配置项 + 默认值 + 一键复制全量默认配置。
+
+常用速览:
 
 | 选项 | 类型 | 默认 | 说明 |
 |---|---|---|---|

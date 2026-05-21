@@ -43,12 +43,12 @@ tags: [advanced, obsidian, compat]
 
 | 项 | 状况 | 备注 |
 |---|---|---|
-| `[[note#^block-id]]` 跨页跳 block-ref | ⚠️ 部分 | 渲染时 anchor 已加在 DOM 上,**浏览器原生 URL hash 可用**;但 wikilink resolver 还没识别 `#^id` 语法,会当成普通锚点失败处理(v0.4 计划) |
+| `[[note#^block-id]]` 跨页跳 block-ref | ⚠️ 部分 | 渲染时 anchor 已加在 DOM 上,**浏览器原生 URL hash 可用**;但 wikilink resolver 还没识别 `#^id` 语法,会当成普通锚点失败处理(v0.5 计划) |
 | 数学 `$x^2$` / `$$...$$` | ⚠️ 用户启用 | VitePress 内置 `markdown.math: true` 选项(需要装 `markdown-it-mathjax3`) |
 | `cssclasses:` frontmatter | ✅ | DocHeader Layout 自动应用到 `<body>` |
 | Excalidraw / Canvas (`.canvas` / `.excalidraw`) 文件 | ⚠️ | 被当 asset 拷贝到 dist,wikilink/embed 不知道怎么渲染。建议先在 Obsidian 里 export 为 svg/png 再 embed |
 | `<%`/`<%+`/`<%-` (Templater) | ❌ | 原样保留;Templater 是动态语法,VitePress 是静态构建 |
-| ` ```dataview` / ` ```dataviewjs` 代码块 | ❌ | 原样输出代码块(v0.4 路线计划做静态求值) |
+| ` ```dataview` / ` ```dataviewjs` 代码块 | ❌ | 原样输出代码块(v0.5 路线计划做静态求值) |
 | Tasks 插件查询 / 内嵌 query | ❌ | 同上,原样输出 |
 | Daily notes UI / Calendar 插件 | ❌ | 这些是 Obsidian app UI,不是 markdown 语法 |
 | `[[]]` 用 `../` 相对路径 | ❌ | Obsidian 自己也不支持。用 basename 或绝对路径 |
@@ -79,5 +79,5 @@ tags: [advanced, obsidian, compat]
 | 自定义主题 | 受限 | 完全自由(VitePress 主题系统) |
 | 搜索 | 自带 | VitePress 内置(本地索引) |
 | Graph view | 自带 | 自带([[v0.3-tour|v0.3 Tour]]) |
-| Dataview | 部分 | 不支持(v0.4 路线) |
+| Dataview | 部分 | 不支持(v0.5 路线) |
 | 速度 | 慢(运行时渲染) | 快(静态生成 + Vite HMR) |

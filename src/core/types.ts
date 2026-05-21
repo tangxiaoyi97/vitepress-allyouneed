@@ -180,6 +180,20 @@ export interface WikilinksModuleOptions {
     | ((entry: FileEntry, fallback: string) => string)
   /** 额外的 <a> 属性 */
   htmlAttributes?: PageLinkAttrs
+  /**
+   * v0.3.9:wikilink `[[X#anchor]]` 的锚点匹配模式。
+   *   - `'exact'`           严格(对齐 Obsidian)。只精确文本 / slug 匹配,失败 → unmatched-anchor。
+   *   - `'leading-number'`  **默认**。按章节号前缀匹配:`#7.2` 命中 `## 7.2 Antike — Vorsokratiker`;
+   *                         若 `#7.2` 同时匹配多个 heading(如 `7.2 Foo`、`7.2.1 Bar`),
+   *                         取第一个并 warn(类似死链报告)。`#7.2 Antike` 这种带词的
+   *                         先精确匹配,失败再退到按前导数字匹配。
+   *   - `'fuzzy'`           **实验性**(0.3.8 行为)。leading-number + token 全词匹配。
+   *                         99% 可用,corner case 后续版本打磨。
+   *
+   * 默认 `'leading-number'`。物理 / 数学 / 化学等用 section number 的笔记最方便;Obsidian
+   * 严格用户可设 `'exact'`。
+   */
+  anchorMatch?: 'exact' | 'leading-number' | 'fuzzy'
 }
 
 export interface EmbedsModuleOptions {
@@ -197,6 +211,26 @@ export interface EmbedsModuleOptions {
   htmlAttributes?: ImageEmbedAttrs
   /** transclusion 最大递归深度,防失控。默认 8 */
   transclusionMaxDepth?: number
+}
+
+/**
+ * v0.3.9:`%%...%%` Obsidian 注释模块的细配置。
+ *
+ * 老行为(0.3.8 及之前):整段静默吃掉,渲染后 HTML 完全看不到。
+ * 新选项 `preserveAsHtmlComment`:把 `%%` 转成标准 HTML `<!-- ... -->` 注释。
+ * 浏览器 view-source / DevTools inspect 能看到,正文渲染依旧不显示。
+ */
+export interface CommentsOptions {
+  /**
+   * 是否把 Obsidian `%%comment%%` 渲染成 HTML 注释 `<!--comment-->` 保留在源码里。
+   *   - `true`(**默认**) inline 和 block 注释都保留为 HTML comment
+   *   - `false`           老行为,整段吃掉
+   *
+   * ⚠ **隐私警示**:开启意味着所有 `%%` 注释都会出现在 deploy 的 HTML 源码里
+   * 任何人 view-source 都看得到。**不要写敏感信息**(密码 / 私人吐槽 / etc.)
+   * 在 `%%...%%` 里。若需要"完全隐藏",改用 frontmatter 或单独的 `_drafts/` 目录。
+   */
+  preserveAsHtmlComment?: boolean
 }
 
 export interface ScanOptions {
@@ -229,9 +263,9 @@ export interface SidebarAutoUserOptions {
   mode?: 'off' | 'fill-if-empty' | 'force'
   /**
    * 布局:
-   *   - 'tree'        (默认)单一全局 array,子目录嵌套成子 group
-   *   - 'flat'        所有目录扁平摊到顶层
-   *   - 'per-folder'  每个顶层目录独立一份 sidebar,VitePress 按 URL 前缀切换
+   *   - 'tree'(默认)        单一全局 array,子目录嵌套成子 group
+   *   - 'flat'                @deprecated v0.4.0. v0.5 将删除。推荐 'tree' 或 'per-folder'
+   *   - 'per-folder'          每个顶层目录独立一份 sidebar,VitePress 按 URL 前缀切换
    */
   layout?: 'tree' | 'flat' | 'per-folder'
   /** 排除路径(相对 srcDir,glob `**` / `*` 支持基本) */
@@ -260,6 +294,19 @@ export interface SidebarAutoUserOptions {
 
   /** 自动剥 `01-foo.md` 这种数字前缀(humanize 时),默认 true */
   stripNumericPrefix?: boolean
+  /**
+   * v0.3.9:`stripNumericPrefix: true` 时使用的正则。默认 `/^\d+[-_\s]+/`。
+   * 想支持 `1) Foo` / `1. Foo` 用 `/^\d+[\)\-_\s]+/`(注意 `.` 谨慎,会吃版本号
+   * 前缀如 `1.2.3-formula`)。详见 DOCS.md。
+   *
+   * 若同时设了 stripNumericPrefixSeparators,本字段优先。
+   */
+  stripNumericPrefixPattern?: RegExp
+  /**
+   * v0.3.9:友好版"分隔符字符集"。默认 `'-_\\s'`(等价 `[-_\s]`)。内部生成
+   * `/^\d+[<chars>]+/`。Pattern 设了则被忽略。详见 DOCS.md。
+   */
+  stripNumericPrefixSeparators?: string
 
   /** 顶级 group 字母序覆盖。例:`['Guides','Tour']` 让这两个排最前 */
   groupOrder?: string[]
@@ -294,39 +341,47 @@ export interface SidebarAutoUserOptions {
   foldersFirst?: boolean
 
   /**
-   * v0.3.5:文件夹链接缺 index 时怎么办。
-   *   - 'first-file'(默认) 自动落到该文件夹下**第一个文件**(按 sortBy
-   *                          决定顺序)。影响:auto-sidebar group link、
-   *                          auto-nav tab、用户手写 `[[folder/]]` 解析。
-   *   - 'none'             兼容老行为:无 index → 无 link;sidebar group
-   *                          只展开折叠;nav tab 跳过;`[[folder/]]` 死链。
+   * v0.3.10:文件夹链接解析顺序(替代老的 folderLinkFallback)。
    *
-   * 配合 `autoFolderIndex: 'off'` 使用最自然 —— 不写 index 文件也能从导航
-   * 进到一个文件夹。
+   * 元素:`'same-name'` / `'index'` / `'readme'` / `'first-file'`。
+   * 默认 `['same-name', 'index', 'readme', 'first-file']`(全套兜底)。
+   *
+   * 例:
+   *   - 默认 = 找 `<folder>.md` → `index.md` → `README.md` → 第一个文件
+   *   - `['index']` = 只用 `index.md`,没有则死链
+   *   - `[]` = 文件夹完全不可点
+   *
+   * 应用于:auto-sidebar group link、auto-nav tab、用户手写 `[[folder/]]` 解析。
+   */
+  folderLinkOrder?: Array<'same-name' | 'index' | 'readme' | 'first-file'>
+
+  /**
+   * @deprecated v0.3.10 起请用 `folderLinkOrder`。
+   *   - `'first-file'` → 默认 `['same-name', 'index', 'readme', 'first-file']`
+   *   - `'none'`       → `[]`
+   * 若 `folderLinkOrder` 同时设了,**本字段被忽略**。
    */
   folderLinkFallback?: 'first-file' | 'none'
 
   /**
-   * 给缺 index.md 的文件夹自动生成"目录页"。三种模式:
-   *   - 'off'        不生成
-   *   - 'top-level'  仅为顶级目录生成(导航栏入口,默认)
-   *   - 'all'        所有非空目录都生成
+   * v0.3.9:materialize 把 sidebar 配置"物化"成每文件夹一个 `_sidebar.md`(opt-in)。
+   *   - `'off'`(默认) 不写文件,sidebar 全 in-memory
+   *   - `'top-level'`  仅顶级目录写 `_sidebar.md`
+   *   - `'all'`        所有非空目录写
    *
-   * 兼容写法:
-   *   - true   = 'top-level'
-   *   - false  = 'off'
-   *   - object 可细控 exclude/template
-   *
-   * **默认 'top-level'**:既保证 nav tab/`/dir/` URL 能落地,又不在子目录写文件。
+   * 生成的 `_sidebar.md`:frontmatter 留 `sidebarAuto: { ... }` 注释块供用户覆盖;
+   * body 默认 `- {.}` 占位符(每次 build 重展开,自动适配新文件)。
+   * sentinel 保护:用户改后(去掉 sentinel)永不被覆盖。
+   * 详见 DOCS.md "Materialize sidebars to per-folder _sidebar.md"。
    */
-  autoFolderIndex?:
-    | 'off' | 'top-level' | 'all'
-    | boolean
-    | {
-        mode?: 'off' | 'top-level' | 'all'
-        exclude?: string[]
-        stripNumericPrefix?: boolean
-      }
+  materialize?: 'off' | 'top-level' | 'all'
+
+  /**
+   * @deprecated v0.3.10 删除了 autoFolderIndex 功能。文件夹链接现在由
+   * `folderLinkOrder` 配置直接解析(无需文件)。运行时检测到本字段会 console.warn 一次。
+   * 之前生成的 `index.md` 文件(含 sentinel `<!-- generated by ... -->`)可手动删除。
+   */
+  autoFolderIndex?: unknown
 }
 
 // ── v0.2:自动视图选项 ────────────────────────────────────────
@@ -360,7 +415,10 @@ export interface ViewsOptions {
    *   - 'off'                   → 都不加(用户自己手动配)
    */
   injectInto?: 'sidebar' | 'nav' | 'both' | 'off'
-  /** @deprecated 老字段,等价 injectInto: 'sidebar' | 'off'。仅 injectInto 未设时生效 */
+  /**
+   * @deprecated v0.2 老字段。v0.4.0 起标 deprecated,**v0.5 将删除**。
+   * 等价 `injectInto: 'sidebar' | 'off'`。仅 injectInto 未设时生效。
+   */
   sidebar?: 'auto' | false
   /** sidebar/nav 中显示的文字 */
   sidebarText?: {
@@ -375,6 +433,21 @@ export interface ViewsOptions {
   dataFileName?: string
   /** 是否启用正文 #tag 解析(默认 true)。关掉则 tags 只来自 frontmatter */
   parseInlineTags?: boolean
+  /**
+   * v0.3.9:行内 #tag 的正则模式。**必须**捕获 tag 名作为 group 1。
+   *
+   * 默认 `/^#([\p{L}_][\p{L}\p{N}_/-]*)/u`:
+   *   - 起手 `#`
+   *   - tag 名首字符:Unicode letter 或 `_`
+   *   - 后续字符:Unicode letter / number / `_` / `/` / `-`
+   *
+   * 用户可覆盖,例如只支持纯 ASCII:`/^#([A-Za-z_][A-Za-z0-9_/-]*)/`,
+   * 或加点支持:`/^#([\p{L}_][\p{L}\p{N}_./-]*)/u`,等等。
+   *
+   * ⚠ 正则**只匹配 # 之后**(前置边界字符由插件自己判断);
+   * ⚠ generate-data.ts 用全局变体扫正文(同 pattern,自动加 g + 边界前缀)。
+   */
+  inlineTagPattern?: RegExp
 }
 
 /**
@@ -400,6 +473,8 @@ export interface AllYouNeedOptions {
   views?: ViewsOptions
   /** v0.3:sidebar 自动生成。详见 SidebarAutoOptions */
   sidebarAuto?: SidebarAutoUserOptions
+  /** v0.3.9:`%%...%%` Obsidian 注释模块的细配置 */
+  comments?: CommentsOptions
 
   // ── 模块开关 ──
   modules?: {
@@ -456,6 +531,7 @@ export interface ResolvedOptions {
     graphMaxNodes: number
     dataFileName: string
     parseInlineTags: boolean
+    inlineTagPattern: RegExp
   }>
   modules: {
     wikilinks: boolean
@@ -470,6 +546,8 @@ export interface ResolvedOptions {
   /** v0.3:sidebar 自动生成原始选项(具体 resolve 由 sidebar-auto 模块内部完成,
    * 这里只透传给 wrapper)*/
   sidebarAuto: SidebarAutoUserOptions
+  /** v0.3.9:comments 模块配置(已 resolved) */
+  comments: Required<CommentsOptions>
   slugify: (text: string) => string
 }
 

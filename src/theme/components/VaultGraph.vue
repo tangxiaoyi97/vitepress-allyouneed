@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
-import { useRouter } from 'vitepress'
+import { useRouter, withBase } from 'vitepress'
 import * as d3 from 'd3-selection'
 import {
   forceSimulation,
@@ -148,10 +148,13 @@ function build(): void {
   // ── 交互 ─────────────────────────────────────────
   nodeSel
     .on('click', (_evt, d) => {
+      // v0.3.9:d.url 是 base-less(来自 vault-data.json)。router.go 期望 base
+      // 已应用的 href,base !== '/' 时不 withBase 会路由到错误路径
+      const href = withBase(d.url)
       try {
-        router.go(d.url)
+        router.go(href)
       } catch {
-        if (typeof window !== 'undefined') window.location.href = d.url
+        if (typeof window !== 'undefined') window.location.href = href
       }
     })
     .on('mouseenter', (_evt, d) => applyFocus(d.id, nodeSel, linkSel))
@@ -174,10 +177,23 @@ function build(): void {
         }),
     )
 
+  // v0.3.9:zoom 监听 + label 渐隐(像 Obsidian)
+  //   k >= LABEL_FULL  → opacity 1
+  //   LABEL_FADE_START → k → LABEL_FULL 之间线性插值
+  //   k <= LABEL_FADE_START → opacity 0
+  const LABEL_FULL = 0.9
+  const LABEL_FADE_START = 0.4
+  const labelSel = g.selectAll<SVGTextElement, GraphNode>('text.ayn-graph-label')
   zoomBehavior = d3zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.2, 4])
     .on('zoom', (event) => {
+      const k = event.transform.k as number
       g.attr('transform', event.transform.toString())
+      let op: number
+      if (k >= LABEL_FULL) op = 1
+      else if (k <= LABEL_FADE_START) op = 0
+      else op = (k - LABEL_FADE_START) / (LABEL_FULL - LABEL_FADE_START)
+      labelSel.attr('opacity', op).style('pointer-events', op === 0 ? 'none' : null)
     })
   svg.call(zoomBehavior).call(zoomBehavior.transform, zoomIdentity)
 

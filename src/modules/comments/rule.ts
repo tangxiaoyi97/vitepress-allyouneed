@@ -20,8 +20,17 @@
 import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs'
 import type StateBlock from 'markdown-it/lib/rules_block/state_block.mjs'
 import type MarkdownIt from 'markdown-it'
+import type { AllYouNeedEnv } from '../../core/types.js'
 
 const PCT = 0x25 // '%'
+
+/**
+ * v0.3.9:把 `%%` 注释体安全转成 HTML 注释 `<!-- ... -->`。
+ * HTML 注释**不能含 `--`**,会让解析器提前关闭。replace 成 `- -`(肉眼可读)。
+ */
+function escapeForHtmlComment(s: string): string {
+  return s.replace(/--/g, '- -')
+}
 
 export function makeCommentInlineRule(): (
   state: StateInline,
@@ -51,7 +60,15 @@ export function makeCommentInlineRule(): (
     if (found < 0) return false
     if (silent) return true
 
-    // 吃掉,不 push 任何 token
+    // v0.3.9:options.comments.preserveAsHtmlComment(默认 true)→ 转 HTML 注释
+    const env = state.env as AllYouNeedEnv | undefined
+    const preserve = env?.options?.comments?.preserveAsHtmlComment ?? true
+    if (preserve) {
+      const body = state.src.slice(start + 2, found)
+      const token = state.push('html_inline', '', 0)
+      token.content = `<!--${escapeForHtmlComment(body)}-->`
+    }
+    // 否则:吃掉,不 push 任何 token
     state.pos = found + 2
     return true
   }
@@ -122,6 +139,26 @@ export function makeCommentBlockRule(): (
 
     // 没找到闭合就吃到 endLine
     const lastLine = closed ? next + 1 : next
+
+    // v0.3.9:preserveAsHtmlComment(默认 true)→ 推 html_block <!-- body -->
+    const env = state.env as AllYouNeedEnv | undefined
+    const preserve = env?.options?.comments?.preserveAsHtmlComment ?? true
+    if (preserve) {
+      // body 范围:从 startLine 的下一行起,到 closed 的那一行(不含)
+      const bodyStartLine = startLine + 1
+      const bodyEndLine = closed ? next : lastLine // closed: next 是 %% 行,不含;否则吃到 endLine
+      const bodyLines: string[] = []
+      for (let i = bodyStartLine; i < bodyEndLine; i++) {
+        const lpos = state.bMarks[i]! + state.tShift[i]!
+        const lmax = state.eMarks[i]!
+        bodyLines.push(state.src.slice(lpos, lmax))
+      }
+      const body = bodyLines.join('\n')
+      const token = state.push('html_block', '', 0)
+      token.content = `<!--\n${escapeForHtmlComment(body)}\n-->\n`
+      token.map = [startLine, lastLine]
+    }
+
     state.line = lastLine
     return true
   }

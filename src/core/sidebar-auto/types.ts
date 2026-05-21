@@ -31,7 +31,8 @@ export interface SidebarAutoOptions {
   /**
    * 布局:
    *   - 'tree'        (默认)单一全局 array,子目录嵌套成 collapsible 子 group
-   *   - 'flat'        所有目录摊到顶层 array(老 v0.3 第一版行为)
+   *   - 'flat'        @deprecated v0.4.0. 老 v0.3 第一版行为。v0.5 将删除 ——
+   *                   推荐换 'tree'(嵌套)或 'per-folder'(每文件夹独立 sidebar)
    *   - 'per-folder'  Record<string, items[]>,VitePress 按 URL 前缀切换 sidebar
    */
   layout?: 'tree' | 'flat' | 'per-folder'
@@ -75,6 +76,31 @@ export interface SidebarAutoOptions {
   /** 自动剥 basename / dirname 前的 `01-` `02_` 等数字前缀(humanize 时),默认 true */
   stripNumericPrefix?: boolean
 
+  /**
+   * v0.3.9:`stripNumericPrefix: true` 时使用的正则。**第一个匹配会被剥掉**。
+   *
+   * 默认匹配 `01-foo` / `02_bar` / `1 baz`(详见 DOCS.md)。
+   *
+   * 想支持 `1) Foo`、`(1) Foo` 等其它格式时用户提供 RegExp。
+   *
+   * ⚠ **不要**把 `.` 加进字符类,会吃掉 `1.2.3-formula.md` 这种版本号前缀
+   * (0.3.4 修过的 bug)。
+   *
+   * 若同时设了 `stripNumericPrefixSeparators`,**本字段优先**。
+   */
+  stripNumericPrefixPattern?: RegExp
+
+  /**
+   * v0.3.9:`stripNumericPrefix` 用的"分隔符字符集"——比 `Pattern` 友好,不要懂正则。
+   *
+   * 默认 `'-_\\s'`(等价于 `[-_\s]`,匹配 `01-foo` / `02_bar` / `1 baz`)。
+   * 想再支持 `1) foo` / `1.foo` 设 `'-_\\s)\\.'`(注意 `.` 会让版本号被吃,慎用)。
+   *
+   * 内部生成 `/^\d+[<chars>]+/`。**若设了 stripNumericPrefixPattern,本字段被忽略**
+   * (Pattern 优先)。
+   */
+  stripNumericPrefixSeparators?: string
+
   /** 顶级 group 字母序的覆盖。例:`['Tour', 'Guides']` 让这两个排最前(其余字母序在后) */
   groupOrder?: string[]
 
@@ -113,32 +139,55 @@ export interface SidebarAutoOptions {
   foldersFirst?: boolean
 
   /**
-   * v0.3.5:文件夹链接缺 index 时怎么办。
-   *   - 'first-file'(默认) 自动落到该文件夹下**第一个文件**;
-   *                          影响:auto-sidebar group link、auto-nav tab、
-   *                          用户手写 [[folder/]] 的解析。
-   *   - 'none'             兼容老行为:无 index → 无 link;
-   *                          sidebar group 只展开折叠;nav tab 跳过;
-   *                          [[folder/]] 死链。
+   * v0.3.10:文件夹链接解析顺序。**第一个命中的就用**。
    *
-   * 配合 autoFolderIndex='off' 使用最自然 —— 不写 index 文件也能从导航
-   * 进到一个文件夹。
+   * 元素:
+   *   - `'same-name'`  文件夹下与文件夹同名的 .md(如 `Themen/Themen.md`)
+   *   - `'index'`      `index.md`
+   *   - `'readme'`     `README.md`
+   *   - `'first-file'` 按 sortBy 排序后的第一个文件
+   *
+   * 默认 `['same-name', 'index', 'readme', 'first-file']`(全套兜底,绝大多数情况
+   * 能找到目标)。
+   *
+   * 想"只用 index.md / README.md,找不到就死链",设 `['index', 'readme']`。
+   * 想"完全不让文件夹链接可点",设 `[]`(等价旧 `folderLinkFallback: 'none'`)。
+   *
+   * 应用于:auto-sidebar group link、auto-nav tab、用户手写 `[[folder/]]` 解析。
+   */
+  folderLinkOrder?: Array<'same-name' | 'index' | 'readme' | 'first-file'>
+
+  /**
+   * @deprecated v0.3.10 起改用 `folderLinkOrder`。
+   * 兼容映射:
+   *   - `'first-file'` → 默认 ['same-name', 'index', 'readme', 'first-file']
+   *   - `'none'`       → []
+   *
+   * 若同时设了 `folderLinkOrder`,**本字段被忽略**(Order 优先)。
    */
   folderLinkFallback?: 'first-file' | 'none'
 
-  /** 给缺 index.md 的文件夹自动生成"目录页"。
-   *  默认 'top-level'(只为顶级目录生成,保证 nav/`/dir/` URL 能落地)。
-   *  详见 SidebarAutoUserOptions 同字段注释。 */
-  autoFolderIndex?:
-    | 'off' | 'top-level' | 'all'
-    | boolean
-    | {
-        mode?: 'off' | 'top-level' | 'all'
-        enabled?: boolean
-        exclude?: string[]
-        stripNumericPrefix?: boolean
-        template?: (ctx: import('./generate-folder-index.js').TemplateContext) => string
-      }
+  /**
+   * v0.3.9:**materialize** —— 把 sidebar 配置"物化"成每文件夹一个 `_sidebar.md`
+   * (frontmatter 含 sidebarAuto 覆盖块,body = `- {.}` 占位符),让用户可以**编辑
+   * 该文件**自定义结构,而结构仍随文件变化自动刷新(因为 body 是 placeholder)。
+   *
+   * 三档同 autoFolderIndex:
+   *   - 'off'(**默认**) 不写文件,sidebar 全 in-memory
+   *   - 'top-level'    仅顶级目录生成 `_sidebar.md`
+   *   - 'all'          所有非空目录都生成
+   *
+   * sentinel 注释保护:用户改后(去掉 sentinel)不会被覆盖。
+   * 已有用户写的 `_sidebar.md` 永远不动。
+   */
+  materialize?: 'off' | 'top-level' | 'all'
+
+  /**
+   * @deprecated v0.3.10 删除了 autoFolderIndex 功能。
+   * 文件夹链接现在由 folderLinkOrder 配置直接解析(无需生成 index.md)。
+   * 运行时检测到本字段会 console.warn 一次。
+   */
+  autoFolderIndex?: unknown
 }
 
 export interface NavItem {
@@ -167,5 +216,7 @@ export interface ResolvedSidebarAutoOptions {
   includePrefix: string | undefined
   excludePrefixes: string[]
   foldersFirst: boolean
-  folderLinkFallback: 'first-file' | 'none'
+  /** v0.3.10:文件夹链接解析顺序(替代老的 folderLinkFallback) */
+  folderLinkOrder: Array<'same-name' | 'index' | 'readme' | 'first-file'>
+  stripNumericPrefixPattern: RegExp
 }
