@@ -2,6 +2,20 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.6] - 2026-05-20
+
+针对用户反馈"Perspectives 有时不加载 / sidebar 有时错"的间歇性问题做了系统排查,5 个真 bug。
+
+### Fixed
+- **Perspectives 在 `locales.root.themeConfig` 配置下消失**:VitePress 1.6 渲染时浅 merge `themeConfig` 与 `siteData.locales[k]?.themeConfig` —— locale 整个**替换**顶层 nav/sidebar。wrapper 之前 `if (lang === 'root') continue` 跳过 root,导致用户用标准 i18n 写法 `locales: { root: { themeConfig: { nav: [...] }}}` 时,顶层 Perspectives 被 root 的(未注入)nav 覆盖。现在所有 locale(含 root)都过 inject。
+- **dev 模式下新增 / 删除文件后 sidebar/nav 不更新**:wrapper 只在 config time 跑一次 scan + 生成 sidebar,后续 hot-update 只刷新 Vite 插件的 index(用于 wikilink / asset / vault-data.json)。结构变化静默吞掉。现在 `handleHotUpdate` 检测到 `.md` 文件 add / remove 时 `console.warn` 提示"重启 dev 服务器才能反映 sidebar/nav 变化"。
+- **空 `themeConfig.sidebar = {}` 或部分 per-path 配置下 Perspectives 在根路径消失**:`injectViewsSidebar` 老逻辑 `for (Object.keys(sidebar))` 在空 object 上跑 0 次,Perspectives 没塞任何路径;用户在 `/` 或非匹配路径访问时看不到。现在显式给 `/` key 兜底一份。
+- **`themeConfig.nav` 是 function 时被替换为 `[Perspectives]`**:VitePress nav 支持 function(动态 / locale-aware)。老 `Array.isArray(fn) ? [...fn] : []` 把 function 错判成"无 nav",推 Perspectives 后用单元素数组覆盖用户函数。现在 `typeof === 'function'` 时 wrap 一层,运行时调用用户 fn + 追加 Perspectives;用户 fn 抛错时容错只返 Perspectives 并 warn。
+- **perspective fallback sidebar 含标题为 `/` 的死项**:`buildPerspectivesFallbackSidebar` 过滤 `p !== base`,但 base 是 `/sub/` 时永远不等于 `/` → `/` 进 topPaths → seg 为空 → 渲染为 `text: '/'` 的死项。现在显式排除 `'/'` + 双保险 `if (!seg) continue`。
+
+### Tests
+- 新增 `tests/v036-perspective-locale.test.ts`,覆盖以上 5 个 bug。
+
 ## [0.3.5] - 2026-05-20
 
 零配置导航更顺手:不写 `index.md` 也能从导航 / sidebar / 用户手写 wikilink 进到一个文件夹;默认 index 模板换成"文件管理器风格"(子文件夹在上、文件在下)。

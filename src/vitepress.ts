@@ -227,16 +227,18 @@ export function defineConfigWithAllYouNeed(
       resolvedForWrapper,
     )
     // v0.3 i18n:每个 locale 的 themeConfig 也注入 sidebar + nav。
-    // v0.3.4 修两个对称性 bug:
-    //   (a) 非 root locale 的 sidebar 之前没过 injectViewsSidebar,Perspectives
-    //       组在 EN locale 下消失。
-    //   (b) nav 注入老逻辑要求 lc.themeConfig.nav 已存在 — 未自定义 nav 的
-    //       locale 拿不到 Perspectives 下拉。injectViewsNav 本身能接受 undefined
-    //       并返回新数组,直接调用即可。
+    // v0.3.6 修(Bug A):**不再跳 root locale**。VitePress 1.6 渲染时:
+    //   themeConfig = { ...siteData.themeConfig, ...siteData.locales[k]?.themeConfig }
+    // 是浅 merge:locale 的 nav / sidebar 整个**替换**顶层。所以用户写
+    //   locales: { root: { themeConfig: { nav: [...] }}}
+    // 这种 VitePress 标准做法时,顶层 themeConfig.nav 我们注入了 Perspectives
+    // 也没用 —— 渲染时被 root.themeConfig.nav 覆盖掉了。必须同时注入 root.
+    //
+    // v0.3.4 历史修过(a)非 root locale sidebar 没过 injectViewsSidebar 和
+    // (b)nav 仅在已定义时注入;现在统一所有 locale(含 root)。
     const localesForViews = (config as { locales?: Record<string, { themeConfig?: Record<string, unknown> }> }).locales
     if (localesForViews) {
       for (const lang of Object.keys(localesForViews)) {
-        if (lang === 'root') continue
         const lc = localesForViews[lang]!
         if (!lc.themeConfig) lc.themeConfig = {}
         // sidebar 注入(若已生成过则在原 sidebar 上加;否则保持 undefined 不动)
@@ -246,7 +248,8 @@ export function defineConfigWithAllYouNeed(
             resolvedForWrapper,
           )
         }
-        // nav 注入(undefined / array 都接受)
+        // nav 注入(undefined / array 都接受;function 会被 injectViewsNav
+        // 检测并跳过 + 警告,见 sidebar-inject.ts)
         const navInjected = injectViewsNav(
           lc.themeConfig.nav as Parameters<typeof injectViewsNav>[0],
           resolvedForWrapper,

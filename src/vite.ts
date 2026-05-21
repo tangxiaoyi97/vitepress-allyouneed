@@ -142,15 +142,37 @@ export function viteAllYouNeed(
 
     handleHotUpdate(ctx) {
       if (!index) return
+      // v0.3.6 修(Bug B):区分 add / remove / change。sidebar / nav 是
+      // wrapper 在 config time 一次性烘焙到 VitePress site 配置里的,hot-update
+      // 只能刷新 Vite 插件的 index(用于 wikilink / asset / vault-data.json),
+      // **不能**让 sidebar 跟着变。所以 add / remove 时必须 warn,告诉用户结
+      // 构变了要重启 dev。
+      // 只关心 .md / .markdown(其它文件变化跟 sidebar/nav 结构无关)
+      const isMd = /\.(md|markdown)$/i.test(ctx.file)
+      const wasIndexed = isMd && index.files.has(ctx.file)
+      let structuralChange: 'add' | 'remove' | null = null
       try {
         const stat = fs.statSync(ctx.file)
         if (stat.isFile()) {
           updateFile(index, ctx.file, resolved)
+          const isNowIndexed = index.files.has(ctx.file)
+          if (!wasIndexed && isNowIndexed) structuralChange = 'add'
         } else if (!fs.existsSync(ctx.file)) {
           removeFile(index, ctx.file, resolved)
+          if (wasIndexed) structuralChange = 'remove'
         }
       } catch {
         removeFile(index, ctx.file, resolved)
+        if (wasIndexed) structuralChange = 'remove'
+      }
+      if (structuralChange) {
+        // toPosix 处理 Windows 反斜杠
+        const rel = toPosix(ctx.file).replace(toPosix(resolved.srcDir) + '/', '')
+        console.warn(
+          `vitepress-allyouneed: 检测到结构变化(${
+            structuralChange === 'add' ? '新增' : '删除'
+          } ${rel}),sidebar/nav 已被烘焙到 VitePress 配置中,**重启 dev 服务器**才能反映;wikilink/asset 已实时刷新。`,
+        )
       }
       // v0.2:数据变了 → 重新生成 vault-data.json
       if (resolved.modules.views) {
