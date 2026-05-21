@@ -76,12 +76,7 @@ export function resolveWikilink(
   let url = entry.url
   let hasUnmatchedAnchor = false
   if (headingPart) {
-    const heading = entry.headings.find(
-      (h) =>
-        h.text === headingPart ||
-        h.slug === headingPart ||
-        h.slug === options.slugify(headingPart),
-    )
+    const heading = matchHeading(entry, headingPart, options.slugify)
     if (heading) {
       url = entry.url + '#' + heading.slug
     } else {
@@ -194,6 +189,64 @@ function lookupEntry(
       // build 时由调用方根据 deadLink 决定;这里返回 undefined → 当作死链
       return undefined
   }
+}
+
+/**
+ * v0.3.8 — 柔性 heading 匹配。Obsidian 用户经常这么写表格内的 wikilink:
+ *
+ *   [[X#7.2]]            想匹配 "## 7.2 Antike — Vorsokratiker"
+ *   [[X#11.2 Kepler]]    想匹配 "## 11.2 Die drei Kepler'schen Gesetze"
+ *   [[X#4.2 Cavendish]]  想匹配 "## 4.2 Cavendish-Experiment (1798)"
+ *
+ * 匹配优先级(返回首个命中):
+ *   1. **exact text** —— h.text === headingPart
+ *   2. **slug 原样** —— h.slug === headingPart
+ *   3. **slug 标准化** —— h.slug === slugify(headingPart)
+ *   4. **prefix-with-boundary** —— h.text 以 headingPart 开头,且下一个字符是
+ *      whitespace 或字符串末尾(避免 #7.2 误匹配 "7.21 Foo")
+ *   5. **token match** —— headingPart 按空白拆 token,所有 token 都(忽略
+ *      大小写)出现在 h.text 中;多 candidate 取**最短** text(最精确那个)
+ */
+function matchHeading(
+  entry: FileEntry,
+  headingPart: string,
+  slugify: (s: string) => string,
+): import('./types.js').HeadingEntry | undefined {
+  // 1-3. 老的三种精确匹配
+  const exact = entry.headings.find(
+    (h) =>
+      h.text === headingPart ||
+      h.slug === headingPart ||
+      h.slug === slugify(headingPart),
+  )
+  if (exact) return exact
+
+  // 4. prefix-with-boundary(忽略大小写)
+  const lc = headingPart.toLowerCase()
+  const prefix = entry.headings.find((h) => {
+    const t = h.text.toLowerCase()
+    if (!t.startsWith(lc)) return false
+    // 完全相等已经在 step 1 命中过,这里 lc.length < t.length
+    if (t.length === lc.length) return true
+    // 下一个字符必须是 whitespace(避免 7.2 匹配 7.21)
+    return /\s/.test(h.text[lc.length]!)
+  })
+  if (prefix) return prefix
+
+  // 5. token match —— 所有空白分隔 token 都出现
+  const tokens = headingPart
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+  if (tokens.length === 0) return undefined
+  const candidates = entry.headings.filter((h) => {
+    const lct = h.text.toLowerCase()
+    return tokens.every((tok) => lct.includes(tok.toLowerCase()))
+  })
+  if (candidates.length === 0) return undefined
+  if (candidates.length === 1) return candidates[0]
+  // 多个 —— 选最短 text(信息量最少 = 最像目标"指向的那段")
+  return [...candidates].sort((a, b) => a.text.length - b.text.length)[0]
 }
 
 /**

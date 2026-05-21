@@ -2,6 +2,18 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.8] - 2026-05-21
+
+### Fixed
+- **wikilink 锚点匹配过严**:用户表格里大量写 `[[X#7.2]]` 想匹配 `## 7.2 Antike — Vorsokratiker`、`[[X#11.2 Kepler]]` 想匹配 `## 11.2 Die drei Kepler'schen Gesetze`、`[[X#4.2 Cavendish]]` 想匹配 `## 4.2 Cavendish-Experiment (8. Klasse, 1798)` 等。老 resolver 只做 exact text / slug match,以上全部归为 "unmatched-anchor"——页面能加载、锚点不跳。现在加两层 fallback:
+  1. **prefix-with-boundary**:`headingPart` 是 heading text 的前缀,且下一字符是 whitespace 或字符串末尾。处理 `#7.2` → `7.2 Antike...`,且**不**误匹配 `7.21 Andere ...`(下一字符不是空白)。
+  2. **token match**:`headingPart` 按空白拆 token,所有 token 都(忽略大小写)出现在 heading text 中。多个 candidate 取最短 text(最精确那条)。处理 `#11.2 Kepler` → `11.2 Die drei Kepler'schen Gesetze`(同时含 "11.2" 和 "kepler",H3 "1. Kepler'sches Gesetz" 不含 "11.2" 被排除)。
+
+  这一改更贴近 Obsidian 用户在表格里"section-number-only"或"number + keyword"的实际书写习惯。
+
+### Tests
+- 新增 `tests/v038-anchor-fuzzy.test.ts`,覆盖 exact / prefix / token / 误匹配防护 / unmatched fallback 等 7 个用例。
+
 ## [0.3.6] - 2026-05-20
 
 针对用户反馈"Perspectives 有时不加载 / sidebar 有时错"的间歇性问题做了系统排查,5 个真 bug。
