@@ -41,6 +41,48 @@ import { generateSidebarMaterializations } from './core/sidebar-auto/generate-si
 import { scanVault } from './core/vault/index.js'
 import { scanWikilinks, logDeadLinks } from './core/scan-wikilinks.js'
 
+// v0.4.1:module-level once-flag for autoFolderIndex deprecation warn,以免 dev
+// 模式 server.restart() 反复刷屏。
+let autoFolderIndexWarned = false
+let mathHintShown = false
+
+/**
+ * v0.4.1:用户在 vitepress config 写 `markdown: { math: true }` 时,VitePress 期望
+ * `markdown-it-mathjax3` 已被 npm install。我们的 wrapper 检测一下,若缺包,**只**
+ * 提示安装命令(不抛错、不阻塞 — VitePress 自己也只会 warn 然后跳过 math 渲染)。
+ *
+ * 不把 markdown-it-mathjax3 当 hard dep,因为:
+ *   1. 大多数 vault 用不到 math(纯文本笔记)
+ *   2. mathjax3 ~3MB,默认带上对所有用户不友好
+ *
+ * 设为 optional peer dep(package.json peerDependenciesMeta)。
+ */
+async function maybeHintMathPackage(config: UserConfig): Promise<void> {
+  if (mathHintShown) return
+  const md = config.markdown as { math?: unknown } | undefined
+  // `math: true` 或 `math: { ... }`(plain object)→ 用户要 math 支持。
+  // null / 数组 / undefined / false → 不要,跳过。
+  const wantsMath =
+    md?.math === true ||
+    (md?.math !== null &&
+      !Array.isArray(md?.math) &&
+      typeof md?.math === 'object')
+  if (!wantsMath) return
+  mathHintShown = true
+  // **注意**:`markdown-it-mathjax3` 是 optional peer dep,可能没装。用变量绕开
+  // 静态类型解析(否则 tsc 会报 TS2307 找不到模块)。运行时 catch 即可。
+  const modName = 'markdown-it-mathjax3'
+  try {
+    await import(modName)
+  } catch {
+    console.warn(
+      '[vitepress-allyouneed] `markdown.math: true` set but `markdown-it-mathjax3` is missing.\n' +
+        '  Install it once:  npm i -D markdown-it-mathjax3\n' +
+        '  (then no further setup — VitePress + this plugin will pick it up automatically.)',
+    )
+  }
+}
+
 export function defineConfigWithAllYouNeed(
   config: UserConfig,
   pluginOptions: AllYouNeedOptions = {},
@@ -61,6 +103,9 @@ export function defineConfigWithAllYouNeed(
       ],
     },
   }
+
+  // v0.4.1:若用户开了 markdown.math,提示安装 markdown-it-mathjax3(fire-and-forget)
+  void maybeHintMathPackage(config)
 
   // Vite 插件(扫描 vault、暴露 __getIndex/__getOptions、装 resolveId/load)
   const vitePlugin = viteAllYouNeed(mergedOptions)
@@ -138,12 +183,16 @@ export function defineConfigWithAllYouNeed(
       try {
         // v0.3.10:autoFolderIndex 已删除。文件夹链接由 folderLinkOrder
         // 配置在 sidebar / nav / wikilink 解析时直接解决 —— 不再写文件。
-        // 用户仍传 autoFolderIndex(老配置)→ 提示一次。
-        if (sidebarAuto.autoFolderIndex !== undefined) {
+        // 用户仍传 autoFolderIndex(老配置)→ 提示一次(每个 process 一次,
+        // 避免 dev 模式 server.restart 重复刷屏)。
+        if (sidebarAuto.autoFolderIndex !== undefined && !autoFolderIndexWarned) {
+          autoFolderIndexWarned = true
           console.warn(
-            'vitepress-allyouneed: `sidebarAuto.autoFolderIndex` was removed in v0.3.10. ' +
-              'Folder URLs are now resolved via `folderLinkOrder` (default: same-name → index → README → first-file). ' +
-              'Previously generated index.md files (with our sentinel) are safe to delete manually.',
+            '[vitepress-allyouneed] `sidebarAuto.autoFolderIndex` was removed in v0.4.0. ' +
+              'No-op now — please delete this field from your .vitepress/config.ts. ' +
+              'Folder URLs are resolved via `folderLinkOrder` ' +
+              '(default: same-name → index → README → first-file). ' +
+              'Old index.md files with our sentinel can be deleted by hand.',
           )
         }
         // v0.3.9:materialize _sidebar.md(默认 off,opt-in 才生成)

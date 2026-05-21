@@ -44,16 +44,20 @@
 }
 .ayn-graph-node circle {
   fill: var(--ayn-graph-node-color);
-  stroke: var(--ayn-graph-node-stroke);
-  stroke-width: 1.5px;
-  transition: fill 0.15s, stroke-width 0.15s, r 0.15s;
+  /* v0.4.1:默认无边框(Obsidian-like)。hover/active 时再 stroke。 */
+  stroke: none;
+  stroke-width: 0;
+  transition: fill 0.15s, stroke-width 0.15s, stroke 0.15s, r 0.15s;
 }
 .ayn-graph-node:hover circle {
   fill: var(--vp-c-brand-2, var(--ayn-graph-node-color));
+  stroke: var(--ayn-graph-node-stroke);
+  stroke-width: 2px;
 }
 
 /* focus mode:hover 一个节点时,自己 + 邻居高亮,其它暗淡 */
 .ayn-graph-node.is-active circle {
+  stroke: var(--ayn-graph-node-stroke);
   stroke-width: 2.5px;
 }
 .ayn-graph-node.is-dimmed {

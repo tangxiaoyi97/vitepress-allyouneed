@@ -1,6 +1,6 @@
 {
   "name": "vitepress-allyouneed",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "VitePress plugin that turns an Obsidian/Notion-style vault into a website: wikilinks, transclusion, asset pipeline, auto-generated views (Graph/Stats/Tags), Obsidian syntax (callouts/highlight/comments/footnotes/block-refs/audio-video-pdf), sidebar auto-generation, document header. Forked from actuallysomecat/markdown-it-wikilinks-plus.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -79,13 +79,17 @@
   "peerDependencies": {
     "markdown-it": "^14.0.0",
     "vitepress": "^1.0.0",
-    "vite": "^5.0.0 || ^6.0.0"
+    "vite": "^5.0.0 || ^6.0.0",
+    "markdown-it-mathjax3": "^4.3.2"
   },
   "peerDependenciesMeta": {
     "vitepress": {
       "optional": true
     },
     "vite": {
+      "optional": true
+    },
+    "markdown-it-mathjax3": {
       "optional": true
     }
   },

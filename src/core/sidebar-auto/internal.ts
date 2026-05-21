@@ -89,10 +89,14 @@ export function compareEntries(
   if (sortBy === 'mtime-desc') return b.mtime - a.mtime
   const ta = titleForFile(a, stripNumeric, stripPattern, 'sidebarHidden', titleKey)
   const tb = titleForFile(b, stripNumeric, stripPattern, 'sidebarHidden', titleKey)
-  if (sortBy === 'title') return ta.localeCompare(tb)
+  // v0.4.1:**natural numeric sort**(`numeric: true`)。修 `1. Masse / 10. Energie
+  // / 11. Impuls / 2. Dichte` 这种字典序坑 —— title 里前导数字按数值比,不按字符比。
+  if (sortBy === 'title') {
+    return ta.localeCompare(tb, undefined, { numeric: true, sensitivity: 'base' })
+  }
   // 'order-then-title'
   const oa = readOrderField(a, orderKey)
   const ob = readOrderField(b, orderKey)
   if (oa !== ob) return oa - ob
-  return ta.localeCompare(tb)
+  return ta.localeCompare(tb, undefined, { numeric: true, sensitivity: 'base' })
 }

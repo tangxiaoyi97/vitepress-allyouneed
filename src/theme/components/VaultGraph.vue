@@ -197,23 +197,39 @@ function build(): void {
     })
   svg.call(zoomBehavior).call(zoomBehavior.transform, zoomIdentity)
 
+  // v0.4.1:大图(>200 nodes)用更激进的 alphaDecay + collide 半径压缩 + tick 节流 →
+  // 显著降卡。Obsidian 实测体验:200 节点流畅,500 节点可用,1000+ 建议拆 vault。
+  const N = nodes.value.length
+  const isHeavy = N > 200
+  const isVeryHeavy = N > 500
+  const collideR = isVeryHeavy ? 8 : isHeavy ? 11 : 14
+
   simulation = forceSimulation<GraphNode>(nodes.value)
+    .alphaDecay(isVeryHeavy ? 0.05 : isHeavy ? 0.035 : 0.0228)
+    .velocityDecay(isHeavy ? 0.5 : 0.4)
     .force(
       'link',
       forceLink<GraphNode, GraphLink>(links.value)
         .id((d) => d.id)
-        .distance(70)
+        .distance(isHeavy ? 50 : 70)
         .strength(0.6),
     )
-    .force('charge', forceManyBody().strength(-90))
+    .force('charge', forceManyBody().strength(isHeavy ? -60 : -90).theta(0.95))
     .force('center', forceCenter(width / 2, height / 2))
     .force('x', forceX(width / 2).strength(0.08))
     .force('y', forceY(height / 2).strength(0.08))
     .force(
       'collide',
-      forceCollide<GraphNode>().radius((d) => 14 + Math.min(d.inDegree, 8)),
+      forceCollide<GraphNode>().radius((d) => collideR + Math.min(d.inDegree, 6)),
     )
+
+  // tick 节流:大图每 2 / 3 帧画一次,DOM 写入压力降一半以上。
+  let tickCount = 0
+  const everyNTh = isVeryHeavy ? 3 : isHeavy ? 2 : 1
+  simulation
     .on('tick', () => {
+      tickCount++
+      if (everyNTh > 1 && tickCount % everyNTh !== 0) return
       linkSel
         .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
         .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
@@ -221,7 +237,16 @@ function build(): void {
         .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
       nodeSel.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
     })
-    .on('end', () => fitToView(svg, width, height))
+    .on('end', () => {
+      // 收敛后再画一次保证最后一帧准确
+      linkSel
+        .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
+        .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
+        .attr('x2', (d) => (d.target as GraphNode).x ?? 0)
+        .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
+      nodeSel.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
+      fitToView(svg, width, height)
+    })
 
   // 兜底:如果 simulation 不收敛,1.5 秒后强制 fit
   setTimeout(() => fitToView(svg, width, height), 1500)

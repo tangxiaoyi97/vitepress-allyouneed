@@ -2,6 +2,22 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.4.1] - 2026-05-21
+
+修 0.4.0 几个回归 + 小幅 UX 优化。
+
+### Fixed
+- **数字排序坑**:`1. Masse / 10. Energie / 11. Impuls / 2. Dichte / 3. ...` —— title 比较改成 `localeCompare(b, undefined, { numeric: true })`(natural sort)。现在 `1, 2, 3, ..., 10, 11` 按数值排,而不是字典序的 `1, 10, 11, 2, 3`。影响 `sidebarAuto.sortBy` 的 `'title'` 与 `'order-then-title'`(后者在 order 缺失时 fallback 到 title)。
+- **`autoFolderIndex` 警告刷屏**:dev 模式 `server.restart()` 会反复触发,加 module-level once-flag 只报一次;同时把 message 写得更可操作("delete this field from your .vitepress/config.ts")。
+
+### Added
+- **`markdown-it-mathjax3` 友好提示**:用户在 vitepress config 写 `markdown: { math: true }` 但没装 `markdown-it-mathjax3` 时,wrapper 自动报一条带安装命令的提示。包加为 optional peer dependency,装与不装都不阻塞。
+- **VaultGraph 视觉/性能**:节点默认无边框(更 Obsidian-like,hover/active 才描边)。大图(>200 节点)启用 `alphaDecay` 加速 + 每 N 帧才更新一次 DOM,显著降卡。500 节点可用,1000+ 建议拆 vault。
+
+### Docs
+- README 加 "当前版本 0.4.1" + 0.3.x → 0.4.x 升级速览。
+- DOCS.md 内 `v0.3.10` 提法统一改成 `v0.4.0`(autoFolderIndex 删除事件实际发布在 0.4.0)。
+
 ## [0.4.0] - 2026-05-21
 
 **0.x.0 = breaking-ish minor bump**(按 0.x SemVer 约定大改 → 二位号 bump)。

@@ -682,8 +682,11 @@ function compareEntries(
   b: FileEntry,
   opts: ResolvedSidebarAutoOptions,
 ): number {
+  // v0.4.1:**natural numeric sort**(`numeric: true`)—— `1. Masse` 在 `10. Energie`
+  // 之前,而不是字典序的 `1, 10, 11, 2, 3...`。
+  const collateOpts: Intl.CollatorOptions = { numeric: true, sensitivity: 'base' }
   if (opts.sortBy === 'title') {
-    return opts.formatItemTitle(a).localeCompare(opts.formatItemTitle(b))
+    return opts.formatItemTitle(a).localeCompare(opts.formatItemTitle(b), undefined, collateOpts)
   }
   if (opts.sortBy === 'mtime-desc') {
     return b.mtime - a.mtime
@@ -691,7 +694,7 @@ function compareEntries(
   const oa = readOrder(a, opts.orderKey)
   const ob = readOrder(b, opts.orderKey)
   if (oa !== ob) return oa - ob
-  return opts.formatItemTitle(a).localeCompare(opts.formatItemTitle(b))
+  return opts.formatItemTitle(a).localeCompare(opts.formatItemTitle(b), undefined, collateOpts)
 }
 
 function readOrder(entry: FileEntry, key: string): number {

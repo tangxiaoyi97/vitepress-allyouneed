@@ -4,6 +4,19 @@
 
 Forked from [`actuallysomecat/markdown-it-wikilinks-plus`](https://github.com/actuallysomecat/markdown-it-wikilinks-plus) (MIT) 并针对 VitePress 大幅重写。
 
+## 当前版本:0.4.1(2026-05-21)
+
+**0.4.x 重要变更(从 0.3.x 升级看这里)**
+
+- **`sidebarAuto.autoFolderIndex` 已删除**。文件夹链接由 `sidebarAuto.folderLinkOrder`(默认 `['same-name', 'index', 'readme', 'first-file']`)在 sidebar/nav/wikilink 解析时直接处理,不再生成 `index.md` 文件。配置里还留着这个字段会在控制台 warn 一次,删掉就行。
+- **`folderLinkOrder`** 新增 — 自定义文件夹链接来源顺序;`[]` 表示文件夹不可点。
+- **数字排序修正(0.4.1)**:`1, 2, 10, 11` 真按数字大小排,不再字典序成 `1, 10, 11, 2`。
+- **`markdown.math: true`** 自动检测 — 没装 `markdown-it-mathjax3` 时给清晰提示,一行 `npm i -D markdown-it-mathjax3` 即可。
+- **dev HMR**:`.md` add/remove 或 `_sidebar.md` 改动自动 server restart,sidebar 立即刷新。
+- **leading-number 锚点**:`#13` 现在能匹 `## 13) Optik`、`13: ...`、`13, ...`、`13 — ...`。不匹 `13.5 Sub`(避免吃版本号)。
+
+完整 changelog 见 [`CHANGELOG.md`](./CHANGELOG.md);配置参考见 [`DOCS.md`](./DOCS.md)。
+
 ## 这个包做什么
 
 - 让 VitePress 直接把你的 **Obsidian vault 当作 srcDir 用**,你照常写笔记,剩下交给插件:
