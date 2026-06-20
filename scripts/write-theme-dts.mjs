@@ -73,6 +73,14 @@ export declare const Tags: DefineComponent<Record<string, never>>
 export declare const Layout: DefineComponent<Record<string, never>>
 export declare const DocHeader: DefineComponent<Record<string, never>>
 
+/**
+ * v0.5: 主题工厂。传 \`{}\` / 不传 → 默认 preset(等同 \`export default theme\`)。
+ * 传 \`Layout\` / \`extends\` / \`enhanceApp\` / \`setup\` 任意子集,覆盖默认。
+ *
+ * 用法举例见 src/theme/index.ts 文件头注释。
+ */
+export declare function defineTheme(userTheme?: Partial<Theme>): Theme
+
 declare const theme: Theme
 export default theme
 `

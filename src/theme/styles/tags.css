@@ -1,3 +1,6 @@
+/* v0.5.0-beta.3: file-internal @layer wrapper.  See styles/index.css for rationale. */
+@layer vitepress-allyouneed {
+
 /*
  * Tags 视图 — 紧凑表格风。
  * 用 .vp-doc 前缀压住 VitePress 默认 ul/li 的 disc bullet。
@@ -190,14 +193,14 @@
   border-top: 1px solid var(--ayn-divider);
 }
 
-/* .vp-doc 前缀 + 直接对所有子元素 text-decoration: none,
- * 压住 VitePress 默认 a 下划线 */
+/* .vp-doc 前缀 → specificity (0,2,0) > VitePress .vp-doc a 的 (0,1,1),
+ * 自然胜过默认 a 下划线。v0.5:删 !important —— 用户想加自己的下划线时不打架。 */
 .ayn-tag-note-row-link,
 .vp-doc .ayn-tag-note-row-link,
 .vp-doc .ayn-tag-note-row-link:hover,
 .ayn-tag-note-row-link *,
 .vp-doc .ayn-tag-note-row-link * {
-  text-decoration: none !important;
+  text-decoration: none;
 }
 
 .ayn-tag-note-row-link {
@@ -305,4 +308,6 @@
   background-color: var(--vp-c-bg);
   border: 1px solid var(--ayn-divider);
   border-radius: 8px;
+}
+
 }

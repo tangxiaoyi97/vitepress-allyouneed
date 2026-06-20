@@ -1,3 +1,6 @@
+/* v0.5.0-beta.3: file-internal @layer wrapper.  See styles/index.css for rationale. */
+@layer vitepress-allyouneed {
+
 /*
  * vitepress-allyouneed v0.3 — Obsidian callouts CSS。
  *
@@ -85,9 +88,10 @@
   gap: 0.5em;
   padding: 0.6rem 1rem;
   font-weight: 600;
-  /* 强制主文本色 —— 标题始终清晰可读,不被 accent 染淡。
-     accent 只用在 ::before 左色条 + .callout-icon */
-  color: var(--vp-c-text-1) !important;
+  /* 主文本色 —— 标题始终清晰可读,不被 accent 染淡。
+     accent 只用在 ::before 左色条 + .callout-icon,所以 .callout-title 不会被覆盖。
+     v0.5:删 !important —— @layer 保证用户覆盖时不打架。 */
+  color: var(--vp-c-text-1);
   background-color: transparent;
   line-height: 1.4;
   user-select: none;
@@ -217,4 +221,6 @@ details.callout--foldable[open] > summary.callout-title::after {
    清了会让 ::before 遮住文字。 */
 .vp-doc .callout-content > p {
   line-height: 1.65;
+}
+
 }

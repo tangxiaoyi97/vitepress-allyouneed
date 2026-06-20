@@ -1,3 +1,6 @@
+/* v0.5.0-beta.3: file-internal @layer wrapper.  See styles/index.css for rationale. */
+@layer vitepress-allyouneed {
+
 /*
  * vitepress-allyouneed v0.2 — 视图共用 CSS 变量。
  * 用户可在自己 CSS 覆写 :root 上的 --ayn-* 全局换色。
@@ -152,10 +155,13 @@
    - 公式自带的 padding 调一致,避免和 mark 边距冲突
    - 块公式(math_block,通常 display=block)放在 mark 里(罕见),
      让 mark 不变成 inline 包裹                                  */
+/* v0.5:删 !important。原意是压住 mathjax3 自带 bg,但 mathjax 用普通 CSS
+   (非 inline style),selector specificity (0,1,3) 足以胜任。极个别 mathjax
+   主题包用 !important,用户想保留我们的"透明 mark 内 bg"自己加一次即可。 */
 .vp-doc mark mjx-container,
 .vp-doc mark .katex,
 .vp-doc mark .katex-display {
-  background: transparent !important;
+  background: transparent;
 }
 .vp-doc mark mjx-container[display='true'],
 .vp-doc mark .katex-display {
@@ -167,4 +173,6 @@
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.25em 0;
+}
+
 }

@@ -1,3 +1,6 @@
+/* v0.5.0-beta.3: file-internal @layer wrapper.  See styles/index.css for rationale. */
+@layer vitepress-allyouneed {
+
 /*
  * vitepress-allyouneed — 默认样式
  * --------------------------------------------------------------
@@ -172,4 +175,6 @@ img[data-allyouneed-asset] {
 
 .dark .transclusion[data-source-url]::before {
   background-color: var(--vp-c-bg);
+}
+
 }

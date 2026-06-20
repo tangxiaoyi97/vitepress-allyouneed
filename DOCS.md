@@ -196,23 +196,40 @@ sidebarAuto?: {
   formatGroupTitle?: (dirname: string) => string
   formatItemTitle?:  (entry: FileEntry) => string
   collapsed?: boolean                                        // default true (each group collapsed by default)
-  stripNumericPrefix?: boolean                               // default true ('01-foo' → 'Foo')
   /**
-   * v0.3.9: regex used when stripNumericPrefix is true. Default `/^\d+[-_\s]+/`.
-   * Examples:
-   *   /^\d+[-_\s]+/         (default)     — matches `01-foo` / `02_bar` / `1 baz`
-   *   /^\d+[\)\-_\s]+/                    — also matches `1) foo`
-   *   /^\(\d+\)[-_\s]*/                   — matches `(1) foo`
-   * ⚠ Don't add `.` (dot) to the character class; that would eat version numbers
-   *   like `1.2.3-formula` and reduce it to `2.3-formula` (0.3.4 bug).
+   * Whether to strip leading "N + separator" from names. Applies to **both
+   * folders (sidebar group titles) and files (sidebar item titles)** —
+   * one switch controls both. There is no separate `stripFolderNumericPrefix`.
+   * Default `true`. Examples (default pattern): `01-foo` → `Foo`, `1 bar` → `Bar`.
+   */
+  stripNumericPrefix?: boolean                               // default true
+  /**
+   * Regex used when stripNumericPrefix is true. Default `/^\d+[-_\s]+/`.
+   *
+   * Common recipes:
+   *   /^\d+[-_\s]+/             (default)     `01-foo` / `02_bar` / `1 baz`
+   *   /^\d+[\)\-_\s]+/                        also `1) foo`
+   *   /^\(\d+\)[-_\s]*/                       `(1) foo`
+   *   /^\d+(?:[-_\s]+|\.\s+)/                 also `7. Foo` (dot + REQUIRED space)
+   *
+   * ⚠ Don't just add `.` to the character class (`/^\d+[-_\s.]+/`):
+   *   that would eat version numbers like `1.2.3-formula` → `2.3-formula`.
+   *   Use the `\.\s+` alternation pattern above instead — it requires the dot
+   *   to be followed by whitespace, which version numbers never have.
    */
   stripNumericPrefixPattern?: RegExp                         // default /^\d+[-_\s]+/
   /**
-   * v0.3.9: friendlier "separator character set" — no regex needed.
+   * Friendlier "separator character set" — no regex needed.
    * Default `'-_\\s'` (equivalent to `[-_\s]`). Plugin builds `/^\d+[<chars>]+/`.
+   *
    * Examples:
-   *   '-_\\s'        (default)             — matches `01-foo` / `02_bar` / `1 baz`
-   *   ')\\-_\\s'                           — also matches `1) foo`
+   *   '-_\\s'        (default)             matches `01-foo` / `02_bar` / `1 baz`
+   *   ')\\-_\\s'                           also `1) foo`
+   *
+   * For "dot + space" (e.g. `7. Foo`), the character-set form CAN'T safely
+   * encode "dot only if followed by space" — use `stripNumericPrefixPattern`
+   * with `/^\d+(?:[-_\s]+|\.\s+)/` instead.
+   *
    * If `stripNumericPrefixPattern` is set, this is ignored (Pattern wins).
    */
   stripNumericPrefixSeparators?: string                      // default '-_\\s'

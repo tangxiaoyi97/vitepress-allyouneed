@@ -299,7 +299,21 @@ watch([visible, () => cfg.value.hideH1, pageTitle, () => page.value.relativePath
 
     <!-- 内容容器:两个 mode 都用 -->
     <div class="ayn-doc-header-inner">
-      <h1 v-if="pageTitle" class="ayn-doc-banner-title">{{ pageTitle }}</h1>
+      <!--
+        v0.5.0-beta.2: 这里**故意不用 `<h1>`**,改用 `<div role="heading" aria-level="1">`。
+        原因:`<h1>` 在 `.vp-doc` 内会被 VitePress 的 `.vp-doc h1` 选择器抓住 → VP 默认
+        32px 字号(unlayered)永远赢我们 layered 的 clamp 大字号,banner title 字号塌缩。
+        改 div + ARIA 后,VP 的 `h1` 选择器不匹配,我们的 `.ayn-doc-banner-title` 字号
+        在 @layer 里也能干净生效。
+        辅助技术:`role="heading" aria-level="1"` 是 WAI-ARIA 标准,屏幕阅读器按 h1
+        念出来,跟原生 `<h1>` 等效;但 VitePress CSS 抓不到。
+      -->
+      <div
+        v-if="pageTitle"
+        class="ayn-doc-banner-title"
+        role="heading"
+        aria-level="1"
+      >{{ pageTitle }}</div>
 
       <div v-if="showTitleDivider" class="ayn-doc-title-divider"></div>
 

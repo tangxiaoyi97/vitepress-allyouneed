@@ -2,6 +2,88 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.5.0-beta.3] - 2026-05-22
+
+### Fixed
+- **Tags 视图(可能也包括其它视图)整片失样**:0.5.0-beta.0/.1/.2 的 `@layer` 声明用了 `@import url('./x.css') layer(vitepress-allyouneed)` 这种"在 @import 子句上挂 layer"语法。CSS 标准支持,但 **Vite + postcss-import / lightningcss 不同链路对它支持参差**:某些组合下 `layer()` 子句被吞,resolve 后的规则**没进 layer**;另一些组合下规则进了 layer 但没正确链入 layer order,被埋在最底层 specificity 一概输掉。Tags chip 失去 pill 样式就是这个症状(`.ayn-tag-chip` 的 padding/border/radius/bg 全输给 user-agent + VP)。
+- **改法**:不再用 `@import ... layer()`。每个 .css 文件**自己头尾**包 `@layer vitepress-allyouneed { ... }`,这是浏览器原生 cascade layer 语法,不经过 bundler 黑盒,100% 可靠。`styles/index.css` 退回最朴素的 `@import './x.css'`。
+- 行为不变:7 个 .css 全 layered,主题作者 unlayered CSS 自动赢。
+
+### Files touched
+- `src/theme/styles/index.css`(去 layer() 子句)
+- `src/theme/styles/shared.css`、`stats.css`、`tags.css`、`graph.css`、`callouts.css`、`doc-header.css`(各自头尾包 @layer block)
+- `style.css`(同上)
+
+## [0.5.0-beta.2] - 2026-05-22
+
+更彻底的修法:把 DocHeader 的 banner title 改成 `<div role="heading" aria-level="1">`,把 doc-header.css 放回 @layer,所有 7 个 .css 终于统一 layered。
+
+### Changed
+- **DocHeader banner 元素 `<h1>` → `<div role="heading" aria-level="1">`**:`.vp-doc h1` 选择器不再匹配我们,@layer 内 layered CSS 不再被 VitePress 默认 unlayered 32px 字号覆盖。
+  - 视觉:无差(`.ayn-doc-banner-title` 字号/字重等都生效)
+  - 辅助技术:WAI-ARIA 标准,屏幕阅读器按 h1 念出,跟原生 `<h1>` 等同
+  - SEO:Google 早期声明 `role="heading" aria-level="1"` 跟 `<h1>` 等价对待
+  - 文档大纲算法:99% 工具支持;少数 reader-mode 工具可能少识别一个标题
+- **doc-header.css 放回 `@layer vitepress-allyouneed`**:0.5.0-beta.1 的"豁免"特例不再需要。**所有 7 个 .css 都 layered**,主题作者覆盖故事彻底干净
+- `styles/index.css` 不再 split "layered / unlayered",注释简化
+
+### Why
+0.5.0-beta.0 引入 @layer 后,banner title 是 `<h1>` 在 `.vp-doc` 内,VP 默认 `.vp-doc h1 { font-size: 32px }` 是 unlayered,我们 layered CSS 永远输 → banner title 字号塌缩。0.5.0-beta.1 临时方案:doc-header.css 不 layer。0.5.0-beta.2 釜底抽薪:banner 不用 `<h1>` 元素了,VP 选择器抓不到我们。
+
+## [0.5.0-beta.1] - 2026-05-22
+
+### Fixed
+- **DocHeader banner title 字号丢失**(0.5.0-beta.0 回归):banner title 是 `<h1>` 在 `.vp-doc` 内,VitePress 默认 `.vp-doc h1 { font-size: 32px }` 是 unlayered;0.5.0-beta.0 把 `doc-header.css` 包进 `@layer vitepress-allyouneed` 后,**layered 永远输 unlayered**,我们的 `clamp(2rem, 4.5vw, 3.25rem)` 大字号被 VP 32px 覆盖 → "大标题"看起来变小。
+- **修法**:`doc-header.css` 不再 layer。原则上"必须压过 VP unlayered defaults 的 CSS"不能 layer;"用户可覆盖的装饰"才 layer。文档 `styles/index.css` 顶部添加注释说明这条边界
+- 其它 6 个 CSS 文件继续 layer(它们的 selector 不跟 VP 默认强冲突)
+
+### Note for theme authors
+想覆盖 banner title:写 `.ayn-doc-banner-title { ... }` —— 跟 0.4.x 行为一致(unlayered 源顺序赢)。注意我们文件在 `defineTheme` import 时加载,你 CSS 必须在它之后 import 才赢。
+
+## [0.5.0-beta.0] - 2026-05-21
+
+主题集成大改 —— **目标:让 3rd-party VitePress 主题作者完全不需要知道本插件**。
+
+### Theme: CSS 用 `@layer` 包裹(底层化)
+- 全部 7 个 .css 文件通过 `styles/index.css` 用 `@import ... layer(vitepress-allyouneed)` 加载,所有规则进 `vitepress-allyouneed` cascade layer
+- **后果**:用户(或第三方主题)写的任何 unlayered CSS **自动赢**我们,无论 specificity 或 import 顺序。`.wikilink { color: red }` 真就 red,不用知道我们有个 `.wikilink`
+- 删除全部 3 处 `!important`(`callouts.css` callout-title 色、`shared.css` mark 内 mathjax bg、`tags.css` tag link 下划线 reset)—— 它们都不需要 `!important`,specificity 已够,且 `!important` 会在 layer 内反向打败用户 unlayered。删了用户 100% 能盖
+- 浏览器支持:`@layer` Chrome/Edge 99 / Firefox 97 / Safari 15.4+(2022 春)
+
+### Theme: 新 `defineTheme()` 工厂(替代之前的 `withAllYouNeed` 设想)
+- `vitepress-allyouneed/theme` 默认导出仍是开箱即用的 Theme 对象,**额外**导出 `defineTheme(userTheme?)` 工厂
+- 三种用户场景:
+  1. **零配置**:`export { default } from 'vitepress-allyouneed/theme'` — 一行完事(DefaultTheme + 我们组件 + 我们 CSS)
+  2. **自定义 Layout / 加自己组件**:`defineTheme({ Layout, enhanceApp })`
+  3. **嵌 3rd-party 主题**:`defineTheme({ extends: SomeAwesomeTheme })`
+- 内部:用户 `enhanceApp` 在我们之后跑 → 同名 `app.component()` 注册**自动赢**(Vue last-registration-wins);用户 `Layout`、`setup` 直接替换
+- 主题包作者的工作流跟有没有本插件**完全无关**:他们写正常 VitePress 主题,published,最终用户负责 `defineTheme({ extends: ... })` 一行接入
+
+### Theme: 可被替换的 Vue 组件清单(API 契约)
+| 组件名 | 干什么 | 用户怎么换 |
+|---|---|---|
+| `Layout` | DefaultTheme.Layout + 自动 `<DocHeader />` + `frontmatter.cssclasses` → body | `defineTheme({ Layout: MyLayout })` |
+| `DocHeader` | 文档头:banner / 标题 / 时间 / tags | `app.component('DocHeader', MyDocHeader)` |
+| `VaultGraph` | d3 力导向关系图 | 同上 |
+| `VaultStats` | 统计卡片 | 同上 |
+| `Tags` | 标签云 + 搜索 + 列表 | 同上 |
+
+### Composables(显式契约)
+`useVaultData()` 早已暴露;0.5.0 起明确这是"给写自己 UI 的人"的公共 API。
+
+### Docs
+- `src/theme/index.ts` 文件头三段示例覆盖三种场景
+- README "当前版本" 章节同步
+- DOCS.md 新增 "Theming" 章节(下个 beta 补全)
+
+### Why beta
+- @layer 在 Vite CSS pipeline 的实际行为没在我这边 prod build 跑过,需要真实项目验证
+- `defineTheme()` 是新 API,等用户回声再 stabilize
+- 老 0.4.x 用户 `import AllYouNeedTheme from 'vitepress-allyouneed/theme'` 仍兼容(default export 没变),只是多了 `defineTheme` 命名导出
+
+### Migration from 0.4.x
+**完全无 breaking** —— 老代码继续跑。新代码推荐用 `defineTheme()`,见 README。
+
 ## [0.4.1] - 2026-05-21
 
 修 0.4.0 几个回归 + 小幅 UX 优化。

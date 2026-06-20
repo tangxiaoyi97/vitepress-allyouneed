@@ -4,16 +4,62 @@
 
 Forked from [`actuallysomecat/markdown-it-wikilinks-plus`](https://github.com/actuallysomecat/markdown-it-wikilinks-plus) (MIT) 并针对 VitePress 大幅重写。
 
-## 当前版本:0.4.1(2026-05-21)
+## 当前版本:0.5.0-beta.0(2026-05-21)
 
-**0.4.x 重要变更(从 0.3.x 升级看这里)**
+**主题集成大改 —— 目标:让第三方 VitePress 主题作者不需要知道本插件存在**
 
-- **`sidebarAuto.autoFolderIndex` 已删除**。文件夹链接由 `sidebarAuto.folderLinkOrder`(默认 `['same-name', 'index', 'readme', 'first-file']`)在 sidebar/nav/wikilink 解析时直接处理,不再生成 `index.md` 文件。配置里还留着这个字段会在控制台 warn 一次,删掉就行。
-- **`folderLinkOrder`** 新增 — 自定义文件夹链接来源顺序;`[]` 表示文件夹不可点。
-- **数字排序修正(0.4.1)**:`1, 2, 10, 11` 真按数字大小排,不再字典序成 `1, 10, 11, 2`。
-- **`markdown.math: true`** 自动检测 — 没装 `markdown-it-mathjax3` 时给清晰提示,一行 `npm i -D markdown-it-mathjax3` 即可。
-- **dev HMR**:`.md` add/remove 或 `_sidebar.md` 改动自动 server restart,sidebar 立即刷新。
-- **leading-number 锚点**:`#13` 现在能匹 `## 13) Optik`、`13: ...`、`13, ...`、`13 — ...`。不匹 `13.5 Sub`(避免吃版本号)。
+### CSS 自动让用户赢(`@layer`)
+
+我们所有 CSS 包在 `@layer vitepress-allyouneed` 里。CSS 标准规则:**任何 unlayered CSS 永远赢 layered CSS**,无关顺序、specificity。所以:
+
+```css
+/* 第三方主题随便写,自动赢 */
+.wikilink { color: red; }
+.callout { border-radius: 12px; }
+```
+
+零知识负担。
+
+### Vue 组件:`defineTheme()` 工厂
+
+三种场景,递进式:
+
+```ts
+// 1. 零配置(默认主题 + 我们)
+export { default } from 'vitepress-allyouneed/theme'
+
+// 2. 自定义 Layout / 覆盖某个视图
+import { defineTheme } from 'vitepress-allyouneed/theme'
+import MyLayout from './MyLayout.vue'
+import MyVaultGraph from './MyVaultGraph.vue'
+export default defineTheme({
+  Layout: MyLayout,
+  enhanceApp({ app }) {
+    app.component('VaultGraph', MyVaultGraph)  // 同名注册自动覆盖
+  },
+})
+
+// 3. 嵌别人写的 VitePress 主题(主题包作者无需感知本插件)
+import { defineTheme } from 'vitepress-allyouneed/theme'
+import SomeTheme from 'some-vitepress-theme'
+export default defineTheme({ extends: SomeTheme })
+```
+
+可被替换的全局组件:`Layout` / `DocHeader` / `VaultGraph` / `VaultStats` / `Tags`。
+
+### 4.x 兼容
+
+老代码 `import theme from 'vitepress-allyouneed/theme'; export default theme` 继续跑,没有 breaking。
+
+---
+
+### 0.4.x 重要变更(从 0.3.x 升级看这里)
+
+- **`sidebarAuto.autoFolderIndex` 已删除**。文件夹链接由 `sidebarAuto.folderLinkOrder`(默认 `['same-name', 'index', 'readme', 'first-file']`)在 sidebar/nav/wikilink 解析时直接处理。
+- **数字排序修正(0.4.1)**:`1, 2, 10, 11` 真按数字大小排。
+- **`markdown.math: true`** 自动检测 — 没装 `markdown-it-mathjax3` 时给清晰提示。
+- **dev HMR**:`.md` add/remove 或 `_sidebar.md` 改动自动 server restart。
+- **leading-number 锚点**:`#13` 能匹 `## 13) Optik`、`13: ...` 等。
 
 完整 changelog 见 [`CHANGELOG.md`](./CHANGELOG.md);配置参考见 [`DOCS.md`](./DOCS.md)。
 

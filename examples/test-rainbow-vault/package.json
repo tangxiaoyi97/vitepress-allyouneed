@@ -1,0 +1,16 @@
+{
+  "name": "test-rainbow-vault",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev .",
+    "build": "vitepress build .",
+    "preview": "vitepress preview ."
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3",
+    "vitepress-allyouneed": "file:../..",
+    "markdown-it-mathjax3": "^4.3.2"
+  }
+}

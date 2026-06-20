@@ -1,3 +1,6 @@
+/* v0.5.0-beta.3: file-internal @layer wrapper.  See styles/index.css for rationale. */
+@layer vitepress-allyouneed {
+
 .ayn-stats-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -74,4 +77,6 @@
   font-size: 0.8em;
   color: var(--ayn-text-2);
   text-align: right;
+}
+
 }
