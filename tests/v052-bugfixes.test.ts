@@ -155,6 +155,32 @@ describe('v0.5.2 Bug2: 自引用锚点 [[#heading]] 不再死链', () => {
     expect(r.isDead).toBe(true)
   })
 
+  // ⭐ 这是 0.5.2 真正没修对的点:env.currentPath 与 index.files 键的**归一化
+  // 形态不一致**时,精确 get 会 miss → 自引用又全死链。findSelfEntry 必须对
+  // 反斜杠 / 前导 ./ / 相对路径形态都稳健命中。
+  it('currentSourcePath 用反斜杠形态 → 仍命中当前文件(不死链)', () => {
+    const r = resolveWikilink(
+      '#Biomarker',
+      idx,
+      opts,
+      'page',
+      selfKey().replace(/\//g, '\\'),
+    )
+    expect(r.isDead).toBe(false)
+    expect(r.url).toMatch(/#biomarker$/)
+  })
+
+  it('currentSourcePath 带前导 ./ → 仍命中', () => {
+    const r = resolveWikilink('#Biomarker', idx, opts, 'page', './' + selfKey())
+    expect(r.isDead).toBe(false)
+  })
+
+  it('currentSourcePath 只给相对路径(Themen/Astro.md)→ 后缀匹配命中', () => {
+    const r = resolveWikilink('#Biomarker', idx, opts, 'page', 'Themen/Astro.md')
+    expect(r.isDead).toBe(false)
+    expect(r.url).toMatch(/#biomarker$/)
+  })
+
   it('自引用但锚点不存在 → 文件命中但标 unmatched-anchor(不整条 dead)', () => {
     const r = resolveWikilink('#GibtEsNicht', idx, opts, 'page', selfKey())
     expect(r.isDead).toBe(false)
@@ -169,6 +195,58 @@ describe('v0.5.2 Bug2: 自引用锚点 [[#heading]] 不再死链', () => {
       (d) => d.raw.startsWith('[[#') || d.target === '',
     )
     expect(selfDead).toEqual([])
+  })
+})
+
+// ── Bug 2 (重名文件):报告里 `Astronomie und Exobiologie.md` DE + ZH 同名共存 ──
+// 自引用锚点必须解析到**正确的那个文件**,即使 basename 兜底会歧义。
+describe('v0.5.2 Bug2: 重名文件(DE+ZH)自引用锚点解析到正确文件', () => {
+  let tmp: string
+  let opts: ResolvedOptions
+  let idx: VaultIndex
+
+  beforeAll(() => {
+    tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-dup-'))
+    write(
+      nodePath.join(tmp, 'themen', 'Astronomie.md'),
+      ['# Astro DE', '## Biomarker', '[[#Biomarker]]'].join('\n\n'),
+    )
+    write(
+      nodePath.join(tmp, 'zh', 'themen', 'Astronomie.md'),
+      ['# Astro ZH', '## Biomarker', '[[#Biomarker]]'].join('\n\n'),
+    )
+    write(nodePath.join(tmp, 'index.md'), '# Home')
+    opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
+    idx = scanVault(opts)
+  })
+  afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }))
+
+  function keyOf(sub: string): string {
+    for (const k of idx.files.keys()) if (k.includes(sub)) return k
+    throw new Error('not found: ' + sub)
+  }
+
+  it('DE 文件的 [[#Biomarker]] → DE url, 不串到 ZH', () => {
+    const deKey = keyOf('/themen/Astronomie.md') // 注意:zh 的含 /zh/themen/
+    const r = resolveWikilink('#Biomarker', idx, opts, 'page', deKey)
+    expect(r.isDead).toBe(false)
+    expect(r.url).toContain('/themen/Astronomie#biomarker')
+    expect(r.url).not.toContain('/zh/')
+  })
+
+  it('ZH 文件的 [[#Biomarker]] → ZH url', () => {
+    const zhKey = keyOf('/zh/themen/Astronomie.md')
+    const r = resolveWikilink('#Biomarker', idx, opts, 'page', zhKey)
+    expect(r.isDead).toBe(false)
+    expect(r.url).toContain('/zh/themen/Astronomie#biomarker')
+  })
+
+  it('重名 + 反斜杠路径 → 仍解析到正确文件(toPosix 先于 basename 兜底)', () => {
+    const deKey = keyOf('/themen/Astronomie.md')
+    const r = resolveWikilink('#Biomarker', idx, opts, 'page', deKey.replace(/\//g, '\\'))
+    expect(r.isDead).toBe(false)
+    expect(r.url).toContain('/themen/Astronomie#biomarker')
+    expect(r.url).not.toContain('/zh/')
   })
 })
 

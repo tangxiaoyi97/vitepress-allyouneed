@@ -56,9 +56,15 @@ export function resolveWikilink(
   // 误判 dead(报告:74 处页内跳转锚点全死,即使 slug 精确匹配)。
   // 修法:target 为空 + 有 headingPart + 知道当前文件 → 解析到当前文件本身,
   // 让下面的 heading 匹配逻辑(exact slug)正常命中。
+  //
+  // v0.5.2 修订:不再用 `index.files.get(currentSourcePath)` 直接精确取键。
+  // 不同 VitePress 版本/配置传进来的 env.currentPath(= env.realPath/env.path)
+  // 与 index.files 的键(`entry.absolutePath`,已 toPosix)在**归一化形态**上可能
+  // 不一致(反斜杠、前导 `./`、`srcDir` 解析差异等),精确 get 会 miss → 自引用
+  // 又全部死链。改用 findSelfEntry:多形态归一 + 后缀(相对路径)/ basename 兜底。
   let selfEntry: FileEntry | undefined
   if (!target && headingPart && currentSourcePath) {
-    selfEntry = index.files.get(currentSourcePath)
+    selfEntry = findSelfEntry(currentSourcePath, index)
   }
 
   // 3-4. 查 entry。v0.3.5:wasFolderForm 时,即使剥了尾 `/` 也强制走
@@ -101,6 +107,69 @@ export function resolveWikilink(
     target: entry,
     kind,
   }
+}
+
+/**
+ * HOTFIX(0.5.2):稳健地把"当前文件路径"映射到 index 里的 FileEntry。
+ *
+ * 用于自引用锚点 `[[#heading]]`。env.currentPath 的来源(VitePress 的
+ * env.realPath / env.path)在不同版本/配置下归一化形态不保证与 index.files 的键
+ * (`entry.absolutePath`,扫描时 toPosix 过)一致,因此**不能只做精确 get**。
+ *
+ * 匹配顺序(从最强到兜底):
+ *   1. 精确键(快路径)
+ *   2. toPosix 后再精确键(消反斜杠 / 多余分隔符)
+ *   3. 后缀匹配:某个 entry 的 absolutePath 以归一化后的当前路径结尾
+ *      —— 覆盖"当前路径是相对/被截断前缀"的情况(以 `/` 边界防误配)
+ *   4. relativePath 完全相等(去掉前导 `./`)
+ *   5. basename 唯一时按 basename 命中(最后兜底;有歧义则放弃,避免错配)
+ */
+function findSelfEntry(
+  currentSourcePath: string,
+  index: VaultIndex,
+): FileEntry | undefined {
+  // 1. 精确
+  const direct = index.files.get(currentSourcePath)
+  if (direct) return direct
+
+  // 2. toPosix 归一后精确
+  const norm = toPosix(currentSourcePath).replace(/^\.\//, '')
+  const byNorm = index.files.get(norm)
+  if (byNorm) return byNorm
+
+  // 3. 后缀匹配(以 '/' 边界,避免 ".../ab.md" 命中 ".../zab.md")
+  let suffixHit: FileEntry | undefined
+  for (const e of index.files.values()) {
+    const abs = e.absolutePath
+    if (abs === norm || abs.endsWith('/' + norm)) {
+      suffixHit = e
+      break
+    }
+    // 反向:当前路径以 entry 的 relativePath 结尾(currentPath 更长)
+    if (e.relativePath && norm.endsWith('/' + e.relativePath)) {
+      suffixHit = e
+      break
+    }
+  }
+  if (suffixHit) return suffixHit
+
+  // 4. relativePath 完全相等
+  for (const e of index.files.values()) {
+    if (e.relativePath && e.relativePath.replace(/^\.\//, '') === norm) return e
+  }
+
+  // 5. basename 唯一兜底
+  const bn = basename(norm)
+  if (bn) {
+    const matches: FileEntry[] = []
+    for (const e of index.files.values()) {
+      if (basename(e.absolutePath) === bn) matches.push(e)
+      if (matches.length > 1) break
+    }
+    if (matches.length === 1) return matches[0]
+  }
+
+  return undefined
 }
 
 /**
