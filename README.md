@@ -4,12 +4,12 @@
 
 Forked from [`actuallysomecat/markdown-it-wikilinks-plus`](https://github.com/actuallysomecat/markdown-it-wikilinks-plus) (MIT) 并针对 VitePress 大幅重写。
 
-## 当前版本:0.5.2(2026-06-20)
+## 当前版本:0.5.3(2026-06-20)
 
-**实战 build-blocker 修复**(详见 [CHANGELOG](./CHANGELOG.md#052---2026-06-20)):
+**实战 build-blocker 修复**(详见 [CHANGELOG](./CHANGELOG.md#053---2026-06-20)):
 
 - `#tag` 出现在 link label / 嵌套方括号 / GFM 表格单元格时不再让 `vitepress build` 整站崩溃(`inline rule didn't increment state.pos`)。
-- 页内自引用锚点 `[[#heading]]` 不再被误判死链 —— slug 精确匹配现在正常生成可点击 `href`。
+- 页内自引用锚点 `[[#heading]]` 不再被误判死链 —— 在 i18n / 同名文件布局下也能正常生成可点击 `href`(0.5.2 此修复不完整,0.5.3 修对)。
 - 缺失的 embed 资源(`![[foo.gif]]` / 音视频 / PDF)不再硬中断 Vite 构建,改为按 `deadLink` 策略告警 + 渲染占位标记。
 
 ### 0.5.1:主题集成大改 —— 目标:让第三方 VitePress 主题作者不需要知道本插件存在

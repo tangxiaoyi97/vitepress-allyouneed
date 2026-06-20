@@ -2,6 +2,18 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.5.3] - 2026-06-20
+
+0.5.2 的 **Bug 2 修复不完整**(已发到 npm,故 0.5.2 标记 deprecated;请升到 0.5.3)。本版把它彻底修对,并补齐 i18n 实战验证。
+
+### Fixed
+- **自引用锚点 `[[#heading]]` 在 i18n / 重名文件布局下仍然全部死链**(0.5.2 的修复在那些场景下无效)。
+  - 根因:0.5.2 用 `index.files.get(currentSourcePath)` **精确取键**把"当前文件路径"映射回 entry。但渲染期的 `env.currentPath`(VitePress 的 `env.realPath`/`env.path`)与 index 键(`entry.absolutePath`,扫描时 `toPosix` 过)的**归一化形态在不同版本/配置(尤其 i18n 多 locale + 同名文件,如 `Astronomie und Exobiologie.md` 在 root 与 `/zh/` 各一份)下不一致**,精确 get 一旦 miss → 自引用又全死链。0.5.2 的单文件 renderer 验证没有真实 locale 上下文,给了**假阳性**。
+  - 修复:`core/resolver.ts` 新增 `findSelfEntry()`,逐级回退命中当前文件:精确键 → `toPosix` 归一键 → 后缀(相对路径,`/` 边界防误配)→ `relativePath` 相等 → basename 唯一兜底。**归一化先于 basename 兜底**,确保重名文件解析到正确的那一个(root 不串 zh)。
+  - 验证:用**真实 `vitepress build`**(含 i18n root + `/zh/` 同名文件)产出的 HTML 核对 `class="wikilink"` 标签 —— 两个 locale 的自引用锚点均为 live `href` 且各指向本文件 heading,0 个 `wikilink--dead`。新增 9 条回归测试(路径归一化形态 + DE/ZH 重名)。
+
+> 注:验证渲染 HTML 时只匹配 `class="wikilink"` 的 `<a>`;VitePress 给每个标题加的 header-anchor permalink(`href="#slug"`)会让 naive 的 `href="#…"` grep 误判死链为 live。
+
 ## [0.5.2] - 2026-06-20
 
 实战(90 页 DE+ZH 物理知识库,重 KaTeX / Wikilink / GFM 表格)发现的三个 build-blocker / 死链 bug,纯插件侧可修,无需改任何内容。
