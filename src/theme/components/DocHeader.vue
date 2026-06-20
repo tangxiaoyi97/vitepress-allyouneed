@@ -29,7 +29,7 @@
  * `.vp-doc` 紧贴开头的 H1 隐藏,不再 JS 改 DOM。
  */
 
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useData } from 'vitepress'
 
 const { frontmatter, page, theme } = useData()
@@ -161,10 +161,16 @@ function formatDate(raw: unknown): string | null {
     const d = raw instanceof Date ? raw : new Date(String(raw))
     if (Number.isNaN(d.getTime())) return null
     // v0.3.9:所有 UI 文案以英文为基准。date 用 en-US "May 21, 2026" 风格
+    // v0.5:固定 timeZone:'UTC'。DocHeader 在 #doc-before slot 参与 SSR(无
+    // ClientOnly),不指定时区会按运行环境本地时区格式化 → UTC 构建机与本地
+    // 时区浏览器对跨日边界日期(如 2026-05-21T23:30Z)输出不同 →
+    // hydration mismatch + 日期水合后跳变。纯日期串(2026-05-21)被解析为 UTC
+    // 午夜,配合 UTC 时区显示正确;带时间的串也不再漂移。
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      timeZone: 'UTC',
     }).format(d)
   } catch {
     return null
@@ -181,27 +187,46 @@ const readingTime = computed(() => {
 
 function recountWords(): void {
   if (typeof window === 'undefined') return
-  requestAnimationFrame(() => {
-    const doc = document.querySelector('.vp-doc')
-    if (!doc) {
-      wordCount.value = 0
-      return
-    }
-    const banner = doc.querySelector('.ayn-doc-header')
-    const docText = doc.textContent ?? ''
-    const bannerText = banner?.textContent ?? ''
-    wordCount.value = countWords(docText.replace(bannerText, ''))
+  // v0.5:SPA 路由切换时新页 .vp-doc 可能尚未挂载,单帧 rAF 不保证读到的是
+  // **新页**内容(可能数到旧页或空)。改为 nextTick(等 Vue 应用完 DOM 更新)
+  // 再 rAF(等浏览器下一帧布局)双保险;读不到内容时不立刻清零,而是再重试
+  // 一帧,避免切换瞬间字数闪 0。
+  void nextTick(() => {
+    requestAnimationFrame(() => measureOnce(0))
   })
 }
 
+function measureOnce(retry: number): void {
+  // v0.5:用更精准的"克隆 .vp-doc 后移除 banner 子树再读 textContent",
+  // 取代 docText.replace(bannerText)(String.replace 只替换第一处,且 banner
+  // 文字若在正文重复只扣一次)。
+  const doc = document.querySelector('.vp-doc')
+  if (!doc) {
+    if (retry < 3) {
+      requestAnimationFrame(() => measureOnce(retry + 1))
+    } else {
+      wordCount.value = 0
+    }
+    return
+  }
+  const clone = doc.cloneNode(true) as HTMLElement
+  clone.querySelector('.ayn-doc-header')?.remove()
+  wordCount.value = countWords(clone.textContent ?? '')
+}
+
+// v0.5:CJK 字符类扩展——除中文基本区外,补日文假名/韩文谚文/CJK 扩展区,
+// 让这些内容也按"字"计数(此前仅 [一-龥],日韩与扩展区会漏计)。
+// 范围:平假名+片假名(぀-ヿ)、CJK 扩展(㐀-䶿)、
+// 基本区(一-鿿)、兼容表意(豈-﫿)、谚文(가-힯)。
+const CJK_RE = /[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]/g
 function countWords(text: string): number {
-  const cn = (text.match(/[一-龥]/g) ?? []).length
-  const en = text
-    .replace(/[一-龥]/g, ' ')
+  const cjk = (text.match(CJK_RE) ?? []).length
+  const latin = text
+    .replace(CJK_RE, ' ')
     .trim()
     .split(/\s+/)
     .filter(Boolean).length
-  return cn + en
+  return cjk + latin
 }
 
 onMounted(recountWords)
@@ -313,6 +338,7 @@ watch([visible, () => cfg.value.hideH1, pageTitle, () => page.value.relativePath
         class="ayn-doc-banner-title"
         role="heading"
         aria-level="1"
+        :title="pageTitle"
       >{{ pageTitle }}</div>
 
       <div v-if="showTitleDivider" class="ayn-doc-title-divider"></div>

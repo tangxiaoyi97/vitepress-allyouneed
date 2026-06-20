@@ -41,9 +41,60 @@ function stripCodeForScan(src: string): string {
   let r = src.replace(/```[\s\S]*?```/g, (m) => ' '.repeat(m.length))
   // ~~~ fenced ~~~
   r = r.replace(/~~~[\s\S]*?~~~/g, (m) => ' '.repeat(m.length))
-  // 行内 code(支持多个反引号,简化:同数量反引号配对)
-  r = r.replace(/(`+)(?:(?!\1)[\s\S])*?\1/g, (m) => ' '.repeat(m.length))
+  // 行内 code(支持多个反引号,同数量反引号配对)。
+  // v0.5:改用线性扫描替代带反向引用的正则 `/(`+)(?:(?!\1)[\s\S])*?\1/g`,
+  // 后者在大量未闭合反引号的输入上会灾难性回溯(ReDoS),而本函数对每个
+  // 文件的全文运行,单个恶意/超大笔记即可拖垮 dev/build。
+  r = stripInlineCodeLinear(r)
   return r
+}
+
+/**
+ * 线性(O(n))地把行内 code span 抹成等长空白,保留长度与行号。
+ * 规则模仿 CommonMark:开标记是一段 `+`,需要等长的同字符串收尾;
+ * 找不到收尾就把开标记本身当普通文本(不抹)。绝不回溯。
+ */
+function stripInlineCodeLinear(src: string): string {
+  const out = src.split('')
+  let i = 0
+  const n = src.length
+  while (i < n) {
+    if (src.charCodeAt(i) !== 0x60 /* ` */) {
+      i += 1
+      continue
+    }
+    // 数开标记反引号个数
+    let openLen = 0
+    while (i + openLen < n && src.charCodeAt(i + openLen) === 0x60) openLen += 1
+    const contentStart = i + openLen
+    // 从内容起点线性找等长收尾
+    let j = contentStart
+    let closeAt = -1
+    while (j < n) {
+      if (src.charCodeAt(j) === 0x60) {
+        let runLen = 0
+        while (j + runLen < n && src.charCodeAt(j + runLen) === 0x60) runLen += 1
+        if (runLen === openLen) {
+          closeAt = j
+          break
+        }
+        j += runLen // 不等长的反引号 run 整段跳过
+      } else {
+        j += 1
+      }
+    }
+    if (closeAt === -1) {
+      // 没有匹配收尾:开标记当普通文本,跳过这段反引号继续
+      i = contentStart
+      continue
+    }
+    // 抹掉 [i, closeAt + openLen) 整段(含两端反引号)为空格,保留换行
+    for (let k = i; k < closeAt + openLen; k++) {
+      if (out[k] !== '\n') out[k] = ' '
+    }
+    i = closeAt + openLen
+  }
+  return out.join('')
 }
 
 export function scanWikilinks(

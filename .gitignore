@@ -13,6 +13,10 @@ dist
 coverage
 *.tsbuildinfo
 .tsup
+# tsup / vite 加载 TS 配置时落的临时 bundle(进程退出有时来不及清,忽略掉)
+tsup.config.bundled_*.mjs
+vitest.config.ts.timestamp-*.mjs
+*.config.ts.timestamp-*.mjs
 
 # ─ VitePress(根目录 + 任意子目录,如 examples/.vitepress)──
 .vitepress/cache
@@ -49,3 +53,4 @@ desktop.ini
 
 # ─ 本地维护文档(只给作者自己看的 cheat-sheet,不入库)──
 PUBLISHING.md
+REVIEW-*.md

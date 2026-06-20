@@ -1,7 +1,15 @@
 import { defineConfig } from 'tsup'
-import { copyFileSync, mkdirSync, readdirSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, dirname } from 'node:path'
 import type { Plugin as EsbuildPlugin } from 'esbuild'
+
+// v0.5:构建期注入 package.json version,避免源码里硬编码版本号漂移
+//       (此前 generate-data.ts 写死 '0.2.0-beta.0',与实际版本不符)。
+const PKG_VERSION = (
+  JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
+    version: string
+  }
+).version
 
 /**
  * v0.2 build config。
@@ -41,6 +49,9 @@ export default defineConfig({
     'theme/composables/useVaultData': 'src/theme/composables/useVaultData.ts',
   },
   format: ['esm', 'cjs'],
+  define: {
+    __AYN_VERSION__: JSON.stringify(PKG_VERSION),
+  },
   // dts 排除 theme/index(下面 post-tsup script 手写)
   // theme/composables/useVaultData 是纯 TS,无 .vue 引用,dts 正常生成
   dts: {

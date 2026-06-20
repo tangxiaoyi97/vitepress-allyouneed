@@ -50,6 +50,11 @@
   color: var(--ayn-text-1);
   text-decoration: none;
   font-weight: 500;
+  /* v0.5:超长标题用省略号截断,优先让出空间给右侧时间,避免把时间挤换行 */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ayn-stats-recent a:hover {
   color: var(--ayn-brand);
@@ -58,6 +63,7 @@
   font-size: 0.85em;
   color: var(--ayn-text-2);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .ayn-stats-warnings {
   margin: 1.5rem 0;

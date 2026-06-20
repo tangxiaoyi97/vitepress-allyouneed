@@ -10,6 +10,13 @@
   border-radius: 8px;
   overflow: hidden;
 }
+/* v0.5:移动端把固定 600px 改成视口相对高度,避免在手机上占满整屏 */
+@media (max-width: 640px) {
+  .ayn-graph-container {
+    height: 60vh;
+    min-height: 360px;
+  }
+}
 
 .ayn-graph-svg {
   display: block;
@@ -43,46 +50,107 @@
 
 .ayn-graph-node {
   cursor: pointer;
-  transition: opacity 0.2s;
+  /* v0.5:用变量驱动整节点透明度,使 focus 暗淡(is-dimmed)与正常态平滑过渡 */
+  --ayn-node-op: 1;
+  opacity: var(--ayn-node-op);
+  transition: opacity 0.25s ease;
 }
-.ayn-graph-node circle {
+
+/* v0.5:透明命中圈 —— 永远可点、永不变化几何,负责"接住"鼠标。
+   visible 圆(.ayn-graph-dot)的 hover 特效不会影响它,所以 hover 稳定不抖。 */
+.ayn-graph-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all; /* 即便 fill 透明也参与命中 */
+}
+
+/* 可见圆点。hover 命中由命中圈负责,这里不接收指针,避免它自己的几何变化
+   反过来干扰命中判定。 */
+.ayn-graph-dot {
   fill: var(--ayn-graph-node-color);
   /* v0.4.1:默认无边框(Obsidian-like)。hover/active 时再 stroke。 */
   stroke: none;
   stroke-width: 0;
-  transition: fill 0.15s, stroke-width 0.15s, stroke 0.15s, r 0.15s;
+  pointer-events: none;
+  /* v0.5:hover 反馈只过渡颜色与描边,**不再过渡 r**。之前 r 用带回弹的
+     cubic-bezier,hover 瞬间圆会"弹一下",边缘像素在动,容易让 hover 抖动。
+     现在 r 固定,放大效果由 transform: scale 实现(GPU 合成、不改命中几何)。 */
+  transition:
+    fill 0.18s ease,
+    stroke-width 0.18s ease,
+    stroke 0.18s ease,
+    transform 0.18s ease;
+  transform-box: fill-box;
+  transform-origin: center;
 }
-.ayn-graph-node:hover circle {
+.ayn-graph-node:hover .ayn-graph-dot {
   fill: var(--vp-c-brand-2, var(--ayn-graph-node-color));
   stroke: var(--ayn-graph-node-stroke);
   stroke-width: 2px;
+  transform: scale(1.25); /* 轻微放大反馈,不影响命中圈 */
 }
 
 /* focus mode:hover 一个节点时,自己 + 邻居高亮,其它暗淡 */
-.ayn-graph-node.is-active circle {
+.ayn-graph-node.is-active .ayn-graph-dot {
   stroke: var(--ayn-graph-node-stroke);
   stroke-width: 2.5px;
 }
 .ayn-graph-node.is-dimmed {
-  opacity: 0.18;
+  --ayn-node-op: 0.15;
+}
+/* 暗淡的节点不该再抢命中(避免遮挡下层想 hover 的节点) */
+.ayn-graph-node.is-dimmed .ayn-graph-hit {
+  pointer-events: none;
 }
 
 /* ── 标签 ────────────────────────────────────────── */
-
+/*
+ * v0.5 关键:标签透明度是两个维度的"乘积",用 calc 合成,二者互不打架:
+ *   1. --ayn-label-zoom —— 由 JS zoom 回调写在 .ayn-graph-zoom-group 上(0..1),
+ *      继承给所有 label;缩小→0(隐藏),放大→1。这修了"缩小后标签不变淡"。
+ *   2. --ayn-label-state —— 基础态 .55,hover/focus 相关时提到 1。
+ * 最终 opacity = zoom * state。例如缩到中段(zoom .4)且 hover(state 1)→ .4,
+ * 既尊重缩放档位又体现 hover,符合 Obsidian 直觉。
+ */
+.ayn-graph-zoom-group {
+  --ayn-label-zoom: 1;
+}
 .ayn-graph-label {
   font-size: 10px;
   fill: var(--ayn-graph-label-color);
   pointer-events: none;
   font-family: var(--vp-font-family-base, sans-serif);
-  /* 默认半透明,hover 节点时全显 */
-  opacity: 0.5;
-  transition: opacity 0.2s, font-weight 0.15s;
+  --ayn-label-state: 0.62;
+  opacity: calc(var(--ayn-label-zoom, 1) * var(--ayn-label-state));
+  /* 描边一圈背景色,让标签在密集连线上也清晰可读(Obsidian 同款 halo) */
+  paint-order: stroke;
+  stroke: var(--ayn-graph-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  /* opacity 不放进 transition:缩放时由 JS 高频改 zoom 变量,加过渡反而拖影 */
+  transition: stroke-width 0.15s ease;
 }
 .ayn-graph-node:hover .ayn-graph-label,
 .ayn-graph-node.is-active .ayn-graph-label,
 .ayn-graph-node.is-related .ayn-graph-label {
-  opacity: 1;
+  --ayn-label-state: 1;
   font-weight: 600;
+}
+/* hover/active 的标签强制盖过缩放隐藏:即使缩得很小,指到某点也看得到它的名字
+   (Obsidian 行为)。用一个独立变量提供"地板值" */
+.ayn-graph-node:hover .ayn-graph-label,
+.ayn-graph-node.is-active .ayn-graph-label {
+  opacity: calc(max(var(--ayn-label-zoom, 1), 0.85) * var(--ayn-label-state));
+}
+
+/* 减少动态偏好:关掉非必要过渡(放大反馈也直接生效,不做动画) */
+@media (prefers-reduced-motion: reduce) {
+  .ayn-graph-node,
+  .ayn-graph-node .ayn-graph-dot,
+  .ayn-graph-edge,
+  .ayn-graph-label {
+    transition: none;
+  }
 }
 
 }

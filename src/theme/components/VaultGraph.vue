@@ -6,7 +6,6 @@ import {
   forceSimulation,
   forceLink,
   forceManyBody,
-  forceCenter,
   forceCollide,
   forceX,
   forceY,
@@ -39,6 +38,12 @@ const tooHeavy = ref(false)
 let simulation: Simulation<GraphNode, GraphLink> | null = null
 let resizeObserver: ResizeObserver | null = null
 let zoomBehavior: ZoomBehavior<SVGSVGElement, unknown> | null = null
+// v0.5:重建/卸载时清掉的"强制 fit"定时器 + resize 防抖的 rAF 句柄
+let fitTimer: ReturnType<typeof setTimeout> | null = null
+let resizeRaf = 0
+let rafId = 0 // v0.5:simulation tick → rAF 合帧渲染的循环句柄
+let lastW = 0
+let lastH = 0
 
 const MAX_NODES_DEFAULT = 500
 
@@ -105,6 +110,31 @@ function build(): void {
   }
   tooHeavy.value = false
 
+  // v0.5:重建前停掉上一轮 simulation 并清掉未触发的 fit 定时器。
+  // ResizeObserver 会直接调 build()(不走 destroy 的 watch 路径),若不在这里
+  // 收尾,旧 simulation 会继续在后台跑、旧 setTimeout 会在已移除的 DOM 上触发,
+  // 多次 resize 累积成"幽灵 simulation + 定时器"泄漏。
+  simulation?.stop()
+  if (fitTimer !== null) {
+    clearTimeout(fitTimer)
+    fitTimer = null
+  }
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
+
+  // v0.5:d3-force 会就地把 link 的 source/target 从字符串改写成节点对象,
+  // 并给 node 写入 x/y/vx/vy。直接喂 computed 返回的对象会污染响应式数据,
+  // 导致下次重建时 link 已是上一轮的节点引用、forceLink().id() 配不上而丢边。
+  // 这里喂浅拷贝,computed 始终保持"纯净的原始形状"。
+  const simNodes: GraphNode[] = nodes.value.map((n) => ({ ...n }))
+  const simLinks: GraphLink[] = links.value.map((l) => ({
+    source: (l.source as GraphNode).id ?? (l.source as unknown as string),
+    target: (l.target as GraphNode).id ?? (l.target as unknown as string),
+    type: l.type,
+  }))
+
   const svg = d3.select(svgEl)
   svg.selectAll('*').remove()
 
@@ -121,7 +151,7 @@ function build(): void {
     .append('g')
     .attr('class', 'ayn-graph-edges')
     .selectAll<SVGLineElement, GraphLink>('line')
-    .data(links.value)
+    .data(simLinks)
     .join('line')
     .attr('class', (d) =>
       d.type === 'transclusion'
@@ -133,21 +163,44 @@ function build(): void {
     .append('g')
     .attr('class', 'ayn-graph-nodes')
     .selectAll<SVGGElement, GraphNode>('g')
-    .data(nodes.value, (d) => d.id)
+    .data(simNodes, (d) => d.id)
     .join('g')
     .attr('class', 'ayn-graph-node')
 
-  nodeSel.append('circle').attr('r', (d) => 4 + Math.min(d.inDegree, 8))
+  const nodeR = (d: GraphNode): number => 4 + Math.min(d.inDegree, 8)
+  // v0.5:透明"命中圈" —— 比可见圆大一圈且固定不变,作为稳定的鼠标命中区。
+  // 之前 hover 难以命中的根因:① 只有小小的可见圆(半径 4~12px)接收指针,
+  // 稍微动一下就脱靶;② hover 时可见圆的 r/stroke 还在做回弹过渡,边缘像素
+  // 一直在动,鼠标贴边时命中态反复 on/off → 抖动、标签闪烁。把命中判定交给
+  // 这个不动的大透明圈后,视觉特效和命中判定彻底解耦,hover 稳定。
+  // 命中半径 = max(可见半径+8, 12),保证小节点也有足够大的可点区域。
+  nodeSel
+    .append('circle')
+    .attr('class', 'ayn-graph-hit')
+    .attr('r', (d) => Math.max(nodeR(d) + 8, 12))
+  nodeSel
+    .append('circle')
+    .attr('class', 'ayn-graph-dot')
+    .attr('r', nodeR)
   nodeSel
     .append('text')
     .attr('class', 'ayn-graph-label')
-    .attr('dy', (d) => 4 + Math.min(d.inDegree, 8) + 12)
+    .attr('dy', (d) => nodeR(d) + 11)
     .attr('text-anchor', 'middle')
     .text((d) => d.title)
 
+  // simulation 收敛后 rAF 循环会停;拖拽/交互重新加热时需要把它重新踢起来。
+  // 这个闭包在下面定义渲染循环处赋值(此处先占位)。
+  let kickRender: () => void = () => {}
+
   // ── 交互 ─────────────────────────────────────────
+  // v0.5:拖拽点击区分 —— 记录按下坐标,移动超过阈值才算拖拽,避免"想点开
+  // 笔记结果被当成微小拖拽"。click 里据此判断是否真的导航。
+  let dragMoved = false
   nodeSel
-    .on('click', (_evt, d) => {
+    .on('click', (evt: PointerEvent, d) => {
+      if (dragMoved) return // 刚才是拖拽,不导航
+      evt.stopPropagation()
       // v0.3.9:d.url 是 base-less(来自 vault-data.json)。router.go 期望 base
       // 已应用的 href,base !== '/' 时不 withBase 会路由到错误路径
       const href = withBase(d.url)
@@ -162,11 +215,15 @@ function build(): void {
     .call(
       d3drag<SVGGElement, GraphNode>()
         .on('start', (event, d) => {
+          dragMoved = false
+          // 轻轻加热(0.3),并确保渲染循环在跑
           if (!event.active) simulation?.alphaTarget(0.3).restart()
+          kickRender()
           d.fx = d.x
           d.fy = d.y
         })
         .on('drag', (event, d) => {
+          dragMoved = true
           d.fx = event.x
           d.fy = event.y
         })
@@ -177,96 +234,170 @@ function build(): void {
         }),
     )
 
-  // v0.3.9:zoom 监听 + label 渐隐(像 Obsidian)
-  //   k >= LABEL_FULL  → opacity 1
-  //   LABEL_FADE_START → k → LABEL_FULL 之间线性插值
-  //   k <= LABEL_FADE_START → opacity 0
-  const LABEL_FULL = 0.9
-  const LABEL_FADE_START = 0.4
+  // ── zoom + label 随缩放渐隐(像 Obsidian)────────────────────
+  // v0.5 关键修复:之前用 `labelSel.attr('opacity', op)` 设 SVG **属性**,但
+  // CSS 里 `.ayn-graph-label { opacity: .5 }` / hover 时的 opacity 是 CSS
+  // **属性**(presentation property),按规范 CSS property 永远盖过同名
+  // presentation attribute → 缩放设的 attr 根本不生效,标签缩小后不会变淡。
+  //
+  // 现在改为把"缩放档位透明度"写进 CSS 变量 `--ayn-label-zoom`,CSS 用
+  // `opacity: calc(var(--ayn-label-base) * var(--ayn-label-zoom))` 把"缩放
+  // 渐隐"和"hover/focus 提亮"两个维度相乘合成,互不打架。
+  //
+  //   k >= LABEL_FULL  → 1(完全显示)
+  //   LABEL_FADE_START..LABEL_FULL → 平滑插值(smoothstep,比线性更顺眼)
+  //   k <= LABEL_FADE_START → 0(隐藏,和 Obsidian 缩小后只剩点一致)
+  const LABEL_FULL = 1.1
+  const LABEL_FADE_START = 0.55
   const labelSel = g.selectAll<SVGTextElement, GraphNode>('text.ayn-graph-label')
+  const applyLabelZoom = (k: number): void => {
+    let t: number
+    if (k >= LABEL_FULL) t = 1
+    else if (k <= LABEL_FADE_START) t = 0
+    else {
+      const x = (k - LABEL_FADE_START) / (LABEL_FULL - LABEL_FADE_START)
+      t = x * x * (3 - 2 * x) // smoothstep,首尾导数为 0,过渡更丝滑
+    }
+    // 写到 group 上,CSS 变量继承给所有 label;隐藏时彻底关掉指针事件
+    g.style('--ayn-label-zoom', t.toFixed(3))
+    labelSel.style('pointer-events', t < 0.05 ? 'none' : null)
+  }
+
   zoomBehavior = d3zoom<SVGSVGElement, unknown>()
-    .scaleExtent([0.2, 4])
+    .scaleExtent([0.15, 6])
+    // v0.5:放慢滚轮缩放步长,更接近 Obsidian 的细腻缩放手感(默认偏跳)
+    .wheelDelta((event) => -event.deltaY * (event.deltaMode === 1 ? 0.025 : 0.0015))
     .on('zoom', (event) => {
       const k = event.transform.k as number
       g.attr('transform', event.transform.toString())
-      let op: number
-      if (k >= LABEL_FULL) op = 1
-      else if (k <= LABEL_FADE_START) op = 0
-      else op = (k - LABEL_FADE_START) / (LABEL_FULL - LABEL_FADE_START)
-      labelSel.attr('opacity', op).style('pointer-events', op === 0 ? 'none' : null)
+      applyLabelZoom(k)
     })
   svg.call(zoomBehavior).call(zoomBehavior.transform, zoomIdentity)
+  applyLabelZoom(1) // 初始档位
 
-  // v0.4.1:大图(>200 nodes)用更激进的 alphaDecay + collide 半径压缩 + tick 节流 →
-  // 显著降卡。Obsidian 实测体验:200 节点流畅,500 节点可用,1000+ 建议拆 vault。
-  const N = nodes.value.length
+  // ── 物理 ────────────────────────────────────────────────────
+  // v0.5:重调力参数,贴近 Obsidian 的"轻柔铺开、缓慢收敛、不抖"手感。
+  //   · alphaDecay 调小 → 收敛更慢更平滑(Obsidian 默认就慢慢飘到位)
+  //   · velocityDecay(摩擦)适中,既不过冲也不黏滞
+  //   · charge(斥力)随规模缩放,大图收紧避免炸开
+  //   · 用 forceX/forceY 提供温和向心力(取代生硬的 forceCenter 跳变,
+  //     forceCenter 会每 tick 平移整体质心,大图上看起来"整团一跳一跳")
+  const N = simNodes.length
   const isHeavy = N > 200
   const isVeryHeavy = N > 500
   const collideR = isVeryHeavy ? 8 : isHeavy ? 11 : 14
+  const cx0 = width / 2
+  const cy0 = height / 2
 
-  simulation = forceSimulation<GraphNode>(nodes.value)
-    .alphaDecay(isVeryHeavy ? 0.05 : isHeavy ? 0.035 : 0.0228)
-    .velocityDecay(isHeavy ? 0.5 : 0.4)
+  simulation = forceSimulation<GraphNode>(simNodes)
+    // 收敛速度:越小越慢越顺。大图略快以免久久不停。
+    .alphaDecay(isVeryHeavy ? 0.028 : isHeavy ? 0.022 : 0.0165)
+    .alphaMin(0.001)
+    .velocityDecay(isVeryHeavy ? 0.45 : 0.38)
     .force(
       'link',
-      forceLink<GraphNode, GraphLink>(links.value)
+      forceLink<GraphNode, GraphLink>(simLinks)
         .id((d) => d.id)
-        .distance(isHeavy ? 50 : 70)
-        .strength(0.6),
+        .distance(isHeavy ? 48 : 66)
+        .strength((l) => (l.type === 'transclusion' ? 0.75 : 0.55)),
     )
-    .force('charge', forceManyBody().strength(isHeavy ? -60 : -90).theta(0.95))
-    .force('center', forceCenter(width / 2, height / 2))
-    .force('x', forceX(width / 2).strength(0.08))
-    .force('y', forceY(height / 2).strength(0.08))
+    .force(
+      'charge',
+      forceManyBody()
+        .strength(isVeryHeavy ? -55 : isHeavy ? -75 : -110)
+        .distanceMax(isHeavy ? 400 : 600) // 限制远距斥力计算,既提速又防整体漂移
+        .theta(0.9),
+    )
+    // 温和向心(替代 forceCenter 的硬质心平移),让整团稳稳停在中央
+    .force('x', forceX(cx0).strength(0.045))
+    .force('y', forceY(cy0).strength(0.045))
     .force(
       'collide',
-      forceCollide<GraphNode>().radius((d) => collideR + Math.min(d.inDegree, 6)),
+      forceCollide<GraphNode>()
+        .radius((d) => collideR + Math.min(d.inDegree, 6))
+        .strength(0.85)
+        .iterations(isVeryHeavy ? 1 : 2),
     )
 
-  // tick 节流:大图每 2 / 3 帧画一次,DOM 写入压力降一半以上。
-  let tickCount = 0
-  const everyNTh = isVeryHeavy ? 3 : isHeavy ? 2 : 1
+  // ── 渲染:rAF 合帧,每帧只画一次 ────────────────────────────
+  // v0.5:之前用 `tick % everyNTh` 跳帧降卡,但跳帧会让运动"一顿一顿"(丢
+  // 中间帧)。改为 simulation 自由高频 tick,只置脏标记;真正写 DOM 放到
+  // requestAnimationFrame 里、每个渲染帧合并一次 → 既不丢运动连续性,DOM
+  // 写入也天然被浏览器节流到屏幕刷新率,大图同样丝滑。
+  let dirty = false
+  const paint = (): void => {
+    linkSel
+      .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
+      .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
+      .attr('x2', (d) => (d.target as GraphNode).x ?? 0)
+      .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
+    nodeSel.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
+  }
+  const frame = (): void => {
+    if (simulation === null) {
+      rafId = 0
+      return
+    }
+    if (dirty) {
+      dirty = false
+      paint()
+    }
+    rafId = requestAnimationFrame(frame)
+  }
+  // 确保渲染循环在跑(收敛停掉后被拖拽/交互重新唤醒时调用)
+  kickRender = (): void => {
+    if (!rafId) rafId = requestAnimationFrame(frame)
+  }
   simulation
     .on('tick', () => {
-      tickCount++
-      if (everyNTh > 1 && tickCount % everyNTh !== 0) return
-      linkSel
-        .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
-        .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
-        .attr('x2', (d) => (d.target as GraphNode).x ?? 0)
-        .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
-      nodeSel.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
+      dirty = true
     })
     .on('end', () => {
-      // 收敛后再画一次保证最后一帧准确
-      linkSel
-        .attr('x1', (d) => (d.source as GraphNode).x ?? 0)
-        .attr('y1', (d) => (d.source as GraphNode).y ?? 0)
-        .attr('x2', (d) => (d.target as GraphNode).x ?? 0)
-        .attr('y2', (d) => (d.target as GraphNode).y ?? 0)
-      nodeSel.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
-      fitToView(svg, width, height)
+      paint() // 收敛后画一次保证最后一帧精确
+      if (rafId) {
+        cancelAnimationFrame(rafId)
+        rafId = 0
+      }
+      fitToView(svg, simNodes, width, height)
     })
+  // 启动渲染循环
+  if (rafId) cancelAnimationFrame(rafId)
+  rafId = requestAnimationFrame(frame)
 
-  // 兜底:如果 simulation 不收敛,1.5 秒后强制 fit
-  setTimeout(() => fitToView(svg, width, height), 1500)
+  // 兜底:如果 simulation 不收敛,2 秒后强制 fit。
+  // v0.5:保存句柄,build() 重建与卸载时清除,避免在已移除的 DOM 上触发。
+  fitTimer = setTimeout(() => {
+    fitTimer = null
+    fitToView(svg, simNodes, width, height)
+  }, 2000)
 }
 
 /**
  * 把所有节点的 bounding box 算出来,zoom transform 到刚好容纳 + 居中。
+ * v0.5:节点坐标由 simulation 写在它自己的副本上(见 build 里的 simNodes),
+ *       因此从参数传入,不再读 computed `nodes.value`(那是无坐标的纯净副本)。
+ *       同时用 reduce 折叠求 min/max,替代 `Math.min(...xs)` 的展开——大图下
+ *       几十万参数的 spread 可能触发 RangeError: Maximum call stack size。
  */
 function fitToView(
   svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+  simNodes: GraphNode[],
   width: number,
   height: number,
 ): void {
-  if (!zoomBehavior || nodes.value.length === 0) return
-  const xs = nodes.value.map((n) => n.x ?? 0)
-  const ys = nodes.value.map((n) => n.y ?? 0)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
+  if (!zoomBehavior || simNodes.length === 0) return
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const n of simNodes) {
+    const x = n.x ?? 0
+    const y = n.y ?? 0
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
   const padding = 60
   const w = maxX - minX + padding * 2
   const h = maxY - minY + padding * 2
@@ -315,13 +446,39 @@ function destroy(): void {
   simulation?.stop()
   simulation = null
   zoomBehavior = null
+  if (fitTimer !== null) {
+    clearTimeout(fitTimer)
+    fitTimer = null
+  }
+  if (resizeRaf) {
+    cancelAnimationFrame(resizeRaf)
+    resizeRaf = 0
+  }
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
   if (svgRef.value) d3.select(svgRef.value).selectAll('*').remove()
 }
 
 onMounted(() => {
   if (svgRef.value && typeof ResizeObserver !== 'undefined') {
-    resizeObserver = new ResizeObserver(() => {
-      if (data.value) build()
+    // v0.5:防抖 + 尺寸去重。此前每个 resize tick 都整体重建 simulation,
+    // 而重建里的 zoom transition / 节点移动又会改变被观测的盒子尺寸,反过来
+    // 再触发 observer → 又一次重建,形成自激循环(典型表现:控制台刷
+    // "ResizeObserver loop completed with undelivered notifications",且 CPU 跑满)。
+    // 现在仅当宽/高确有变化时,在下一帧重建一次。
+    resizeObserver = new ResizeObserver((entries) => {
+      const cr = entries[0]?.contentRect
+      if (!cr) return
+      if (Math.abs(cr.width - lastW) < 1 && Math.abs(cr.height - lastH) < 1) return
+      lastW = cr.width
+      lastH = cr.height
+      if (resizeRaf) cancelAnimationFrame(resizeRaf)
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0
+        if (data.value) build()
+      })
     })
     resizeObserver.observe(svgRef.value)
   }
@@ -330,6 +487,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   destroy()
   resizeObserver?.disconnect()
+  resizeObserver = null
 })
 
 watch(

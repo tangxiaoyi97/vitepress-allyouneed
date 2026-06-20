@@ -144,6 +144,29 @@ describe('scanWikilinks 死链预扫', () => {
     expect(report.dead.length).toBe(0)
     fs.rmSync(tmp, { recursive: true, force: true })
   })
+
+  // v0.5:大量未闭合反引号曾让旧的带反向引用正则灾难性回溯(ReDoS)。
+  // 现在用线性扫描,必须瞬时完成(给个宽松上限,真回溯会是几十秒级)。
+  it('大量未闭合反引号不触发 ReDoS(线性扫描)', () => {
+    const tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-redos-'))
+    write(nodePath.join(tmp, 'real.md'), '# Real\n')
+    const evil =
+      '# Doc\n\n' +
+      '`'.repeat(40000) +
+      '\n[[real]]\n[[missing]]\n' +
+      'x'.repeat(40000) +
+      '\n'
+    write(nodePath.join(tmp, 'doc.md'), evil)
+    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
+    const idx = scanVault(opts)
+    const t0 = Date.now()
+    const report = scanWikilinks(idx, opts)
+    const dt = Date.now() - t0
+    expect(dt).toBeLessThan(2000)
+    // [[missing]] 仍应被正确识别为死链(它在反引号区段之外)
+    expect(report.dead.map((d) => d.target)).toContain('missing')
+    fs.rmSync(tmp, { recursive: true, force: true })
+  })
 })
 
 // ── resolver 相对路径 fallback ─────────────────────────────────

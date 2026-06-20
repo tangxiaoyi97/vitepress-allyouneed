@@ -11,6 +11,28 @@ export interface UseVaultDataResult {
   reload: () => Promise<void>
 }
 
+/**
+ * 校验 parse 出来的 vault-data.json 是否含**组件实际依赖的全部字段**。
+ *
+ * v0.5:抽成纯函数,既便于单测(composable 本身依赖 vitepress/onMounted 难测),
+ * 也明确"契约"。返回缺失字段名数组;为空表示合法。
+ *
+ * 关键:必须覆盖 tags / meta —— 之前只校验 nodes/edges/stats,这两个缺失时
+ * useVaultData 会误判"加载成功",随后 Tags.vue 的 Object.entries(tags)、
+ * VaultStats.vue 的 data.meta.generatedAt 在渲染期抛异常整页崩。
+ */
+export function validateVaultData(parsed: unknown): string[] {
+  if (!parsed || typeof parsed !== 'object') return ['<root not an object>']
+  const p = parsed as Partial<VaultData>
+  const missing: string[] = []
+  if (!Array.isArray(p.nodes)) missing.push('nodes')
+  if (!Array.isArray(p.edges)) missing.push('edges')
+  if (!p.stats || typeof p.stats !== 'object') missing.push('stats')
+  if (!p.tags || typeof p.tags !== 'object') missing.push('tags')
+  if (!p.meta || typeof p.meta !== 'object') missing.push('meta')
+  return missing
+}
+
 export function useVaultData(
   fileName: string = 'vault-data.json',
 ): UseVaultDataResult {
@@ -44,11 +66,14 @@ export function useVaultData(
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('vault-data.json: top-level is not an object')
       }
-      const p = parsed as Partial<VaultData>
-      if (!Array.isArray(p.nodes) || !Array.isArray(p.edges) || !p.stats) {
-        throw new Error('vault-data.json: missing required fields')
+      // v0.5:校验覆盖组件实际依赖的全部字段(见 validateVaultData 注释)。
+      const missing = validateVaultData(parsed)
+      if (missing.length > 0) {
+        throw new Error(
+          `vault-data.json: missing or invalid fields: ${missing.join(', ')}`,
+        )
       }
-      data.value = p as VaultData
+      data.value = parsed as VaultData
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err)
       data.value = null

@@ -235,6 +235,8 @@
   text-overflow: ellipsis;
   transition: color 0.12s;
   min-width: 0;
+  /* v0.5:让标题成为伸缩主体并保留一个下限,即使带 tag 也不会被挤到只剩 1~2 字 */
+  flex: 1 1 auto;
 }
 
 .ayn-tag-note-row-link:hover .ayn-tag-note-row-title {
@@ -257,6 +259,13 @@
   /* 让 tag 与文字基线对齐稍上,像角标 */
   vertical-align: middle;
   line-height: 1.4;
+}
+
+/* v0.5:"+N" 折叠徽章,比普通 tag 略淡,提示还有更多(hover 看全部) */
+.ayn-tag-note-row-othertag--more {
+  color: var(--ayn-text-2, var(--ayn-brand));
+  background-color: var(--vp-c-default-soft, rgba(142, 150, 170, 0.14));
+  cursor: help;
 }
 
 /* 窄屏隐藏 inline tag,避免拥挤 */

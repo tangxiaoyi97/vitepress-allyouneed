@@ -32,7 +32,11 @@
   max-height: 320px;
   border-radius: 4px;
   overflow: hidden;
-  background-color: var(--vp-c-bg-mute);
+  /* v0.5:占位底色用深色而非 --vp-c-bg-mute(浅灰)。banner 始终叠一层为
+     "暗化图片保白字"设计的深色遮罩;若 cover 图加载失败(background-image 无
+     onerror 回退),浅灰底 + 深遮罩会让白字对比度很差。深色占位保证图失败时
+     白字仍可读。深浅模式都用同一深色(banner 内文字本就是固定白色,不跟随主题)。 */
+  background-color: #1f2937;
   border: 1px solid var(--vp-c-divider);
 }
 

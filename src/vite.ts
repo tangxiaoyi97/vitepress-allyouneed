@@ -161,9 +161,21 @@ export function viteAllYouNeed(
           removeFile(index, ctx.file, resolved)
           if (wasIndexed) structuralChange = 'remove'
         }
-      } catch {
-        removeFile(index, ctx.file, resolved)
-        if (wasIndexed) structuralChange = 'remove'
+      } catch (err) {
+        // v0.5:只有真正"文件不存在"(ENOENT)才把它从 index 摘掉。
+        // statSync 还可能抛 EACCES / EBUSY / EPERM(编辑器原子保存时的临时
+        // 重命名、Windows 上占用锁),此前 bare catch 一律当删除处理,会误删
+        // 仍存在的文件并触发一次多余的 dev-server 重启。
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          removeFile(index, ctx.file, resolved)
+          if (wasIndexed) structuralChange = 'remove'
+        } else {
+          console.warn(
+            `vitepress-allyouneed: stat failed for ${ctx.file} ` +
+              `(${(err as NodeJS.ErrnoException).code ?? 'unknown'}); ` +
+              'keeping existing index entry.',
+          )
+        }
       }
       // v0.3.10:`_sidebar.md` 修改也视作结构变化(其内容直接决定该文件夹的 sidebar)
       const baseName = ctx.file.split(/[\\/]/).pop() ?? ''

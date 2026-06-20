@@ -50,7 +50,9 @@
 }
 
 .ayn-view-error {
-  color: var(--vp-c-danger-1, #d97706);
+  /* v0.5:fallback 从 amber(#d97706)改为红色,与"错误"语义一致(正常会用
+     VitePress 的 --vp-c-danger-1,fallback 仅在缺该变量时生效) */
+  color: var(--vp-c-danger-1, #e24b4a);
 }
 
 /* 全局 .ayn-tag —— 风格与 .ayn-doc-tag 保持一致(VitePress 扁平化:

@@ -60,15 +60,29 @@ watch(data, (d) => {
 function fmtDate(ts: number): string {
   if (!ts) return ''
   const d = new Date(ts)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
+  if (Number.isNaN(d.getTime())) return ''
+  // v0.5:用 UTC 取年月日,避免 getFullYear/getMonth/getDate 的本地时区导致
+  // 跨日边界日期随访问者时区变化(与其它组件统一,也防未来 SSR 化水合漂移)。
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
 function basename(p: string): string {
   const idx = p.lastIndexOf('/')
   return idx === -1 ? p : p.slice(idx + 1)
+}
+
+// v0.5:单行内联 tag 数量上限。此前一条笔记的 otherTags 全部平铺(实测最多 7 个),
+// 每个 pill 不收缩且无 wrap,会把标题挤成几个字,破坏"标题为主角"的版式。
+// 现在最多显示前 N 个,其余折叠成 "+M" 徽章。
+const MAX_INLINE_TAGS = 3
+function shownTags(tags: string[]): string[] {
+  return (tags ?? []).slice(0, MAX_INLINE_TAGS)
+}
+function extraTagCount(tags: string[]): number {
+  return Math.max(0, (tags?.length ?? 0) - MAX_INLINE_TAGS)
 }
 </script>
 
@@ -134,12 +148,17 @@ function basename(p: string): string {
           >
             <a :href="withBase(f.url)" class="ayn-tag-note-row-link">
               <div class="ayn-tag-note-row-left">
-                <span class="ayn-tag-note-row-title">{{ f.title }}</span>
+                <span class="ayn-tag-note-row-title" :title="f.title">{{ f.title }}</span>
                 <span
-                  v-for="ot in f.otherTags"
+                  v-for="ot in shownTags(f.otherTags)"
                   :key="ot"
                   class="ayn-tag-note-row-othertag"
                 >{{ ot }}</span>
+                <span
+                  v-if="extraTagCount(f.otherTags) > 0"
+                  class="ayn-tag-note-row-othertag ayn-tag-note-row-othertag--more"
+                  :title="f.otherTags.join(', ')"
+                >+{{ extraTagCount(f.otherTags) }}</span>
               </div>
               <div class="ayn-tag-note-row-right">
                 <span class="ayn-tag-note-row-path">{{ basename(f.path) }}</span>
