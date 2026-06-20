@@ -57,6 +57,27 @@ describe('Highlight — ==text==', () => {
     void html
   })
 
+  it('CJK 相邻文本与连续多个粗体高亮不会跨段错配', () => {
+    const html = md.render(
+      '是指==**重点一**运行==的内容，随后是==**重点二**==。\n',
+      env,
+    )
+    expect(html).toContain('<mark><strong>重点一</strong>运行</mark>')
+    expect(html).toContain('<mark><strong>重点二</strong></mark>')
+    expect(html).not.toContain('==')
+  })
+
+  it('高亮内部继续支持公式和链接', () => {
+    const html = md.render(
+      '==公式 $E=mc^2$ 与 [链接](https://example.com)==\n',
+      env,
+    )
+    expect(html).toContain('<mark>')
+    expect(html).toContain('<a href="https://example.com">链接</a>')
+    expect(html).toContain('</mark>')
+    expect(html).not.toContain('==')
+  })
+
   it('多个高亮共存', () => {
     const html = md.render('==a== and ==b== and ==c==\n', env)
     const count = (html.match(/<mark>/g) ?? []).length
