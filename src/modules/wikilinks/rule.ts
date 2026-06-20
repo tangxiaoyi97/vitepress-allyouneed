@@ -63,13 +63,29 @@ export function makeWikilinkRule(
     if (inner.includes('\n')) return false // 不跨行
     if (!inner.trim()) return false
 
-    // 按 markdown-it 约定:silent 模式找到匹配返回 true
-    if (silent) return true
+    // ── HOTFIX(0.5.1):silent 模式必须**推进 state.pos** ───────────────
+    // markdown-it 的 link 核心规则在扫描 `[...]` label 时会调 `skipToken`,
+    // 后者**以 silent 模式**逐个跑 inline rule(`parser_inline.skipToken`)。
+    // 契约是:silent 返回 true 的规则必须把 state.pos 推过自己消费的范围,
+    // 否则 markdown-it 抛 `inline rule didn't increment state.pos`
+    // (parser_inline.mjs:113)。
+    //
+    // 此前 silent 直接 `return true` 而不动 state.pos —— 在 GFM 表格单元格里,
+    // `[[` 的第一个 `[` 触发 link 规则的 parseLinkLabel → skipToken → 跑到本
+    // 规则(silent),pos 没动 → 整个 vitepress build/dev 崩。
+    //
+    // markdown-it 自带规则(如 backtick)的做法:silent 也设 state.pos,只把
+    // **token 产出**门控在 !silent。这里照做。
+    if (silent) {
+      state.pos = closeIdx + 2
+      return true
+    }
 
     // 提取 env
     const env = state.env as AllYouNeedEnv
     if (!env || !env.index || !env.options) {
-      // 没注入索引 → 视为不识别,把控制权交回 markdown-it 默认链
+      // 没注入索引 → 视为不识别,把控制权交回 markdown-it 默认链。
+      // 注意:此处尚未改动 state.pos,return false 安全。
       return false
     }
 

@@ -33,6 +33,43 @@ function makeMd(options: ResolvedOptions, index: VaultIndex): {
   return { md, env }
 }
 
+// HOTFIX 回归(0.5.1):wikilink 在 markdown link label / 嵌套方括号 / 表格单元格里
+// 不能让 markdown-it 抛 "inline rule didn't increment state.pos"。
+// 根因:wikilink inline rule 在 silent 模式(parseLinkLabel → skipToken 调用)下
+// 必须推进 state.pos,而不是直接 return true。见 src/modules/wikilinks/rule.ts。
+describe('Render — wikilink in link-label / nesting (no crash)', () => {
+  let md: MarkdownIt
+  let env: AllYouNeedEnv
+
+  beforeAll(() => {
+    const options = resolveOptions({ srcDir: VAULT, cleanUrls: true, onConflict: 'shortest' })
+    const index = scanVault(options)
+    const made = makeMd(options, index)
+    md = made.md
+    env = made.env
+  })
+
+  // 这些输入在修复前会抛 "inline rule didn't increment state.pos"
+  const crashCases: Array<[string, string]> = [
+    ['wikilink inside markdown link label', '[outer [[Note A]] text](http://example.com)'],
+    ['wikilink inside nested brackets', 'see [ [[Note A]] ] here'],
+    ['embed inside markdown link label', '[label ![[Note A]] x](http://example.com)'],
+    ['anchor-only wikilink in label', '[x [[#Sec|Sec]] y](http://example.com)'],
+    ['wikilink in GFM table cell', '| K | V |\n|:--|:--|\n| A | x [[Note A]] y |'],
+    ['two wikilinks in table cell', '| K | V |\n|:--|:--|\n| A | [[Note A]] and [[Note B]] |'],
+  ]
+  for (const [name, src] of crashCases) {
+    it(`不崩:${name}`, () => {
+      expect(() => md.render(src, env)).not.toThrow()
+    })
+  }
+
+  it('link label 里的 wikilink 仍然渲染成 <a class="wikilink">', () => {
+    const html = md.render('[outer [[Note A]] text](http://example.com)', env)
+    expect(html).toContain('class="wikilink"')
+  })
+})
+
 describe('Render — wikilinks', () => {
   let md: MarkdownIt
   let env: AllYouNeedEnv

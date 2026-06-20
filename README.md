@@ -4,7 +4,7 @@
 
 Forked from [`actuallysomecat/markdown-it-wikilinks-plus`](https://github.com/actuallysomecat/markdown-it-wikilinks-plus) (MIT) 并针对 VitePress 大幅重写。
 
-## 当前版本:0.5.0(2026-06-20)
+## 当前版本:0.5.1(2026-06-20)
 
 **主题集成大改 —— 目标:让第三方 VitePress 主题作者不需要知道本插件存在**
 

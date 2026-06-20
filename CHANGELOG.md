@@ -2,6 +2,15 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.5.1] - 2026-06-20
+
+### Fixed
+- **致命崩溃:wikilink 在 markdown link label / 嵌套方括号 / GFM 表格单元格里会让整个 `vitepress build`/`dev` 中止**,报错 `inline rule didn't increment state.pos`。
+  - 根因:wikilink 的 inline rule 在 **silent 模式**(markdown-it 的 `parseLinkLabel → skipToken` 会以 silent 模式逐个跑 inline rule 来扫描 `[...]` label)下直接 `return true` 而**没有推进 `state.pos`**,违反 markdown-it 契约(`parser_inline.skipToken` 在规则返回 true 但 pos 未前进时抛此错)。`[[` 的第一个 `[` 触发 link 核心规则的 label 扫描时即命中。
+  - 修复:silent 模式下也把 `state.pos` 推过闭合 `]]` 再返回 true(对齐 markdown-it 自带规则如 backtick 的做法:silent 也设 pos,仅把 token 产出门控在 `!silent`)。`![[embed]]` 同路径一并修复。
+  - 影响面:任何把 `[[...]]` 或 `![[...]]` 放进 markdown link label、嵌套 `[ ... ]`、或 GFM 表格单元格的文档,此前会整站构建失败;现在正常渲染。
+  - 新增 7 个回归测试锁定该行为。
+
 ## [0.5.0] - 2026-06-20
 
 0.5.0 正式版。收口此前 4 个 beta(主题底层化 + `@layer`),并叠加图谱体验、UI 健壮性与文档站重做。
