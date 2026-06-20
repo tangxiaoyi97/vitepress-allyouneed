@@ -6,9 +6,8 @@
  */
 
 import type { ResolvedOptions, VaultIndex } from './types.js'
-import { stripMarkdownExt, toPosix } from '../utils/path.js'
 import { splitWikilinkInner } from '../utils/wikilink.js'
-import { findAmbiguousLeadingNumberMatches } from './resolver.js'
+import { findAmbiguousLeadingNumberMatches, resolveWikilink } from './resolver.js'
 
 // v0.3.4:简化为捕获整段 inner,target 拆分交给 splitWikilinkInner(支持 \|)
 const WIKILINK_RE = /(!?)\[\[([^\]\n]+)\]\]/g
@@ -131,15 +130,17 @@ export function scanWikilinks(
           if (isAsset) continue
         }
       }
-      // HOTFIX(0.5.2):**自引用锚点** `[[#heading]]`(rawTarget 为空,只有
-      // headingPart)的目标就是当前文件本身,永远存在。此前 resolveSimple('')
-      // 返回 false → 被误报成死链(报告:74 处页内跳转锚点全被当 dead)。
-      // 与 resolver.ts 的 0.5.2 自引用修法保持一致:有 headingPart、无文件部分
-      // → 当前文件,直接当已解析,跳过死链上报。
-      const isSelfAnchor = !rawTarget && !!headingPart
-      const found =
-        isSelfAnchor || resolveSimple(rawTarget, index, options, f.relativePath)
-      if (!found) {
+      // 扫描和渲染必须共用同一个 resolver。此前这里维护了一份简化版
+      // resolveSimple,遗漏了 folderLinkOrder,导致可正常渲染的 [[folder/]]
+      // 被启动预扫误报为死链。
+      const resolved = resolveWikilink(
+        rawTargetFull,
+        index,
+        options,
+        isEmbed ? 'transclusion' : 'page',
+        f.absolutePath,
+      )
+      if (resolved.isDead) {
         dead.push({
           source: f.relativePath,
           target: rawTarget,
@@ -149,10 +150,7 @@ export function scanWikilinks(
       }
       // v0.3.9:成功 resolve,继续看锚点歧义
       if (scanAmbig && headingPart) {
-        // 取出目标 entry 来扫 heading。HOTFIX(0.5.2):自引用锚点 → 当前文件 entry。
-        const targetEntry = isSelfAnchor
-          ? f
-          : resolveSimpleEntry(rawTarget, index, options, f.relativePath)
+        const targetEntry = resolved.target
         if (!targetEntry) continue
         const matches2 = findAmbiguousLeadingNumberMatches(targetEntry, headingPart)
         if (matches2.length > 1) {
@@ -177,41 +175,6 @@ export function scanWikilinks(
     }
   }
   return { total, dead, ambiguous }
-}
-
-/** 同 resolveSimple 但返回 FileEntry */
-function resolveSimpleEntry(
-  raw: string,
-  index: VaultIndex,
-  options: ResolvedOptions,
-  currentSourceRel?: string,
-) {
-  const target = stripMarkdownExt(toPosix(raw))
-  if (!target) return undefined
-  if (target.includes('/')) {
-    const e =
-      index.byRelativePath.get(target) ??
-      index.byRelativePath.get(target + '.md') ??
-      index.byRelativePath.get(target + '.markdown')
-    if (e) return e
-    if (currentSourceRel) {
-      const curDir = currentSourceRel.split('/').slice(0, -1).join('/')
-      if (curDir) {
-        return (
-          index.byRelativePath.get(`${curDir}/${target}`) ??
-          index.byRelativePath.get(`${curDir}/${target}.md`) ??
-          index.byRelativePath.get(`${curDir}/${target}.markdown`)
-        )
-      }
-    }
-    return undefined
-  }
-  const aliasKey = options.caseSensitive ? target : target.toLowerCase()
-  const aliased = index.byAlias.get(aliasKey)
-  if (aliased) return aliased
-  const map = options.caseSensitive ? index.byBasename : index.byBasenameLower
-  const key = options.caseSensitive ? target : target.toLowerCase()
-  return map.get(key)?.[0]
 }
 
 /** vitepress.ts wrapper 用:扫完打印汇总 */
@@ -268,43 +231,4 @@ function extractExt(target: string): string {
   const dot = cleaned.lastIndexOf('.')
   if (dot <= 0) return ''
   return cleaned.slice(dot + 1).toLowerCase()
-}
-
-function resolveSimple(
-  raw: string,
-  index: VaultIndex,
-  options: ResolvedOptions,
-  currentSourceRel?: string,
-): boolean {
-  const target = stripMarkdownExt(toPosix(raw))
-  if (!target) return false
-  // 路径形式
-  if (target.includes('/')) {
-    if (
-      index.byRelativePath.has(target) ||
-      index.byRelativePath.has(target + '.md') ||
-      index.byRelativePath.has(target + '.markdown')
-    ) {
-      return true
-    }
-    // Fallback:相对当前源文件目录
-    if (currentSourceRel) {
-      const curDir = currentSourceRel.split('/').slice(0, -1).join('/')
-      if (curDir) {
-        return (
-          index.byRelativePath.has(`${curDir}/${target}`) ||
-          index.byRelativePath.has(`${curDir}/${target}.md`) ||
-          index.byRelativePath.has(`${curDir}/${target}.markdown`)
-        )
-      }
-    }
-    return false
-  }
-  // alias
-  const aliasKey = options.caseSensitive ? target : target.toLowerCase()
-  if (index.byAlias.has(aliasKey)) return true
-  // basename
-  const map = options.caseSensitive ? index.byBasename : index.byBasenameLower
-  const key = options.caseSensitive ? target : target.toLowerCase()
-  return (map.get(key)?.length ?? 0) > 0
 }

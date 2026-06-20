@@ -192,7 +192,7 @@ sidebarAuto?: {
   // sentinel comment, they're safe to delete (they were the OLD landing pages).
 
   // ── Sorting / display ─────────────────────────────────────
-  sortBy?: 'order-then-title' | 'title' | 'mtime-desc'       // default 'order-then-title'
+  sortBy?: 'order-then-title' | 'title' | 'mtime-desc'       // default 'order-then-title'; folders use their dirIndex as the sorting anchor
   formatGroupTitle?: (dirname: string) => string
   formatItemTitle?:  (entry: FileEntry) => string
   collapsed?: boolean                                        // default true (each group collapsed by default)
@@ -233,7 +233,7 @@ sidebarAuto?: {
    * If `stripNumericPrefixPattern` is set, this is ignored (Pattern wins).
    */
   stripNumericPrefixSeparators?: string                      // default '-_\\s'
-  groupOrder?: string[]                                      // top-level order override, e.g. ['Guide', 'Tour']
+  groupOrder?: string[]                                      // explicit top-level override; remaining groups follow their dirIndex sorting anchors
   foldersFirst?: boolean                                     // default false. true = Finder/Obsidian style
   maxDepth?: number                                          // default undefined (unlimited)
   exclude?: string[]                                         // default [], glob
@@ -291,7 +291,7 @@ sidebarAuto?: {
 | `title` | `string` | page title; sidebar / nav use this if `sidebarTitle` unset |
 | `sidebarTitle` | `string` | overrides sidebar text only |
 | `sidebarHidden` | `boolean` | excludes this file from sidebar |
-| `order` | `number` | sidebar sort weight (smaller first) |
+| `order` | `number` | sidebar sort weight (smaller first); on a folder dirIndex it orders that folder group |
 | `sidebarCollapsed` | `boolean` | per-folder dirIndex frontmatter; controls its group's default collapsed |
 | `sidebarGroup` | `string` | virtual group; this file is grouped under the named virtual group (cross-folder) |
 | `aliases` | `string[]` | extra basenames a wikilink can target this file by |
@@ -357,6 +357,7 @@ Expansion rules:
 - `_sidebar.md`, `index.md`, `README.md`, and `<folder>.md` (same-name dirIndex) are skipped (they're dirIndex candidates, not displayed children)
 - Files with frontmatter `sidebarHidden: true` are skipped
 - Items inside each folder are sorted by `sidebarAuto.sortBy` (default `order-then-title`)
+- Subfolder groups use their dirIndex (`index.md`, `README.md`, or same-name page) as the sorting anchor, so `order` on that page controls the folder position
 - `sidebarAuto.foldersFirst` controls whether subfolder groups come before files
 - Manual children written under the line are **appended after** auto-expanded items
 - Both `,` and `，` (full-width comma) work as separators; `、` also accepted

@@ -205,6 +205,43 @@ describe('sidebar-auto v0.3 — sortBy / groupOrder / stripNumericPrefix', () =>
     expect(groups.map((g) => g.text)).toEqual(['Tour', 'Guide', 'Test Suite'])
   })
 
+  it('目录使用 index.md 的 order 作为排序锚点,且嵌套目录同样生效', () => {
+    write(
+      nodePath.join(tmp, 'ordered', 'z-last-by-name', 'index.md'),
+      '---\ntitle: First by order\norder: 1\n---\n# First\n',
+    )
+    write(nodePath.join(tmp, 'ordered', 'z-last-by-name', 'page.md'), '# Page\n')
+    write(
+      nodePath.join(tmp, 'ordered', 'a-first-by-name', 'index.md'),
+      '---\ntitle: Second by order\norder: 2\n---\n# Second\n',
+    )
+    write(nodePath.join(tmp, 'ordered', 'a-first-by-name', 'page.md'), '# Page\n')
+
+    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
+    const idx = scanVault(opts)
+    const sb = generateSidebar(idx, opts, { layout: 'tree' }) as SidebarItem[]
+    const ordered = sb.find((s) => s.text === 'Ordered')
+    expect(ordered?.items?.map((item) => item.text)).toEqual([
+      'First by order',
+      'Second by order',
+    ])
+  })
+
+  it('per-folder 根目录和 autoNav 也使用 index.md 的 order', () => {
+    write(nodePath.join(tmp, 'z-root', 'index.md'), '---\ntitle: Root first\norder: 1\n---\n# First\n')
+    write(nodePath.join(tmp, 'a-root', 'index.md'), '---\ntitle: Root second\norder: 2\n---\n# Second\n')
+
+    const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
+    const idx = scanVault(opts)
+    const sb = generateSidebar(idx, opts, { layout: 'per-folder' }) as Record<string, SidebarItem[]>
+    const rootLabels = sb['/']!.map((item) => item.text)
+    expect(rootLabels.indexOf('Root first')).toBeLessThan(rootLabels.indexOf('Root second'))
+
+    const nav = generateNav(idx, opts, { autoNav: true })
+    const navLabels = nav.map((item) => item.text)
+    expect(navLabels.indexOf('Root first')).toBeLessThan(navLabels.indexOf('Root second'))
+  })
+
   it('stripNumericPrefix 默认 true:01-first.md 显示为 First', () => {
     const opts = resolveOptions({ srcDir: tmp, cleanUrls: true })
     const idx = scanVault(opts)

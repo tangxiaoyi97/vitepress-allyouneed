@@ -272,7 +272,7 @@ export interface SidebarAutoUserOptions {
   exclude?: string[]
   /** group 默认是否 collapsed,默认 true */
   collapsed?: boolean
-  /** 排序策略 */
+  /** 排序策略。文件夹使用其 dirIndex(index/README/同名页)作为排序锚点。 */
   sortBy?: 'order-then-title' | 'title' | 'mtime-desc'
   /** group 标题转换(默认对 dirname 做 humanize) */
   formatGroupTitle?: (dirname: string) => string
@@ -282,7 +282,7 @@ export interface SidebarAutoUserOptions {
   hiddenKey?: string
   /** frontmatter 中覆盖标题的 key,默认 'sidebarTitle' */
   titleKey?: string
-  /** frontmatter 中排序权重的 key,默认 'order' */
+  /** frontmatter 中排序权重的 key,默认 'order';dirIndex 的值也用于文件夹排序 */
   orderKey?: string
   /**
    * 自动生成 nav tabs(配合 layout: 'per-folder' 实现"切换根目录、独立 sidebar"
@@ -308,7 +308,7 @@ export interface SidebarAutoUserOptions {
    */
   stripNumericPrefixSeparators?: string
 
-  /** 顶级 group 字母序覆盖。例:`['Guides','Tour']` 让这两个排最前 */
+  /** 顶级 group 显式覆盖。例:`['Guides','Tour']` 让这两个排最前;其余按 dirIndex 排序 */
   groupOrder?: string[]
 
   /** 嵌套深度上限,根算 0。undefined = 不限,默认不限 */

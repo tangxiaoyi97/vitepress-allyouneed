@@ -2,9 +2,17 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+
 ## [Unreleased]
 
+## [0.5.5] - 2026-06-20
+
+### Added
+- **目录可由 dirIndex 排序**:`index.md`、`README.md` 或同名目录页现在是该文件夹 group 的排序锚点。默认 `sortBy: 'order-then-title'` 下,给目录页写 `order: 1` 即可控制目录位置;嵌套目录、`per-folder` 根侧栏和 `autoNav` 均一致生效,无需给文件夹名添加数字前缀。顶级 `groupOrder` 仍具有最高优先级。
+
 ### Fixed
+- **嵌套 `index.md` 生成错误的无尾斜杠 URL**:`cleanUrls: true` 下目录页现在输出 `/guide/` 而不是 `/guide`;与 VitePress 的 `guide/index.html` 路由及 dead-link validator 保持一致。
+- **`scanWikilinks` 把合法 `[[folder/]]` 误报为死链**:启动预扫不再维护遗漏 `folderLinkOrder` 的简化解析器,改为与渲染阶段共用 `resolveWikilink`;目录 index、相对路径、自引用锚点和冲突策略现在只有一套解析语义。
 - **同名页面跨 locale / 区域解析错误**:`[[Gravitationsphysik]]` 这类 basename-only Wikilink 不再直接使用全局 `onConflict`。解析器现在先按源页面的同目录和最长共同路径前缀收窄候选(例如 `zh/themen/*` 优先于 `zh/selfcheck/*`,二者都优先于其它 locale),仍有歧义时才执行 `shortest` / `first` / `error`。
 - 强化当前源页面定位:relativePath 精确匹配先于后缀兜底,且后缀存在多个 locale 命中时不再取扫描顺序中的第一个。
 

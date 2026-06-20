@@ -43,7 +43,7 @@ export interface SidebarAutoOptions {
   /** group 默认是否 collapsed,默认 true */
   collapsed?: boolean
 
-  /** 排序策略 */
+  /** 排序策略。文件夹使用其 dirIndex(index/README/同名页)作为排序锚点。 */
   sortBy?: 'order-then-title' | 'title' | 'mtime-desc'
 
   /** 自定义 group 标题转换(默认对 dirname 做 humanize:把 `-`/`_` 改空格 + Title Case) */
@@ -58,7 +58,7 @@ export interface SidebarAutoOptions {
   /** frontmatter 中的 key,自定义 sidebar 标题。默认 'sidebarTitle' */
   titleKey?: string
 
-  /** frontmatter 中的 key,排序权重(number,小在前)。默认 'order' */
+  /** frontmatter 中的 key,排序权重(number,小在前)。默认 'order';dirIndex 的值也用于文件夹排序。 */
   orderKey?: string
 
   /**
@@ -101,7 +101,7 @@ export interface SidebarAutoOptions {
    */
   stripNumericPrefixSeparators?: string
 
-  /** 顶级 group 字母序的覆盖。例:`['Tour', 'Guides']` 让这两个排最前(其余字母序在后) */
+  /** 顶级 group 排序的显式覆盖。例:`['Tour', 'Guides']` 让这两个排最前(其余按 dirIndex 排序锚点) */
   groupOrder?: string[]
 
   /** 嵌套深度上限(根算 0,1=只展开一层子组)。undefined = 不限,默认 undefined */

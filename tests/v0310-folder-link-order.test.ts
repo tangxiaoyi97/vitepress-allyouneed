@@ -11,6 +11,7 @@ import { resolveOptions } from '../src/core/config-bridge.js'
 import { scanVault } from '../src/core/vault/index.js'
 import { generateSidebar, generateNav } from '../src/core/sidebar-auto/index.js'
 import { resolveWikilink } from '../src/core/resolver.js'
+import { scanWikilinks } from '../src/core/scan-wikilinks.js'
 import type { SidebarItem } from '../src/core/sidebar-auto/index.js'
 
 function write(p: string, c: string): void {
@@ -211,6 +212,24 @@ describe('I2: generateNav 使用 folderLinkOrder', () => {
 // ── I2: 用户 [[folder/]] wikilink ────────────────────────────────
 
 describe('I2: [[folder/]] wikilink 用 folderLinkOrder', () => {
+  it('启动预扫和渲染一致:index 目录链接不误报死链', () => {
+    const tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-wf-scan-'))
+    try {
+      write(nodePath.join(tmp, 'index.md'), '[[docs/]]\n')
+      write(nodePath.join(tmp, 'docs', 'index.md'), '# Docs\n')
+      const opts = resolveOptions({
+        srcDir: tmp,
+        cleanUrls: true,
+        sidebarAuto: { folderLinkOrder: ['index', 'first-file'] },
+      })
+      const idx = scanVault(opts)
+      expect(resolveWikilink('docs/', idx, opts).isDead).toBe(false)
+      expect(scanWikilinks(idx, opts).dead).toEqual([])
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
   it("有 README + first-file 顺序:用 README", () => {
     const tmp = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-wf-'))
     try {

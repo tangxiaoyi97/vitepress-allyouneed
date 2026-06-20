@@ -397,7 +397,7 @@ function renderNode(
     })
   }
 
-  // 3. 子目录:按 groupOrder(仅顶级生效)然后字母序
+  // 3. 子目录:按 groupOrder(仅顶级生效),再按各目录 dirIndex 的排序锚点
   const folderItems: SidebarItem[] = []
   const childKeys = sortChildKeys(node, opts, isRoot)
   for (const key of childKeys) {
@@ -453,17 +453,49 @@ function shouldLinkGroup(opts: ResolvedSidebarAutoOptions, isTopLevel: boolean):
   return true // 'all'
 }
 
-/** 子目录排序:顶级用 groupOrder + 字母序 fallback,非顶级直接字母序 */
+/**
+ * 子目录排序:
+ *   1. 顶级显式 groupOrder 始终优先;
+ *   2. 其余目录把 dirIndex 当作排序锚点,沿用 sortBy/orderKey;
+ *   3. 没有 dirIndex 时按目录显示标题自然排序。
+ *
+ * 这样目录本身无需改名为 `01-foo`:给 `foo/index.md` 写 `order: 1`
+ * 即可稳定控制该 group 在所有 layout 中的位置。
+ */
 function sortChildKeys(
   node: DirNode,
   opts: ResolvedSidebarAutoOptions,
   isTopLevel: boolean,
 ): string[] {
   const keys = [...node.children.keys()]
-  if (!isTopLevel || opts.groupOrder.length === 0) {
-    return keys.sort()
+  const collateOpts: Intl.CollatorOptions = { numeric: true, sensitivity: 'base' }
+
+  const compareFolderKeys = (a: string, b: string): number => {
+    const aNode = node.children.get(a)!
+    const bNode = node.children.get(b)!
+    const aAnchor = pickTitleSourceCandidate(aNode)
+    const bAnchor = pickTitleSourceCandidate(bNode)
+
+    if (opts.sortBy === 'mtime-desc') {
+      const am = aAnchor?.mtime ?? Number.NEGATIVE_INFINITY
+      const bm = bAnchor?.mtime ?? Number.NEGATIVE_INFINITY
+      if (am !== bm) return bm - am
+    } else if (opts.sortBy === 'order-then-title') {
+      const ao = aAnchor ? readOrder(aAnchor, opts.orderKey) : Number.POSITIVE_INFINITY
+      const bo = bAnchor ? readOrder(bAnchor, opts.orderKey) : Number.POSITIVE_INFINITY
+      if (ao !== bo) return ao - bo
+    }
+
+    const at = computeGroupText(aNode.path, aAnchor, opts)
+    const bt = computeGroupText(bNode.path, bAnchor, opts)
+    return at.localeCompare(bt, undefined, collateOpts)
   }
-  // 顶级:把 groupOrder 命中的项按指定顺序;其余按字母在后
+
+  if (!isTopLevel || opts.groupOrder.length === 0) {
+    return keys.sort(compareFolderKeys)
+  }
+
+  // 顶级:把 groupOrder 命中的项按指定顺序;其余使用 dirIndex 排序锚点
   const orderMap = new Map<string, number>()
   opts.groupOrder.forEach((name, i) => {
     // groupOrder 名字应该是 group title 或 dirname,匹配 dirname 段
@@ -499,7 +531,7 @@ function sortChildKeys(
     const ob = orderMap.has(b) ? orderMap.get(b)! : orderMap.get(tb)!
     return oa - ob
   })
-  rest.sort()
+  rest.sort(compareFolderKeys)
   return [...indexed, ...rest]
 }
 
@@ -576,7 +608,7 @@ function toPerFolderSidebar(
   for (const f of sortedRootFiles) {
     rootItems.push({ text: opts.formatItemTitle(f), link: f.url })
   }
-  const topKeys = [...root.children.keys()].sort()
+  const topKeys = sortChildKeys(root, opts, /* isTopLevel */ true)
   for (const key of topKeys) {
     const child = root.children.get(key)!
     // root items 是 nav 风格的"跳转入口",empty opt-out 不适用
@@ -644,7 +676,7 @@ export function generateNav(
   // nav link 不带 base(VitePress 渲染时自动 prepend);activeMatch 是正则,**也不带** base
   const out: NavItem[] = [{ text: opts.homeNavText, link: '/' }]
 
-  const topKeys = [...root.children.keys()].sort()
+  const topKeys = sortChildKeys(root, opts, /* isTopLevel */ true)
   for (const key of topKeys) {
     const child = root.children.get(key)!
     // nav 是"必须可点",不尊重 empty opt-out

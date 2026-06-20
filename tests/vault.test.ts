@@ -74,4 +74,10 @@ describe('VaultScanner', () => {
     expect(idx).toBeDefined()
     expect(idx!.url).toBe('/')
   })
+
+  it('嵌套 index.md 保留目录路由的尾斜杠', () => {
+    const nested = index.byRelativePath.get('nested/index.md')
+    expect(nested).toBeDefined()
+    expect(nested!.url).toBe('/nested/')
+  })
 })

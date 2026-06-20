@@ -267,7 +267,11 @@ function computeUrl(rel: string, options: ResolvedOptions): string {
   // ⚠ 关键:始终不带 base(用 '/' 做 site-root 相对 URL)。
   // VitePress 在 render 阶段对所有 sidebar/nav link + markdown link 自动
   // prepend base —— 带了会双重 prefix(GitHub Pages 等子路径部署 404)。
-  return buildUrl('/', segments)
+  const url = buildUrl('/', segments)
+  // VitePress 的嵌套 index.md 是目录路由(`/guide/`),不是普通 clean URL
+  // (`/guide`)。保留尾斜杠既与生成文件 guide/index.html 一致,也避免
+  // VitePress 的 dead-link validator 把合法 dirIndex 链接判为不存在。
+  return isIndex && options.cleanUrls ? url + '/' : url
 }
 
 /** Map<K, V[]> push 工具 */
@@ -372,4 +376,3 @@ export function sortByShortestPath<T extends { relativePath: string }>(
     return a.relativePath.localeCompare(b.relativePath)
   })
 }
-
