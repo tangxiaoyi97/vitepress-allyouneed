@@ -2,6 +2,12 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Fixed
+- **同名页面跨 locale / 区域解析错误**:`[[Gravitationsphysik]]` 这类 basename-only Wikilink 不再直接使用全局 `onConflict`。解析器现在先按源页面的同目录和最长共同路径前缀收窄候选(例如 `zh/themen/*` 优先于 `zh/selfcheck/*`,二者都优先于其它 locale),仍有歧义时才执行 `shortest` / `first` / `error`。
+- 强化当前源页面定位:relativePath 精确匹配先于后缀兜底,且后缀存在多个 locale 命中时不再取扫描顺序中的第一个。
+
 ## [0.5.3] - 2026-06-20
 
 0.5.2 的 **Bug 2 修复不完整**(已发到 npm,故 0.5.2 标记 deprecated;请升到 0.5.3)。本版把它彻底修对,并补齐 i18n 实战验证。

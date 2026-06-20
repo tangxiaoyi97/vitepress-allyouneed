@@ -155,7 +155,7 @@ export default defineConfig({
 | `cleanUrls` | `boolean` | 跟 VitePress `cleanUrls` 走 | URL 是否带 `.html` |
 | `caseSensitive` | `boolean` | `false` | wikilink/asset 解析是否大小写敏感 |
 | `deadLink` | `'silent' \| 'warn' \| 'error'` | `'warn'` | 死链处理 |
-| `onConflict` | `'shortest' \| 'first' \| 'error'` | `'shortest'` | 同名文件冲突策略 |
+| `onConflict` | `'shortest' \| 'first' \| 'error'` | `'shortest'` | 同名文件先按当前页面的同目录/共同路径前缀收窄，再执行冲突策略 |
 | `onAliasConflict` | `'first' \| 'error'` | `'first'` | alias 冲突策略 |
 | `slugify` | `(text: string) => string` | `@mdit-vue/shared` | 锚点 slugifier,必须与 VitePress `markdown.anchor.slugify` 一致 |
 | `assets.preserveAssetPaths` | `boolean` | `false` | true 保留原 vault 路径(`/assets/foo.png`)、不哈希;false 走 `/_assets/<hash>-foo.png` |

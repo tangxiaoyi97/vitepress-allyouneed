@@ -21,7 +21,7 @@ Passed as the second argument of `defineConfigWithAllYouNeed(vitepressConfig, al
 | `cleanUrls` | `boolean` | inherits from VitePress config | If false, URLs include `.html`. |
 | `caseSensitive` | `boolean` | `false` | Wikilink basename / alias / asset basename matching is case-insensitive by default. |
 | `deadLink` | `'silent' \| 'warn' \| 'error'` | `'warn'` | What to do when a wikilink can't be resolved. `'error'` adds the entry to `index.warnings` (lets you fail build via VitePress). |
-| `onConflict` | `'shortest' \| 'first' \| 'error'` | `'shortest'` | Two files share the same basename → which one wins. `'shortest'` = fewest path segments. |
+| `onConflict` | `'shortest' \| 'first' \| 'error'` | `'shortest'` | Basename conflicts are first narrowed to the current page's directory / longest shared path prefix (locale and section aware), then this policy is applied. `'shortest'` = fewest path segments. |
 | `onAliasConflict` | `'first' \| 'error'` | `'first'` | Two files declare the same alias. |
 | `slugify` | `(text: string) => string` | `@mdit-vue/shared` slugify | Heading slug function. **Must match** VitePress's `markdown.anchor.slugify` if you override either. |
 

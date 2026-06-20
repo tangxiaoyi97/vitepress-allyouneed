@@ -5,7 +5,7 @@
  * 1. trim、剥 .md/.markdown
  * 2. 拆 #heading
  * 3. 含 '/' → 按 byRelativePath 查
- * 4. 不含 '/' → byAlias → byBasename(冲突按 onConflict)
+ * 4. 不含 '/' → byAlias → byBasename(冲突先按源文件目录上下文收窄,再按 onConflict)
  * 5. heading 匹配 → 加 anchor;否则标记半死链
  */
 
@@ -119,9 +119,9 @@ export function resolveWikilink(
  * 匹配顺序(从最强到兜底):
  *   1. 精确键(快路径)
  *   2. toPosix 后再精确键(消反斜杠 / 多余分隔符)
- *   3. 后缀匹配:某个 entry 的 absolutePath 以归一化后的当前路径结尾
+ *   3. relativePath 完全相等(含从 srcDir 剥出的相对路径)
+ *   4. 唯一后缀匹配:某个 entry 的 absolutePath 以归一化后的当前路径结尾
  *      —— 覆盖"当前路径是相对/被截断前缀"的情况(以 `/` 边界防误配)
- *   4. relativePath 完全相等(去掉前导 `./`)
  *   5. basename 唯一时按 basename 命中(最后兜底;有歧义则放弃,避免错配)
  */
 function findSelfEntry(
@@ -137,26 +137,32 @@ function findSelfEntry(
   const byNorm = index.files.get(norm)
   if (byNorm) return byNorm
 
-  // 3. 后缀匹配(以 '/' 边界,避免 ".../ab.md" 命中 ".../zab.md")
-  let suffixHit: FileEntry | undefined
+  // 3. relativePath 精确匹配。必须放在后缀匹配之前:当 root 与 locale
+  // 子树都存在 `themen/A.md` 时,相对路径 `themen/A.md` 同时也是两个绝对路径
+  // 的后缀;先做 relativePath 才不会被扫描顺序带到 `zh/themen/A.md`。
+  const srcDir = toPosix(index.srcDir).replace(/\/$/, '')
+  const relativeNorm = norm.startsWith(srcDir + '/')
+    ? norm.slice(srcDir.length + 1)
+    : norm
+  const byRelative = index.byRelativePath.get(relativeNorm)
+  if (byRelative) return byRelative
+
+  // 4. 唯一后缀匹配(以 '/' 边界,避免 ".../ab.md" 命中 ".../zab.md")。
+  // 不再返回第一个命中:多个 locale 的相同尾路径属于歧义,必须继续走更安全的
+  // basename-unique 兜底(通常也会因歧义而返回 undefined)。
+  const suffixHits: FileEntry[] = []
   for (const e of index.files.values()) {
     const abs = e.absolutePath
     if (abs === norm || abs.endsWith('/' + norm)) {
-      suffixHit = e
-      break
+      suffixHits.push(e)
+      continue
     }
     // 反向:当前路径以 entry 的 relativePath 结尾(currentPath 更长)
     if (e.relativePath && norm.endsWith('/' + e.relativePath)) {
-      suffixHit = e
-      break
+      suffixHits.push(e)
     }
   }
-  if (suffixHit) return suffixHit
-
-  // 4. relativePath 完全相等
-  for (const e of index.files.values()) {
-    if (e.relativePath && e.relativePath.replace(/^\.\//, '') === norm) return e
-  }
+  if (suffixHits.length === 1) return suffixHits[0]
 
   // 5. basename 唯一兜底
   const bn = basename(norm)
@@ -271,18 +277,84 @@ function lookupEntry(
   if (!candidates || candidates.length === 0) return undefined
   if (candidates.length === 1) return candidates[0]!
 
-  // 多个 → onConflict
+  // 多个 basename 候选时,先按源文件位置收窄。Obsidian 的短链接语义是
+  // "离当前笔记最近的同名文件";这也避免多 locale / 多业务区 vault 中
+  // `themen/Foo.md` 被全局 shortest 错配到 `selfcheck/Foo.md`。
+  //
+  // 评分规则:
+  //   - 同目录最高(包括 vault 根目录)
+  //   - 否则按目录段的最长共同前缀:zh/themen/* > zh/* > 全局
+  //   - 最高分仍有多个时,只在这些候选内执行 onConflict
+  const contextualCandidates = narrowCandidatesBySource(
+    candidates,
+    currentSourcePath,
+    index,
+  )
+  if (contextualCandidates.length === 1) return contextualCandidates[0]
+
+  // 上下文仍无法消歧 → onConflict
   switch (options.onConflict) {
     case 'shortest': {
-      const sorted = sortByShortestPath(candidates)
+      const sorted = sortByShortestPath(contextualCandidates)
       return sorted[0]!
     }
     case 'first':
-      return candidates[0]!
+      return contextualCandidates[0]!
     case 'error':
       // build 时由调用方根据 deadLink 决定;这里返回 undefined → 当作死链
       return undefined
   }
+}
+
+/**
+ * 用源文件目录上下文收窄同 basename 候选。
+ *
+ * 只在至少共享一个目录段或目录完全相同时收窄;完全无上下文交集时保留全部
+ * 候选,维持旧版 onConflict 行为。返回数组保持原扫描顺序,保证 `first` 稳定。
+ */
+function narrowCandidatesBySource(
+  candidates: FileEntry[],
+  currentSourcePath: string | undefined,
+  index: VaultIndex,
+): FileEntry[] {
+  if (!currentSourcePath) return candidates
+  const source = findSelfEntry(currentSourcePath, index)
+  if (!source) return candidates
+
+  const sourceDir = directorySegments(source.relativePath)
+  let bestScore = 0
+  const scored = candidates.map((candidate) => {
+    const candidateDir = directorySegments(candidate.relativePath)
+    const exactDirectory =
+      sourceDir.length === candidateDir.length &&
+      sourceDir.every((segment, i) => segment === candidateDir[i])
+    if (exactDirectory) {
+      // +1 让同目录严格高于仅共享全部 sourceDir 前缀的子目录。
+      return { candidate, score: sourceDir.length + 1 }
+    }
+
+    let commonPrefix = 0
+    const limit = Math.min(sourceDir.length, candidateDir.length)
+    while (
+      commonPrefix < limit &&
+      sourceDir[commonPrefix] === candidateDir[commonPrefix]
+    ) {
+      commonPrefix += 1
+    }
+    return { candidate, score: commonPrefix }
+  })
+
+  for (const item of scored) bestScore = Math.max(bestScore, item.score)
+  if (bestScore === 0) return candidates
+  return scored
+    .filter((item) => item.score === bestScore)
+    .map((item) => item.candidate)
+}
+
+/** 返回 relativePath 中除文件名外的目录段。 */
+function directorySegments(relativePath: string): string[] {
+  const parts = toPosix(relativePath).replace(/^\.\//, '').split('/')
+  return parts.slice(0, -1)
 }
 
 /**
