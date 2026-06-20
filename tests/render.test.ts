@@ -177,10 +177,17 @@ describe('Render — image embeds', () => {
     expect(html).toMatch(/<img\b[^>]*\balt="[^"]*"/)
   })
 
-  it('未知 image basename 仍输出合法 <img>(非 throw)', () => {
+  // HOTFIX(0.5.2):缺失 image 不能再产出 <img src="/basename">。那个绝对 URL
+  // 会被 Vite/Rollup 当模块 import,解析不到就硬崩整个 build
+  // (`Rollup failed to resolve import "/foo.png"`)。改为渲染不触发 Vite 解析的
+  // 占位 <span>,按 deadLink 策略告警,绝不 throw。
+  it('未知 image basename → 占位 <span>(不产出会崩 build 的 <img src=/...>)', () => {
     const html = md.renderInline('![[never-exists.png]]', env)
-    expect(html).toContain('<img ')
-    expect(html).toContain('src=')
+    expect(html).toContain('ayn-embed--missing')
+    expect(html).toContain('never-exists.png')
+    // 关键:绝不能再有 <img>(尤其不能有指向绝对路径的 src)
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('src="/')
   })
 
   /**

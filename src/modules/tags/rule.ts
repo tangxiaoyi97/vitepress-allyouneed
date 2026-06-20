@@ -35,7 +35,23 @@ export function makeTagRule(): (state: StateInline, silent: boolean) => boolean 
     if (!m) return false
 
     const tag = m[1]!
-    if (silent) return true
+
+    // ── HOTFIX(0.5.2):silent 模式必须**推进 state.pos** ───────────────
+    // 与 wikilink rule 同一类 bug(见 modules/wikilinks/rule.ts 的 0.5.1 注释)。
+    // markdown-it 的 link 核心规则扫描 `[...]` label 时用 `skipToken` 以 silent
+    // 模式跑 inline rule;silent 返回 true 却不推进 state.pos → 抛
+    // `inline rule didn't increment state.pos`(parser_inline.mjs)。
+    //
+    // 触发:GFM 表格单元格 `[[#Biomarker|Biomarker]]` 被 `|` 拆成 `[[#Biomarker`,
+    // 其中的 `[` 触发 link 规则的 parseLinkLabel,扫到 `#Biomarker` 时本 tag 规则
+    // (silent)pos 没动 → 整个 vitepress build 崩(file: …Astronomie…md)。
+    // 任何 `[` 上下文里出现 `#tag` 都会复现,不限表格。
+    //
+    // 修法对齐 markdown-it 自带规则:silent 也设 pos,仅把 token 产出门控在 !silent。
+    if (silent) {
+      state.pos = start + m[0].length
+      return true
+    }
 
     if (!env.referencedTags) env.referencedTags = new Set()
     env.referencedTags.add(tag)

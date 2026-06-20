@@ -51,16 +51,22 @@ export function resolveWikilink(
   // 剥 .md / .markdown
   target = stripMarkdownExt(target)
 
+  // HOTFIX(0.5.2):**自引用锚点** `[[#heading]]`(没有文件部分)。
+  // 此前 target 被切成空串 → lookupEntry('') 返回 undefined → 整条 wikilink 被
+  // 误判 dead(报告:74 处页内跳转锚点全死,即使 slug 精确匹配)。
+  // 修法:target 为空 + 有 headingPart + 知道当前文件 → 解析到当前文件本身,
+  // 让下面的 heading 匹配逻辑(exact slug)正常命中。
+  let selfEntry: FileEntry | undefined
+  if (!target && headingPart && currentSourcePath) {
+    selfEntry = index.files.get(currentSourcePath)
+  }
+
   // 3-4. 查 entry。v0.3.5:wasFolderForm 时,即使剥了尾 `/` 也强制走
   // path-style 分支(否则 `[[Themen/]]` → strip → `Themen` 没斜杠 → 走 basename
   // 分支 → 找不到 `Themen/index.md`)
-  const entry = lookupEntry(
-    target,
-    index,
-    options,
-    currentSourcePath,
-    wasFolderForm,
-  )
+  const entry =
+    selfEntry ??
+    lookupEntry(target, index, options, currentSourcePath, wasFolderForm)
 
   if (!entry) {
     return {

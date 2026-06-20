@@ -2,6 +2,31 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.5.2] - 2026-06-20
+
+实战(90 页 DE+ZH 物理知识库,重 KaTeX / Wikilink / GFM 表格)发现的三个 build-blocker / 死链 bug,纯插件侧可修,无需改任何内容。
+
+### Fixed
+- **致命崩溃(同 0.5.1 那类 `state.pos`,但这次出在 `#tag` inline rule):`vitepress build` 在含 `#tag` 的 link label / 嵌套方括号 / GFM 表格单元格上整站构建失败**,报 `inline rule didn't increment state.pos`。
+  - 根因:`modules/tags/rule.ts` 的 `#tag` inline rule 注册在 `link` 之前;markdown-it 的 link 核心规则用 `parseLinkLabel → skipToken` 以 **silent 模式**扫描 `[...]` label,本规则在 silent 下 `return true` 却**没推进 `state.pos`**,触发 markdown-it 的安全检查并经 `parseLinkLabel` 对未消费的 `[` 递归。0.5.1 已修了 wikilink rule 的同款问题,但 tag rule 漏改 —— 复现文件正是报告里的 `themen/Astronomie und Exobiologie.md`(`[[#Biomarker|…]]` 被表格 `|` 拆成 `[[#Biomarker`,其中 `#Biomarker` 命中 tag rule)。
+  - 修复:silent 模式下也把 `state.pos` 推过匹配长度再 `return true`,token 产出仍门控在 `!silent`(对齐 markdown-it 自带规则)。
+- **页内跳转锚点 `[[#heading]]` 即使 slug 精确匹配也被判死链 / 失去 `href`**(报告:仅德语主题就 74 处)。
+  - 根因:自引用 wikilink(只有 `#anchor`、无文件部分)解析时 `target` 被切成空串 → `lookupEntry('')`/`resolveSimple('')` 返回空 → 整条 wikilink 误判 dead。
+  - 修复:`core/resolver.ts` 与 `core/scan-wikilinks.ts` 双路径统一处理 —— 有 heading 部分且无文件部分时解析到**当前文件本身**,后续 heading 匹配(exact slug,各 `anchorMatch` 模式通吃)正常命中;`scan-wikilinks` 不再把自引用锚点计入死链汇总。
+- **缺失的 embed 资源(`![[foo.gif]]` / 音视频 / PDF 指向不存在文件)把整个 Vite/Rollup 构建硬中断**,报 `Rollup failed to resolve import "/foo.gif"`。
+  - 根因:`modules/embeds/image.ts` 与 `modules/embeds/media.ts` 在 asset 解析不到时回退成绝对路径 `/{basename}`,该 URL 被 VitePress 的 Vite 插件当模块 import,Rollup 解析不到即 throw。
+  - 修复:缺失资源不再产出会被 Vite 解析的 `src`,改为按 `deadLink` 策略告警(`silent`/`warn`/`error`,`error` 推 `index.warnings` 让构建以非零退出但不中断渲染)+ 渲染一个**不触发 Vite 解析**的占位 `<span class="ayn-embed ayn-embed--missing">`,与死链行为一致,绝不 throw。
+
+### Tests
+- 新增 `tests/v052-bugfixes.test.ts`(Bug1 silent-pos / Bug2 自引用锚点 + scanWikilinks / Bug3 image+media 缺失占位 + `deadLink='error'` 告警)。
+- 更新 `tests/render.test.ts`、`tests/v03-phase2.test.ts`:缺失 image/media 现在断言占位 `<span>` 而非旧的会崩 build 的 `<img>/<audio>/<iframe src="/…">`;media player 用例改指向 `fixtures/vault/media/` 下的真实占位资源。
+- 真实 `vitepress build` 端到端验证(复现 Astronomie 嵌套链接 + 自引用锚点 + 缺失 gif/mp4/pdf)全部通过:无 `state.pos` 崩溃、零死链上报、缺失 embed 降级告警、`build complete` 退出码 0。
+
+### Files touched
+- `src/modules/tags/rule.ts`(silent 推进 `state.pos`)
+- `src/core/resolver.ts`、`src/core/scan-wikilinks.ts`(自引用锚点 → 当前文件)
+- `src/modules/embeds/image.ts`、`src/modules/embeds/media.ts`(缺失资源 → 占位 + `deadLink` 策略,不 throw)
+
 ## [0.5.1] - 2026-06-20
 
 ### Fixed

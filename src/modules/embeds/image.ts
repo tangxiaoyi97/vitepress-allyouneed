@@ -46,17 +46,20 @@ export function renderImageHtml(
   // v0.3.4:传 currentPath,让 resolveAsset 支持 Obsidian 相对当前文件路径
   const { asset } = resolveAsset(processedTarget, index, options, env.currentPath)
 
-  let src: string
-  if (asset) {
-    asset.referencedBy.add(env.currentPath ?? '<unknown>')
-    env.referencedAssets?.add(asset)
-    src = buildPlaceholderUrl(asset, options) + options.embeds.uriSuffix
-  } else {
-    src =
-      options.base +
-      encodeURIComponent(basename(processedTarget)) +
-      options.embeds.uriSuffix
+  // HOTFIX(0.5.2):缺失的图片资源不能再回退成绝对路径 `/<basename>`。
+  // 那个绝对 URL 会被 VitePress 的 Vite 插件当成模块 import,Rollup 解析不到
+  // 就**硬中断整个 build**(报告:`Rollup failed to resolve import "/foo.gif"`)。
+  // 改为按 deadLink 策略告警 + 渲染一个**不触发 Vite 解析**的占位标记,
+  // 与死链一致(silent/warn),绝不 throw。
+  if (!asset) {
+    handleMissingAsset(env, processedTarget)
+    return renderMissingImageHtml(processedTarget, options)
   }
+
+  let src: string
+  asset.referencedBy.add(env.currentPath ?? '<unknown>')
+  env.referencedAssets?.add(asset)
+  src = buildPlaceholderUrl(asset, options) + options.embeds.uriSuffix
 
   const finalAlt = determineAlt(altText, processedTarget, options)
 
@@ -87,6 +90,45 @@ export function renderImageHtml(
       .map(([k, v]) => `${escapeAttrName(k)}="${escapeHtml(v)}"`)
       .join(' ') +
     ' />'
+  )
+}
+
+/**
+ * HOTFIX(0.5.2):缺失图片资源 → 按 deadLink 策略告警(不 throw)。
+ */
+function handleMissingAsset(env: AllYouNeedEnv, target: string): void {
+  const { options } = env
+  if (options.deadLink === 'silent') return
+  const msg =
+    `vitepress-allyouneed: missing image embed ![[${target}]]` +
+    (env.currentPath ? ` (in ${env.currentPath})` : '')
+  if (options.deadLink === 'warn') {
+    console.warn(msg)
+    return
+  }
+  // 'error':推到 index.warnings 让 build 以非零退出失败(但不中断渲染)
+  env.index.warnings.push({
+    kind: 'unknown',
+    message: msg,
+    affected: env.currentPath ? [env.currentPath] : [],
+  })
+}
+
+/**
+ * HOTFIX(0.5.2):缺失图片的占位渲染 —— **不产出会被 Vite 解析的 src**。
+ * 渲染成一个带提示的 `<span>`(类似死 wikilink 的可视化),不是 `<img>`,
+ * 因此 Vite/Rollup 无从 import,build 不会崩。
+ */
+function renderMissingImageHtml(
+  target: string,
+  _options: AllYouNeedEnv['options'],
+): string {
+  const bn = basename(target)
+  return (
+    `<span class="ayn-embed ayn-embed--missing" ` +
+    `data-missing-src="${escapeHtml(bn)}" ` +
+    `title="Missing image: ${escapeHtml(target)}">` +
+    `⚠ ${escapeHtml(bn)}</span>`
   )
 }
 

@@ -41,34 +41,36 @@ describe('Media embeds — audio/video/pdf', () => {
     ;({ md, env } = makeMd(opts, idx))
   })
 
-  it('audio: ![[clip.mp3]] → <audio>', () => {
-    const html = md.render('![[clip.mp3]]\n', env)
+  // 注:media/clip.mp3、media/movie.mp4、media/doc.pdf 是 fixtures/vault 下的
+  // 真实(占位字节)资源,所以这些用例验证的是真正的播放器/iframe 渲染路径。
+  it('audio: ![[media/clip.mp3]] → <audio>', () => {
+    const html = md.render('![[media/clip.mp3]]\n', env)
     expect(html).toContain('<audio')
     expect(html).toContain('class="ayn-embed ayn-embed--audio"')
     expect(html).toContain('controls')
   })
 
-  it('video: ![[movie.mp4]] → <video>', () => {
-    const html = md.render('![[movie.mp4]]\n', env)
+  it('video: ![[media/movie.mp4]] → <video>', () => {
+    const html = md.render('![[media/movie.mp4]]\n', env)
     expect(html).toContain('<video')
     expect(html).toContain('ayn-embed--video')
     expect(html).toContain('controls')
   })
 
-  it('video 支持尺寸: ![[movie.mp4|640x360]]', () => {
-    const html = md.render('![[movie.mp4|640x360]]\n', env)
+  it('video 支持尺寸: ![[media/movie.mp4|640x360]]', () => {
+    const html = md.render('![[media/movie.mp4|640x360]]\n', env)
     expect(html).toContain('width="640"')
     expect(html).toContain('height="360"')
   })
 
-  it('pdf: ![[doc.pdf]] → <iframe>', () => {
-    const html = md.render('![[doc.pdf]]\n', env)
+  it('pdf: ![[media/doc.pdf]] → <iframe>', () => {
+    const html = md.render('![[media/doc.pdf]]\n', env)
     expect(html).toContain('<iframe')
     expect(html).toContain('ayn-embed--pdf')
   })
 
-  it('inline 混排:文字 + ![[clip.mp3]] + 文字', () => {
-    const html = md.render('listen: ![[clip.mp3]] now\n', env)
+  it('inline 混排:文字 + ![[media/clip.mp3]] + 文字', () => {
+    const html = md.render('listen: ![[media/clip.mp3]] now\n', env)
     expect(html).toContain('<audio')
     expect(html).toContain('listen:')
     expect(html).toContain('now')
@@ -79,6 +81,26 @@ describe('Media embeds — audio/video/pdf', () => {
     expect(html).not.toContain('<audio')
     expect(html).not.toContain('<video')
     expect(html).not.toContain('<iframe')
+  })
+
+  // HOTFIX(0.5.2):缺失的 media 资源不能产出 <audio>/<video>/<iframe src="/...">。
+  // 那个绝对 src 会被 Vite/Rollup 当模块 import,解析不到就硬崩整个 build。
+  // 改为渲染不触发 Vite 解析的占位 <span>(deadLink='silent' 默认不告警),绝不 throw。
+  it('缺失 media → 占位 <span>(不产出会崩 build 的播放器/iframe)', () => {
+    const audio = md.render('![[does-not-exist.mp3]]\n', env)
+    expect(audio).toContain('ayn-embed--missing')
+    expect(audio).not.toContain('<audio')
+    expect(audio).not.toContain('src="/')
+
+    const video = md.render('![[does-not-exist.mp4]]\n', env)
+    expect(video).toContain('ayn-embed--missing')
+    expect(video).not.toContain('<video')
+    expect(video).not.toContain('src="/')
+
+    const pdf = md.render('![[does-not-exist.pdf]]\n', env)
+    expect(pdf).toContain('ayn-embed--missing')
+    expect(pdf).not.toContain('<iframe')
+    expect(pdf).not.toContain('src="/')
   })
 })
 

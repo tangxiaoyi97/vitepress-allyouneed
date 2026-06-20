@@ -70,8 +70,16 @@ function parseAliasDim(parts: string[]): ParsedDim {
   return {}
 }
 
-/** 解析 asset 路径 → 最终 src URL(沿用 image 同款 placeholder URL)*/
-function resolveSrc(rawTarget: string, env: AllYouNeedEnv): string {
+/**
+ * 解析 asset 路径 → 最终 src URL(沿用 image 同款 placeholder URL)。
+ *
+ * HOTFIX(0.5.2):asset 缺失时**返回 null**,而不是回退成绝对路径
+ * `/<basename>`。那个绝对 URL 会被 VitePress 的 Vite 插件当成模块 import,
+ * Rollup 解析不到就**硬中断整个 build**(报告:
+ * `Rollup failed to resolve import "/foo.gif"`,同 image.ts 的 bug)。
+ * 调用方拿到 null → 走 deadLink 策略告警 + 渲染不触发 Vite 解析的占位标记。
+ */
+function resolveSrc(rawTarget: string, env: AllYouNeedEnv): string | null {
   const { index, options } = env
   const processedTarget = options.embeds.postProcessImageTarget(rawTarget)
   // v0.3.4:同 image.ts,把 currentPath 传下去支持相对路径
@@ -81,10 +89,49 @@ function resolveSrc(rawTarget: string, env: AllYouNeedEnv): string {
     env.referencedAssets?.add(asset)
     return buildPlaceholderUrl(asset, options) + options.embeds.uriSuffix
   }
+  return null
+}
+
+/**
+ * HOTFIX(0.5.2):缺失 media 资源 → 按 deadLink 策略告警(不 throw)。
+ * 与 image.ts 的 handleMissingAsset 对齐。
+ */
+function handleMissingMedia(
+  env: AllYouNeedEnv,
+  kind: 'audio' | 'video' | 'pdf',
+  rawTarget: string,
+): void {
+  const { options } = env
+  const processedTarget = options.embeds.postProcessImageTarget(rawTarget)
+  if (options.deadLink === 'silent') return
+  const msg =
+    `vitepress-allyouneed: missing ${kind} embed ![[${processedTarget}]]` +
+    (env.currentPath ? ` (in ${env.currentPath})` : '')
+  if (options.deadLink === 'warn') {
+    console.warn(msg)
+    return
+  }
+  // 'error':推到 index.warnings 让 build 以非零退出失败(但不中断渲染)
+  env.index.warnings.push({
+    kind: 'unknown',
+    message: msg,
+    affected: env.currentPath ? [env.currentPath] : [],
+  })
+}
+
+/**
+ * HOTFIX(0.5.2):缺失 media 的占位渲染 —— **不产出会被 Vite 解析的 src**。
+ * 渲染成一个带提示的 `<span>`(同 image.ts 的 renderMissingImageHtml),
+ * 不是 `<audio>`/`<video>`/`<iframe>`,因此 Vite/Rollup 无从 import,build 不会崩。
+ */
+function renderMissingMediaHtml(rawTarget: string, env: AllYouNeedEnv): string {
+  const processedTarget = env.options.embeds.postProcessImageTarget(rawTarget)
+  const bn = basename(processedTarget)
   return (
-    options.base +
-    encodeURIComponent(basename(processedTarget)) +
-    options.embeds.uriSuffix
+    `<span class="ayn-embed ayn-embed--missing" ` +
+    `data-missing-src="${escapeHtml(bn)}" ` +
+    `title="Missing media: ${escapeHtml(processedTarget)}">` +
+    `⚠ ${escapeHtml(bn)}</span>`
   )
 }
 
@@ -96,6 +143,11 @@ export function renderAudioHtml(
   env: AllYouNeedEnv,
 ): string {
   const src = resolveSrc(rawTarget, env)
+  // HOTFIX(0.5.2):缺失资源 → 告警 + 占位,绝不产出会崩 build 的绝对 src
+  if (src === null) {
+    handleMissingMedia(env, 'audio', rawTarget)
+    return renderMissingMediaHtml(rawTarget, env)
+  }
   return (
     `<audio class="ayn-embed ayn-embed--audio" controls preload="metadata" ` +
     `src="${escapeHtml(src)}">` +
@@ -110,6 +162,11 @@ export function renderVideoHtml(
   env: AllYouNeedEnv,
 ): string {
   const src = resolveSrc(rawTarget, env)
+  // HOTFIX(0.5.2):缺失资源 → 告警 + 占位,绝不产出会崩 build 的绝对 src
+  if (src === null) {
+    handleMissingMedia(env, 'video', rawTarget)
+    return renderMissingMediaHtml(rawTarget, env)
+  }
   const dim = parseAliasDim(aliasParts)
   const attrs: string[] = [
     `class="ayn-embed ayn-embed--video"`,
@@ -132,6 +189,11 @@ export function renderPdfHtml(
   env: AllYouNeedEnv,
 ): string {
   const src = resolveSrc(rawTarget, env)
+  // HOTFIX(0.5.2):缺失资源 → 告警 + 占位,绝不产出会崩 build 的绝对 src
+  if (src === null) {
+    handleMissingMedia(env, 'pdf', rawTarget)
+    return renderMissingMediaHtml(rawTarget, env)
+  }
   const dim = parseAliasDim(aliasParts)
   // 默认尺寸:全宽 + 600px 高(给 iframe 一个起码可读的视口)
   const width = dim.width !== undefined ? `${dim.width}px` : '100%'

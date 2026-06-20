@@ -131,7 +131,14 @@ export function scanWikilinks(
           if (isAsset) continue
         }
       }
-      const found = resolveSimple(rawTarget, index, options, f.relativePath)
+      // HOTFIX(0.5.2):**自引用锚点** `[[#heading]]`(rawTarget 为空,只有
+      // headingPart)的目标就是当前文件本身,永远存在。此前 resolveSimple('')
+      // 返回 false → 被误报成死链(报告:74 处页内跳转锚点全被当 dead)。
+      // 与 resolver.ts 的 0.5.2 自引用修法保持一致:有 headingPart、无文件部分
+      // → 当前文件,直接当已解析,跳过死链上报。
+      const isSelfAnchor = !rawTarget && !!headingPart
+      const found =
+        isSelfAnchor || resolveSimple(rawTarget, index, options, f.relativePath)
       if (!found) {
         dead.push({
           source: f.relativePath,
@@ -142,8 +149,10 @@ export function scanWikilinks(
       }
       // v0.3.9:成功 resolve,继续看锚点歧义
       if (scanAmbig && headingPart) {
-        // 取出目标 entry 来扫 heading
-        const targetEntry = resolveSimpleEntry(rawTarget, index, options, f.relativePath)
+        // 取出目标 entry 来扫 heading。HOTFIX(0.5.2):自引用锚点 → 当前文件 entry。
+        const targetEntry = isSelfAnchor
+          ? f
+          : resolveSimpleEntry(rawTarget, index, options, f.relativePath)
         if (!targetEntry) continue
         const matches2 = findAmbiguousLeadingNumberMatches(targetEntry, headingPart)
         if (matches2.length > 1) {
