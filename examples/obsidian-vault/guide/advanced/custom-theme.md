@@ -7,9 +7,9 @@ tags: [advanced, theme]
 
 # Custom theme overrides
 
-三段论:**继承 → 替换 → 覆盖**。
+Three-step onion: **inherit → replace → override**.
 
-## 1. 全继承默认主题
+## 1. Full inherit
 
 ```ts
 // .vitepress/theme/index.ts
@@ -18,7 +18,7 @@ import 'vitepress-allyouneed/theme/style.css'
 export default Theme
 ```
 
-## 2. 替换某个全局组件
+## 2. Replace a global component
 
 ```ts
 import Theme from 'vitepress-allyouneed/theme'
@@ -29,21 +29,21 @@ export default {
   ...Theme,
   enhanceApp(ctx) {
     Theme.enhanceApp?.(ctx)
-    ctx.app.component('VaultGraph', MyGraph)  // 覆盖默认 VaultGraph
+    ctx.app.component('VaultGraph', MyGraph)  // overrides default VaultGraph
   },
 }
 ```
 
-可被替换的全局组件:`VaultGraph` / `VaultStats` / `Tags` / `DocHeader` / `Layout`。
+Replaceable globals: `VaultGraph` / `VaultStats` / `Tags` / `DocHeader` / `Layout`.
 
-## 3. 覆盖 CSS 变量
+## 3. Override CSS variables
 
-在主题入口里**后引入**自己的 CSS,覆盖 `--ayn-*` 全局变量:
+In your theme entry, import your CSS **after** ours so it overrides `--ayn-*` globals:
 
 ```ts
 import Theme from 'vitepress-allyouneed/theme'
 import 'vitepress-allyouneed/theme/style.css'
-import './overrides.css'   // 后引入 → 覆盖
+import './overrides.css'   // imported after → wins
 export default Theme
 ```
 
@@ -55,9 +55,9 @@ export default Theme
 }
 ```
 
-## 自定义 Layout
+## Custom Layout
 
-如果需要更深度修改(例如加 footer 槽位):
+For deeper changes (e.g., extra slots):
 
 ```ts
 import Theme from 'vitepress-allyouneed/theme'

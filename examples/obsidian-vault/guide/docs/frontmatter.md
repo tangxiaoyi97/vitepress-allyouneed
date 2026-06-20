@@ -1,158 +1,146 @@
 ---
-title: Frontmatter 完整字段表
+title: Frontmatter — complete field table
 sidebarTitle: Frontmatter
 order: 0
 tags: [guide, frontmatter, reference]
 ---
 
-# Frontmatter 完整字段表
+# Frontmatter — complete field table
 
-每个 .md 文件顶部 YAML 块里能写的所有字段。**所有字段都可缺省**。按用途分组。
+All recognized YAML keys in a `.md` file. Every field is optional.
 
-> 字段来源标记:
-> - **AYN** = vitepress-allyouneed 本身识别
-> - **VP** = VitePress 原生识别
-> - **Obs** = Obsidian 标准字段(本插件也读)
-> - **theme** = VitePress 默认主题(被本插件继承)
+> Sources: **AYN** = vitepress-allyouneed | **VP** = VitePress native | **Obs** = Obsidian standard | **theme** = default theme
 
-## 1. 页面标题 / 别名 / 标签
+## 1. Title / aliases / tags
 
-| 字段 | 来源 | 类型 | 默认 | 作用 |
+| Field | Source | Type | Default | Effect |
 |---|---|---|---|---|
-| `title` | VP + AYN | string | basename | 页面标题(`<title>` + DocHeader banner + sidebar fallback) |
-| `aliases` | Obs + AYN | string\|string[] | — | wikilink 别名,例 `[[Alpha]]` 命中 `aliases: [Alpha]` 的笔记 |
-| `tags` | Obs + AYN | string\|string[] | — | 写一个/多个。与正文 `#tag` 合并参与 VaultIndex / Tags 视图 / DocHeader tag pills |
-| `description` | VP | string | — | meta description(SEO) |
+| `title` | VP + AYN | string | basename | Page title (`<title>` + DocHeader banner + sidebar fallback) |
+| `aliases` | Obs + AYN | string\|string[] | — | Wikilink aliases; `[[Alpha]]` resolves notes with `aliases: [Alpha]` |
+| `tags` | Obs + AYN | string\|string[] | — | Merged with inline `#tag`; feed VaultIndex / Tags view / DocHeader pills |
+| `description` | VP | string | — | Meta description (SEO) |
 
 ## 2. DocHeader / Banner
 
-| 字段 | 类型 | 默认 | 作用 |
+| Field | Type | Default | Effect |
 |---|---|---|---|
-| `cover` | string(URL 或本地路径) | — | **触发 banner 模式**;无此字段走 Mode B(无背景块,大字号标题) |
-| `banner.x` | string | `'center'` | `background-position-x`(支持 `center`/`50%`/`30px`...) |
+| `cover` | string (URL or path) | — | **Triggers banner mode**; absent = Mode B (no banner, larger title) |
+| `banner.x` | string | `'center'` | `background-position-x` (`center` / `50%` / `30px`) |
 | `banner.y` | string | `'center'` | `background-position-y` |
-| `banner.blur` | number(px) | `0` | cover 模糊度;>0 时自动 `transform: scale(1.05)` 避免边缘虚化露白 |
-| `banner.opacity` | number(0..1) | `1` | cover 不透明度(可调出"半透明纹理"效果) |
-| `banner.overlay` | number(0..1) | `0.6` | 暗化遮罩强度,大 = 更暗 |
-| `banner.text` | `'light'`\|`'dark'` | `'light'` | banner 内文字色;浅色 cover 用 `'dark'` |
-| `created` | string\|Date | — | 创建时间(ISO `2025-12-01`);DocHeader 显示 |
-| `updated` | string\|Date | `page.lastUpdated` | 更新时间;无则 fallback git 时间 |
-| `cssclasses` | string\|string[] | — | 应用到 `<body>` 的额外 class(挂载时加、卸载时清,跨页守恒) |
+| `banner.blur` | number (px) | `0` | Cover blur; >0 auto-scales 1.05 to avoid edge bleed |
+| `banner.opacity` | number 0–1 | `1` | Cover opacity (creates "translucent texture" effect) |
+| `banner.overlay` | number 0–1 | `0.6` | Dark overlay strength |
+| `banner.text` | `'light'`\|`'dark'` | `'light'` | Banner text color; use `'dark'` for light cover |
+| `created` | string\|Date | — | ISO date in DocHeader |
+| `updated` | string\|Date | `page.lastUpdated` | Falls back to git lastUpdated |
+| `cssclasses` | string\|string[] | — | Extra classes on `<body>` (mount/unmount safe across pages) |
 
-详见 [[doc-header|DocHeader 文档]]。
+See [[doc-header|DocHeader docs]].
 
-## 3. Sidebar 控制(每文件)
+## 3. Sidebar (per file)
 
-| 字段 | 类型 | 默认 | 作用 |
+| Field | Type | Default | Effect |
 |---|---|---|---|
-| `sidebarTitle` | string | `title` ?? H1 ?? basename | 覆盖 sidebar 显示文本(**优先级最高**) |
-| `sidebarHidden` | boolean | `false` | `true` = 整篇从 sidebar 完全隐藏 |
-| `order` | number | `+∞` | 排序权重,小在前;同 order 按 title 字母序 |
-| `sidebarCollapsed` | boolean | `sidebarAuto.collapsed`(默认 `true`) | **仅 dirIndex 文件用**:控制该目录 group 默认展开/折叠 |
-| `sidebarGroup` | string | — | **虚拟 group**:把文件抽到一个跨目录命名组(如 `Customization`),不按物理目录归类 |
-| `sidebar` | array | — | **仅 `_sidebar.md` 用**:整段覆盖该目录 sidebar,VitePress 原生 `SidebarItem[]` shape |
+| `sidebarTitle` | string | `title` ?? H1 ?? basename | Override sidebar label (highest precedence) |
+| `sidebarHidden` | boolean | `false` | Hide from sidebar entirely |
+| `order` | number | `+∞` | Sort weight, smaller first; ties broken by title |
+| `sidebarCollapsed` | boolean | `sidebarAuto.collapsed` | **dirIndex only**: control group default fold |
+| `sidebarGroup` | string | — | **Virtual group** — pulls file into a named cross-folder group |
+| `sidebar` | array | — | **`_sidebar.md` only** — full override (VitePress `SidebarItem[]`) |
 
-field key 名可在 config 改:`sidebarAuto.titleKey/hiddenKey/orderKey`。详见 [[sidebar-auto|sidebar 自动生成]] + [[sidebar-override|手动覆盖]]。
+Key names overridable: `sidebarAuto.titleKey/hiddenKey/orderKey`. See [[sidebar-auto|sidebar-auto]] + [[sidebar-override|sidebar-override]].
 
-## 4. Layout / 路由(VitePress 原生)
+## 4. Layout / routing (VitePress native)
 
-| 字段 | 来源 | 类型 | 默认 | 作用 |
-|---|---|---|---|---|
-| `layout` | VP | `'doc'`\|`'home'`\|`'page'`\|`false` | `'doc'` | `'home'` = hero + features 落地页;`'page'` = 无 sidebar/nav 全宽;`false` = 完全自定 |
-| `navbar` | VP | boolean | `true` | 该页是否显示 nav |
-| `sidebar` (per-page) | VP | boolean | `true` | 该页是否显示 sidebar |
-| `aside` | VP | `true`\|`false`\|`'left'` | `true` | 右侧 outline 是否显示 |
-| `outline` | VP | number\|[number,number]\|object\|`false`\|`'deep'` | `2` | TOC 深度,`[2,3]` = h2~h3,`'deep'` = h2~h6 |
-| `lastUpdated` | VP | boolean | 跟 config | 该页是否显示最后更新时间 |
-| `editLink` | VP | boolean | 跟 config | 该页是否显示"编辑此页"链接 |
-| `prev` | VP | string\|object\|`false` | auto | 上一页链接,可关 |
-| `next` | VP | string\|object\|`false` | auto | 下一页链接,可关 |
+| Field | Type | Default | Effect |
+|---|---|---|---|
+| `layout` | `'doc'`\|`'home'`\|`'page'`\|`false` | `'doc'` | `'home'` = hero + features; `'page'` = no sidebar/nav; `false` = fully custom |
+| `navbar` | boolean | `true` | Show nav on this page |
+| `sidebar` (per-page) | boolean | `true` | Show sidebar on this page |
+| `aside` | `true`\|`false`\|`'left'` | `true` | Right outline panel |
+| `outline` | number\|[n,n]\|object\|`false`\|`'deep'` | `2` | TOC depth |
+| `lastUpdated` | boolean | inherits | Show "last updated" line |
+| `editLink` | boolean | inherits | Show "edit this page" |
+| `prev` | string\|object\|`false` | auto | Prev link |
+| `next` | string\|object\|`false` | auto | Next link |
 
-Home layout 专属:
+### Home layout extras
 
-| 字段 | 作用 |
+| Field | Effect |
 |---|---|
-| `hero.name` | 大标题 |
-| `hero.text` | 副标题 |
-| `hero.tagline` | 描述 |
-| `hero.image` | logo(`{ src, alt }`) |
-| `hero.actions[]` | CTA 按钮数组(`{ theme, text, link }`) |
-| `features[]` | 特性卡片数组(`{ icon, title, details, link }`) |
+| `hero.name` | Big title |
+| `hero.text` | Subtitle |
+| `hero.tagline` | Description |
+| `hero.image` | Logo (`{ src, alt }`) |
+| `hero.actions[]` | CTA buttons (`{ theme, text, link }`) |
+| `features[]` | Feature cards (`{ icon, title, details, link }`) |
 
-例见根 `index.md`。
+## 5. Theme (default-theme fields, inherited)
 
-## 5. 主题(theme — 默认主题字段,被我们继承)
-
-| 字段 | 作用 |
+| Field | Effect |
 |---|---|
-| `titleTemplate` | 浏览器 tab 标题模板(覆盖 site title) |
-| `head` | 额外 `<head>` 标签 |
+| `titleTemplate` | Browser tab title template |
+| `head` | Extra `<head>` tags |
 
-## 6. 完整示例
+## 6. Examples
 
-普通文档:
+Regular doc:
 ```yaml
 ---
-title: 我的文章
+title: My Article
 aliases: [foo, bar]
 tags: [demo, draft]
 
-# DocHeader banner
 cover: https://example.com/cover.jpg
 banner:
   y: 35%
-  blur: 0
   overlay: 0.55
-  text: light
 created: 2025-12-01
 updated: 2026-05-20
 cssclasses: [my-page]
 
-# Sidebar
-sidebarTitle: 🚀 我的文章
+sidebarTitle: 🚀 My Article
 order: 1
-sidebarHidden: false
 
-# VitePress
 outline: [2, 3]
 aside: true
-prev: { text: 上一篇, link: /prev }
+prev: { text: Previous, link: /prev }
 next: false
 ---
 ```
 
-目录的 dirIndex(`<folder>.md` / `index.md` / `README.md`):
+Folder index (`<folder>.md` / `index.md` / `README.md`):
 ```yaml
 ---
-title: 文档区
+title: Docs section
 sidebarTitle: Guide
-sidebarCollapsed: false   # 默认展开
+sidebarCollapsed: false
 order: 1
 ---
 ```
 
-`_sidebar.md` 手动 override(详见 [[sidebar-override]]):
+`_sidebar.md` override (see [[sidebar-override|sidebar-override]]):
 ```yaml
 ---
 sidebar:
-  - text: 概览
+  - text: Overview
     link: /guide/overview
-  - text: 文档
+  - text: Docs
     collapsed: false
     items:
-      - text: 安装
+      - text: Install
         link: /guide/docs/install
 ---
 ```
 
-Home 落地页:
+Home landing:
 ```yaml
 ---
 layout: home
 hero:
   name: My Site
   text: Subtitle
-  tagline: A description
+  tagline: Description
   actions:
     - theme: brand
       text: Get Started
@@ -164,7 +152,7 @@ features:
 ---
 ```
 
-虚拟 group(把文件归到跨目录的命名组):
+Virtual group:
 ```yaml
 ---
 title: Custom theme overrides
@@ -172,33 +160,33 @@ sidebarGroup: Customization
 order: 1
 ---
 ```
-不在物理目录(advanced/)的 group 下,而是跑去 "Customization" 虚拟组。
 
-空 dirIndex(只用 frontmatter,不当 link):
+Empty dirIndex (frontmatter-only,no body):
 ```yaml
 ---
-# tour/tour.md 内容为空 → group 标题 'Tour',但点击不跳转,只展开/折叠
+# tour/tour.md with no body → group titled 'Tour' but not a link,
+# only expandable/collapsible
 sidebarTitle: Tour & Showcase
 sidebarCollapsed: false
 ---
 ```
 
-## 7. 字段优先级速查
+## 7. Precedence cheatsheet
 
-**sidebar 标题**:`sidebarTitle` > `title` > 第一个 `# H1` > basename(humanize 后)
+**sidebar label**: `sidebarTitle` > `title` > first `# H1` > basename (humanized)
 
-**banner 标题**:`title` > `page.title` > basename(humanize 后)
+**banner title**: `title` > `page.title` > basename (humanized)
 
-**Created 显示**:`created` > nothing
+**created shown**: `created` > nothing
 
-**Updated 显示**:`updated` > `page.lastUpdated`(VitePress 提供,通常来自 git)
+**updated shown**: `updated` > `page.lastUpdated` (git)
 
-**dirIndex 选取**:`<folder>.md`(大小写不敏感) > `index.md` > `README.md`
+**dirIndex picked**: `<folder>.md` (case-insensitive) > `index.md` > `README.md`
 
-**Tag 来源**:`frontmatter.tags` + 正文 `#tag`(可在 config 关 `views.parseInlineTags: false`)
+**tags source**: `frontmatter.tags` + body `#tag` (disable inline parsing via `views.parseInlineTags: false`)
 
-**Alias 解析**:大小写不敏感(默认);可在 config 改 `caseSensitive: true`
+**alias matching**: case-insensitive by default; toggle via `caseSensitive: true`
 
-## 8. 不识别的字段
+## 8. Unrecognized fields
 
-我们**只读**上表列的字段。其它你自定义的字段(如 `author`、`category`、`status` 等)**不会出错**,会进 `entry.frontmatter` 保留;你的主题/Vue 组件可以读 `useData().frontmatter.author` 用。
+We **only read** the fields above. Custom fields (`author`, `category`, `status`...) **don't fail** and are preserved in `entry.frontmatter`; your theme/Vue components can read `useData().frontmatter.author` to use them.

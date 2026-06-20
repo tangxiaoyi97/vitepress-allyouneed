@@ -1,149 +1,105 @@
 ---
-title: 手动覆盖 sidebar(_sidebar.md)
+title: Sidebar manual override (_sidebar.md)
 sidebarTitle: Sidebar Override
 order: 6
 tags: [guide, sidebar, override]
 ---
 
-# `_sidebar.md` —— 手动覆盖某目录的 sidebar
+# `_sidebar.md` — manual sidebar override per directory
 
-`autoFolderIndex` / `sidebarAuto` 自动生成的 sidebar 99% 场景够用。少数情况你想**完全自己定**某个目录的 sidebar(改顺序、加外链、分组重命名 …),不想动 frontmatter 也不想动 config —— 这时在该目录下放一个 `_sidebar.md` 即可。
+`sidebarAuto` covers 99% cases. For the rest: drop a `_sidebar.md` in any directory to **completely replace** its sidebar.
 
-## 触发条件
+## Trigger
 
-某 DirNode 下存在 `_sidebar.md`(basename 大小写不敏感) → 该目录**整段** sidebar 用这个文件定义,完全跳过 `sidebarAuto` 的扫描。
+A directory containing `_sidebar.md` (case-insensitive basename) → that directory's sidebar is taken **entirely** from the file. `sidebarAuto`'s scan skips it.
 
-- 文件本身**不会**出现在 sidebar item 里(它是配置载体)
-- frontmatter 优先于 markdown list(两者都写时 frontmatter 生效)
-- 解析失败 → 降级到自动生成,console.warn
+- The file itself doesn't appear in sidebar items (it's a config carrier)
+- frontmatter `sidebar:` array wins over markdown list
+- Parse failure → falls back to auto-gen + console.warn
 
-## 两种写法
+## Two ways to write it
 
-### 1) frontmatter 数组(VitePress 原生 shape)
+### 1) frontmatter `sidebar` array (VitePress native)
 
 ```yaml
 ---
 sidebar:
-  - text: 概览
+  - text: Overview
     link: /guide/overview
-  - text: 文档
+  - text: Docs
     collapsed: false
     items:
-      - text: 安装
+      - text: Install
         link: /guide/docs/install
-      - text: 配置
+      - text: Configure
         link: /guide/docs/configure
-      - text: Sidebar 自动生成
-        link: /guide/docs/sidebar-auto
-  - text: 进阶
+  - text: Advanced
     collapsed: true
     items:
-      - text: 自定义主题
+      - text: Custom theme
         link: /guide/advanced/custom-theme
-      - text: 主题协作
-        link: /guide/advanced/theme-interop
 ---
 ```
 
-字段全部按 VitePress `SidebarItem` 标准:`text` / `link` / `items` / `collapsed` / `base`。
+Fields follow VitePress `SidebarItem`: `text` / `link` / `items` / `collapsed` / `base`.
 
-### 2) Markdown 列表(更 Obsidian 友好)
+### 2) Markdown list (Obsidian-friendly)
 
 ```markdown
-- [[overview|概览]]
-- 文档 +
-  - [[docs/install|安装]]
-  - [[docs/configure|配置]]
-  - [[docs/sidebar-auto|Sidebar 自动生成]]
-- 进阶 -
-  - [[advanced/custom-theme|自定义主题]]
-  - [[advanced/theme-interop|主题协作]]
-- [外部链接](https://example.com)
+- [[overview|Overview]]
+- Docs +
+  - [[docs/install|Install]]
+  - [[docs/configure|Configure]]
+  - [[docs/sidebar-auto|Sidebar auto-generation]]
+- Advanced -
+  - [[advanced/custom-theme|Custom theme]]
+  - [[advanced/theme-interop|Theme interop]]
+- [External link](https://example.com)
 ```
 
-#### 列表语法
+#### List syntax
 
-| 写法 | 解析 |
+| Form | Parsed to |
 |---|---|
-| `- [[note]]` | item 文本 = note 的 sidebarTitle/title/H1/basename,link = note.url |
-| `- [[note\|文本]]` | item 文本 = 文本,link = note.url |
-| `- [text](url)` | 普通链接(外链/绝对 URL 都行) |
-| `- 纯文字` | group title(无 link,可有子级) |
-| `- 文字 +` | 同上,后缀 `+` = group 默认展开 |
-| `- 文字 -` | 同上,后缀 `-` = group 默认折叠 |
+| `- [[note]]` | text = note's `sidebarTitle/title/H1/basename`, link = note.url |
+| `- [[note\|text]]` | text = "text", link = note.url |
+| `- [text](url)` | plain link (external/absolute) |
+| `- plain text` | group title (no link, can have children) |
+| `- text +` | same, `+` suffix = group expanded by default |
+| `- text -` | same, `-` suffix = group collapsed by default |
 
-#### 缩进
+#### Indentation
 
-- 2 空格 = 一级
-- tab 等价 2 空格
-- 缩进决定层级,**第一行的缩进 = 0**(顶级)
+- 2 spaces = one level
+- tabs equal 2 spaces
+- First-line indent = level 0 (top)
 
-```markdown
-- A          (0 空格 → 顶级)
-  - A.1      (2 空格 → A 的子级)
-    - A.1.x  (4 空格 → A.1 的子级)
-- B          (0 空格 → 顶级)
-```
+#### Path resolution
 
-#### 路径解析
+`[[wikilink]]` resolves like the wikilink module:
 
-`[[wikilink]]` 的 target 解析顺序(沿用 wikilink 模块的规则):
+1. Contains `/` → try absolute then relative to _sidebar.md dir
+2. Otherwise try alias
+3. Otherwise try basename (whole vault)
+4. Not found → text only, no link (doesn't become a dead link)
 
-1. 如含 `/` → 当作相对 `_sidebar.md` 所在目录,或绝对路径
-2. 否则当 alias 查
-3. 否则当 basename 查(全 vault)
-4. 找不到 → link 留空,只显示文字(不会变死链 wikilink)
+## Behavior details
 
-## 行为细节
+- Only affects that directory; subdirs follow auto rules unless they also have `_sidebar.md`
+- `per-folder` layout: `_sidebar.md` replaces that top-level path's full sidebar
+- `tree` / `flat`: replaces that directory's slot in the nested structure
+- frontmatter array `link` field used verbatim (no resolution); markdown list does resolution
+- `_sidebar.md` doesn't enter stats/graph/tags (`_` prefix excluded)
 
-- **作用范围只这一目录**:`/guide/_sidebar.md` 只覆盖 `/guide/` 这一层 sidebar。子目录(`/guide/docs/`) 仍按自动规则,**除非**该子目录也放了一份 `_sidebar.md`
-- **per-folder layout**:`_sidebar.md` 完全替换该顶层 path 的 sidebar 数组(包括根 dirIndex link 和子组渲染)
-- **`tree` / `flat` layout**:`_sidebar.md` 替换该目录在嵌套 sidebar 里的位置(它 + 子级)
-- **frontmatter.sidebar 数组里的 link 字段你写啥就是啥**,不会做相对路径解析(VitePress 原样使用);用 markdown list 形式才能享受 wikilink 路径解析
-- **`_sidebar.md` 不进 stats / graph / tags 视图**(它有 `_` 前缀 basename,被视图过滤排除)
+## When to use / not use
 
-## 示例
+**Use when**:
+- Want external links in sidebar
+- Want full custom order without per-file `order`
+- Want fancy titles (emojis, separators)
+- Cross-folder "flat" lists
 
-vault 里:
-```
-guide/
-├── _sidebar.md       ← 手写覆盖
-├── overview.md
-├── docs/
-│   ├── install.md
-│   └── configure.md
-└── advanced/
-    ├── custom-theme.md
-    └── theme-interop.md
-```
-
-`guide/_sidebar.md`:
-```markdown
----
-title: Guide sidebar
----
-
-- [[overview|🚀 开始使用]]
-- 📚 文档 +
-  - [[docs/install|安装]]
-  - [[docs/configure|配置]]
-- 🛠️ 进阶 -
-  - [[advanced/custom-theme|自定义主题]]
-  - [[advanced/theme-interop|主题协作]]
-- [GitHub](https://github.com/tangxiaoyi97/vitepress-allyouneed)
-```
-
-效果:`/guide/` 路径下的 sidebar 完全照这个写法显示,**忽略**所有 frontmatter `order` / `sidebarTitle` 等自动生成相关字段。
-
-## 何时该用 / 不该用
-
-**该用**:
-- 想加非 vault 内的外部链接到 sidebar
-- 想完全自定义顺序而不想给每个文件加 `order`
-- 想要更花哨的标题(emoji / 分隔符 / 等)
-- 想跨子目录引用做"flat 列表"
-
-**不该用**:
-- 简单改一两个排序 → 用 frontmatter `order` 更快
-- 改一个文件标题 → 用 frontmatter `sidebarTitle` 更快
-- 整站统一规则 → 用 config 里的 `sidebarAuto.*`
+**Don't use when**:
+- Reordering a few files → frontmatter `order` is faster
+- Renaming one file → frontmatter `sidebarTitle` is faster
+- Site-wide rules → use config `sidebarAuto.*`

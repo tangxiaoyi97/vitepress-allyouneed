@@ -1,35 +1,35 @@
 ---
-title: Obsidian 语法
-sidebarTitle: Obsidian 语法
+title: Obsidian syntax
+sidebarTitle: Obsidian syntax
 order: 5
 tags: [guide, syntax]
 ---
 
-# Obsidian 语法
+# Obsidian syntax
 
-完整的语法 demo 在 [[v0.3-tour|v0.3 Tour]],这里只列规则。
+Full demo on the `/tour/v0.3-tour` page; this is the cheatsheet.
 
 ## Wikilinks
 
-| 写法 | 含义 |
+| Form | Meaning |
 |---|---|
-| `[[note]]` | 普通链接 |
-| `[[note\|alias]]` | 自定义文本 |
-| `[[note#heading]]` | 跳锚点 |
-| `[[note#heading\|alias]]` | 锚点 + 自定义文本 |
-| `[[folder/note]]` | 路径形式 |
+| `[[note]]` | Plain link |
+| `[[note\|alias]]` | Custom text |
+| `[[note#heading]]` | Anchor jump |
+| `[[note#heading\|alias]]` | Both |
+| `[[folder/note]]` | Path form |
 
-frontmatter `aliases:` 也参与 wikilink 匹配。
+frontmatter `aliases:` also participates in resolution.
 
 ## Embeds
 
-| 写法 | 渲染 |
+| Form | Renders |
 |---|---|
 | `![[img.png]]` / `![[img.png\|400]]` / `![[img.png\|alt\|400x300]]` | `<img>` |
 | `![[clip.mp3]]` | `<audio controls>` |
 | `![[movie.mp4\|640x360]]` | `<video controls>` |
 | `![[doc.pdf\|800x900]]` | `<iframe>` |
-| `![[note]]` / `![[note#heading]]` | transclusion(内联整篇/节段) |
+| `![[note]]` / `![[note#heading]]` | transclusion (inline full / section) |
 
 ## Callouts
 
@@ -38,19 +38,19 @@ frontmatter `aliases:` 也参与 wikilink 匹配。
 > body
 ```
 
-13 种 type:`note / info / tip / success / question / warning / failure / danger / bug / example / quote / abstract / todo`,加别名(`hint=tip`, `check=success`, `error=danger`...)。折叠:`[!info]+` 默认开,`[!info]-` 默认关。嵌套用 `> > [!info]`。
+13 types: `note / info / tip / success / question / warning / failure / danger / bug / example / quote / abstract / todo`,plus aliases (`hint=tip`, `check=success`, `error=danger`...). Folding: `[!info]+` open by default, `[!info]-` closed. Nesting via `> > [!info]`.
 
-## 其它行内
+## Other inline
 
-- `==高亮==` → `<mark>`
-- `%%comment%%` → 删除(不渲染)
-- `[^id]` + 单独一行的 `[^id]: text` → Pandoc 风格脚注
-- 段落末尾 `^block-id` → 给该块加 `id="^block-id"`,可被 URL hash 跳转
-- 正文 `#tag` → 链到 `/_perspectives_/tags#tag`
+- `==highlight==` → `<mark>`
+- `%%comment%%` → stripped (not rendered)
+- `[^id]` + standalone line `[^id]: text` → Pandoc footnotes
+- Trailing `^block-id` → adds `id="^block-id"` to that block, URL hash jump works
+- Body `#tag` → links to `/_perspectives_/tags#tag`
 
-## 模块开关
+## Module switches
 
-任一可独立关闭:
+Each can be disabled independently:
 
 ```ts
 {

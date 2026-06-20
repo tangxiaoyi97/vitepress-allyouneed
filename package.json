@@ -1,6 +1,6 @@
 {
   "name": "vitepress-allyouneed",
-  "version": "0.5.0-beta.3",
+  "version": "0.5.0",
   "description": "VitePress plugin that turns an Obsidian/Notion-style vault into a website: wikilinks, transclusion, asset pipeline, auto-generated views (Graph/Stats/Tags), Obsidian syntax (callouts/highlight/comments/footnotes/block-refs/audio-video-pdf), sidebar auto-generation, document header. Forked from actuallysomecat/markdown-it-wikilinks-plus.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -51,7 +51,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rimraf dist coverage"
+    "clean": "rimraf dist coverage",
+    "prepublishOnly": "npm run clean && npm run typecheck && npm run build && npm test"
   },
   "keywords": [
     "vitepress",
@@ -70,6 +71,10 @@
   ],
   "license": "MIT",
   "author": "tangxiaoyi97 <tangxy97@hotmail.com>",
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
+  },
   "homepage": "https://github.com/tangxiaoyi97/vitepress-allyouneed",
   "bugs": "https://github.com/tangxiaoyi97/vitepress-allyouneed/issues",
   "repository": {

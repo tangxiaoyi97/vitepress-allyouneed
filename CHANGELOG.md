@@ -2,6 +2,38 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.5.0] - 2026-06-20
+
+0.5.0 正式版。收口此前 4 个 beta(主题底层化 + `@layer`),并叠加图谱体验、UI 健壮性与文档站重做。
+
+### 主题集成(自 0.5.0-beta.x)
+- 全部 7 个 CSS 文件包进 `@layer vitepress-allyouneed`(浏览器原生 cascade layer,各文件头尾自包,不经 bundler 黑盒),用户 / 第三方主题的 unlayered CSS 自动覆盖,无需关心权重或加载顺序。
+- 删除所有 `!important`。
+- DocHeader banner 标题改用 `<div role="heading" aria-level="1">`,躲开 VitePress `.vp-doc h1` 选择器,让 layered 字号正确生效。
+- 新 `defineTheme()` 工厂:零配置一行接入,或 `defineTheme({ extends: 第三方主题 })` 嵌套。
+
+### 图谱体验
+- 缩放时节点名平滑淡出 / 放大浮现 —— 修复此前缩小标签不变淡的 bug(SVG `opacity` 属性被 CSS 盖过,改用 CSS 变量 `--ayn-label-zoom` 驱动)。
+- hover 稳定命中:每个节点加透明命中圈(半径 `max(可见+8, 12)`),小节点也好点;放大反馈改用 `transform: scale`,不改命中几何、不抖。
+- 物理参数重调(更轻柔收敛),rAF 合帧渲染,ResizeObserver 防抖修自激循环;移动端容器高度自适应。
+
+### 健壮性
+- **死链预扫线性化**:`scan-wikilinks` 的行内代码剥离从带反向引用的正则改为线性扫描,杜绝大量未闭合反引号导致的 ReDoS。
+- **dev asset 中间件**:用索引里的 size/mtime 出 ETag / 304 协商缓存(去掉每请求一次同步 statSync),basename 兜底收紧避免错配。
+- **热更新**:`statSync` 仅在 `ENOENT` 时摘除文件,避免编辑器原子保存的临时错误误删索引。
+- **视图数据校验**:`useVaultData` 校验 `nodes/edges/stats/tags/meta` 五字段齐全,损坏数据优雅报错而非整页崩。
+- **日期统一 UTC 格式化**(DocHeader / Stats / Tags),消除 SSR 构建机与浏览器时区不一致的水合不匹配。
+- Tags 单行内联标签上限 3 个 + “+N” 折叠;cover 图加载失败时占位底色改深色保证白字可读;字数统计改 `nextTick`+rAF + CJK 字符类扩展。
+
+### 文档站
+- 新增 **Showcase 功能展示区**(源码 + 实际渲染对照,覆盖全部功能)。
+- **i18n 重构**:英文为默认(root),中文移到 `/zh/`,中英内容同步。
+- 修正 docs 中过时描述(`%%注释%%` 默认保留为 HTML 注释、`[[note#^id]]` 暂不解析、`cssclasses` 未实现等),补 v0.4 / v0.5 changelog 与 tour。
+
+### 工程
+- `prepublishOnly` 钩子:发布前自动 clean + typecheck + build + test,杜绝发出未构建的空包。
+- 版本号由 tsup 构建期从 `package.json` 注入(`__AYN_VERSION__`),源码不再硬编码。
+
 ## [0.5.0-beta.3] - 2026-05-22
 
 ### Fixed

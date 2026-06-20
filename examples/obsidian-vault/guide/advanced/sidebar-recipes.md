@@ -7,29 +7,29 @@ tags: [advanced, sidebar]
 
 # Sidebar recipes
 
-四个常用配置组合。完整参数见 [[sidebar-auto|Sidebar 自动生成文档]]。
+Four common config combinations. Full reference: [[sidebar-auto|sidebar auto-generation]].
 
-## A. 经典文档站(单一全局 sidebar)
+## A. Classic docs site (single global sidebar)
 
 ```ts
 sidebarAuto: { layout: 'tree' }
 ```
 
-所有页面看同一份 sidebar,子目录嵌套成 collapsible 子组。**默认行为**。
+All pages see the same sidebar, subdirs nested as collapsible sub-groups. **Default**.
 
-## B. 浅层 wiki(所有目录平铺)
+## B. Shallow wiki (all dirs flat)
 
 ```ts
 sidebarAuto: { layout: 'flat' }
 ```
 
-没有嵌套,每个文件夹都是顶级 group。适合单层的笔记 vault。
+No nesting; every folder is a top-level group. Great for single-layer note vaults.
 
-## C. 多产品文档(nav tab + 独立 sidebar)
+## C. Multi-product docs (nav tabs + independent sidebars)
 
 ```ts
 themeConfig: {
-  // nav 不写
+  // no nav written
 },
 sidebarAuto: {
   layout: 'per-folder',
@@ -38,9 +38,9 @@ sidebarAuto: {
 }
 ```
 
-顶部 nav 自动按顶层目录生成 tab,左侧 sidebar 跟着 URL 切换。本示例站用的就是这个。
+Nav auto-generated from top folders; left sidebar swaps per URL. **This is what the example site uses.**
 
-## D. 全自动 + 严格控制
+## D. Full auto + strict control
 
 ```ts
 sidebarAuto: {
@@ -55,11 +55,11 @@ sidebarAuto: {
 }
 ```
 
-强制覆盖用户写的 sidebar(`mode: 'force'`),侧边栏内部子组只展开不跳转(`groupLink: 'top-level'`),嵌套不超过 2 层,排除草稿。
+Force-overrides user sidebar (`mode: 'force'`); inner groups expand-only (`groupLink: 'top-level'`); nesting capped at 2; drafts excluded.
 
-## frontmatter 控制典型
+## Typical frontmatter controls
 
-排序 + 标题:
+Sort + label:
 ```yaml
 ---
 sidebarTitle: 🚀 Quick Start
@@ -67,20 +67,20 @@ order: 1
 ---
 ```
 
-隐藏:
+Hide:
 ```yaml
 ---
 sidebarHidden: true
 ---
 ```
 
-只读 frontmatter 不当 link 的目录索引:
+Read-only frontmatter dirIndex (no link):
 ```yaml
 ---
-# tour/tour.md 内容为空,只有 frontmatter
+# tour/tour.md with no body, frontmatter only
 sidebarTitle: Tour & Showcase
 sidebarCollapsed: false
 ---
 ```
 
-这种"空 dirIndex"文件会被 sidebar 用 frontmatter,但 group **不会带 link**,**也不会被 autoFolderIndex 覆盖**。
+This kind of "empty dirIndex" file is read for frontmatter, but the group **gets no link** and **isn't overwritten by autoFolderIndex**.

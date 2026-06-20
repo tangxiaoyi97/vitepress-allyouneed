@@ -11,12 +11,10 @@ tags: [guide, setup]
 npm i -D vitepress-allyouneed vitepress
 ```
 
-- VitePress 是 peerDependency,本插件不锁版本
-- Node 18+ 推荐
+- VitePress is a peerDependency,not bundled
+- Node 18+ recommended
 
-## 文件结构
-
-最小可运行:
+## Project layout
 
 ```
 my-vault/
@@ -25,7 +23,7 @@ my-vault/
 │   └── theme/
 │       └── index.ts
 ├── package.json
-└── (你的 .md 笔记,任意嵌套)
+└── (your .md notes,nested freely)
 ```
 
-下一步:[[configure|配置]]。
+Next: [[configure|Configure]].

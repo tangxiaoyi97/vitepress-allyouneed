@@ -3,37 +3,63 @@ layout: home
 
 hero:
   name: vitepress-allyouneed
-  text: Obsidian vault → VitePress, 零配置
-  tagline: 一个插件搞定 wikilinks、嵌入、Obsidian 语法、视图、侧边栏、文档头部
+  text: Turn your Obsidian vault into a website
+  tagline: One plugin for wikilinks, embeds, Obsidian syntax, graph, sidebar, and doc header — zero config
   actions:
     - theme: brand
-      text: 立刻上手
+      text: Showcase
+      link: /showcase/
+    - theme: alt
+      text: Get Started
       link: /guide/overview
     - theme: alt
-      text: v0.3 特性巡览
-      link: /tour/v0.3-tour
-    - theme: alt
-      text: 测试沙盒
-      link: /test/header/
+      text: v0.5 Tour
+      link: /tour/v0.5-tour
 
 features:
   - icon: 🔗
-    title: Wikilinks + 嵌入
-    details: '`[[note]]` / `[[note#heading|alias]]` / `![[img\|400]]` / `![[movie.mp4\|640x360]]` / `![[note]]` 整篇 transclusion，全套 Obsidian 链接语法。'
-  - icon: 📝
-    title: Obsidian 原生语法
-    details: 13 种 callouts(+折叠+别名+嵌套)、`==高亮==`、`%%注释%%`、Pandoc footnotes、`^block-ref`、正文 `#tag`,纯笔记 vault 零修改可用。
-  - icon: 🎬
-    title: 自动视图
-    details: 'VaultGraph 关系图 / VaultStats 统计 / Tags 标签云 三个视图组件自动生成,挂到 nav 下拉。'
+    title: Wikilinks
+    details: '`[[note]]`, `[[note|alias]]`, `[[note#heading]]`, path form and folder form. Dead links are flagged visually; anchors support exact / section-number / fuzzy matching.'
+    link: /showcase/wikilinks
+    linkText: See it
+  - icon: 📄
+    title: Embeds & Media
+    details: '`![[note]]` full transclusion, `![[note#heading]]` section embeds; `![[img.png|400]]` images, audio, video, and PDF — all through the asset pipeline.'
+    link: /showcase/transclusion
+    linkText: See it
+  - icon: 💬
+    title: 13 Callouts
+    details: 'note / tip / warning / danger … the full Obsidian callout set, with `+`/`-` folding, custom titles, nesting, and Markdown inside titles.'
+    link: /showcase/callouts
+    linkText: See it
+  - icon: ✍️
+    title: Native syntax
+    details: '`==highlight==`, `%%comment%%`, Pandoc footnotes `[^1]`, `^block-id` anchors, body `#tags` — plain note vaults work with zero changes.'
+    link: /showcase/syntax
+    linkText: See it
+  - icon: 🕸️
+    title: Three views
+    details: 'VaultGraph (D3 force-directed), VaultStats, and Tags cloud — auto-generated from your vault and added to the nav.'
+    link: /showcase/views
+    linkText: See it
   - icon: 📂
-    title: 自动侧边栏 + nav
-    details: 'sidebar 从目录结构自动嵌套生成;`autoNav` 把顶级目录变 nav tabs。三种 layout 自由切换。'
+    title: Auto sidebar
+    details: 'Sidebar generated from folder structure with nested groups; `_sidebar.md` for manual override; tree / per-folder layouts; sorting and folder links fully configurable.'
+    link: /guide/docs/sidebar-auto
+    linkText: Docs
   - icon: 🖼️
-    title: DocHeader banner
-    details: '文档顶部 cover/dates/tags/word-count 一栏齐全;`frontmatter.banner` 可调位置/模糊/透明度/暗化。'
+    title: Doc header banner
+    details: 'Document top with cover image / created·updated dates / word-count reading time / tags; `banner` frontmatter tunes position, blur, opacity, overlay.'
+    link: /guide/docs/doc-header
+    linkText: Docs
   - icon: 🎨
-    title: 主题完全可覆盖
-    details: 所有视觉走 `--ayn-*` CSS 变量。第三方主题后加载就能换皮,不需要 fork。
-
+    title: Fully themable
+    details: 'All visuals via `--ayn-*` CSS variables, `@layer`-isolated so they never leak. Third-party themes override by loading after ours — no fork needed.'
+    link: /guide/advanced/theme-interop
+    linkText: Docs
+  - icon: 🌐
+    title: i18n ready
+    details: 'Built on VitePress native locales. The plugin auto-generates a matching sidebar per language; root and sub-locales never cross-contaminate.'
+    link: /guide/docs/configure
+    linkText: Docs
 ---

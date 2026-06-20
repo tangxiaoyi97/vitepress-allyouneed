@@ -1,11 +1,12 @@
 import { defineConfigWithAllYouNeed } from 'vitepress-allyouneed/vitepress'
 
 /**
- * v0.3 示例配置:
- *   - 4 区 vault(Home / Guide / Tour / Test)
- *   - per-folder sidebar 自动生成
- *   - **i18n**:VitePress 原生 locales,zh-CN 是 root,en 在 /en/ 下;
- *     wrapper 自动给 root sidebar 排除 /en/ 子树,给 en locale 生成对应 sidebar
+ * 示例配置(v0.5):
+ *   - 区:Home / Showcase / Guide / Tour / Test
+ *   - per-folder/tree sidebar 自动生成
+ *   - **i18n**:英文是 root(默认,在 `/`),中文在 `/zh/`。
+ *     wrapper 自动给 root sidebar 排除 /zh/ 子树,给 zh locale 生成对应 sidebar。
+ *     test/ 与 _perspectives_/ 是共享内容(不翻译),挂在 root。
  */
 
 const DEPLOY_BASE =
@@ -19,37 +20,40 @@ export default defineConfigWithAllYouNeed(
     base: DEPLOY_BASE,
     cleanUrls: true,
     ignoreDeadLinks: true,
-    srcExclude: ['README.md', 'HOWTO.md'],
+    srcExclude: ['README.md', 'HOWTO.md', 'MIGRATE-i18n.sh'],
 
     markdown: { math: true },
 
     // ── 多语言 ──────────────────────────────────────────────────
-    // VitePress 看到 locales 有多个 key,自动给 nav 加语言切换器
+    // 英文 = root(默认语言),中文在 /zh/。VitePress 见到多 locale 自动加
+    // 右上角语言切换器。
     locales: {
+      // 默认语言:英文,无路径前缀
       root: {
-        label: '简体中文',
-        lang: 'zh-CN',
+        label: 'English',
+        lang: 'en-US',
         themeConfig: {
           nav: [
-            { text: 'Home', link: '/', activeMatch: '^/(?!guide/|tour/|test/|en/)' },
+            { text: 'Home', link: '/', activeMatch: '^/(?!guide/|showcase/|tour/|test/|zh/)' },
+            { text: 'Showcase', link: '/showcase/', activeMatch: '^/showcase/' },
             { text: 'Guide', link: '/guide/overview', activeMatch: '^/guide/' },
-            { text: 'Tour', link: '/tour/v0.3-tour', activeMatch: '^/tour/' },
+            { text: 'Tour', link: '/tour/v0.5-tour', activeMatch: '^/tour/' },
             { text: 'Test', link: '/test/header/', activeMatch: '^/test/' },
           ],
         },
       },
-      en: {
-        label: 'English',
-        lang: 'en-US',
-        link: '/en/',
+      // 中文:在 /zh/ 下
+      zh: {
+        label: '简体中文',
+        lang: 'zh-CN',
+        link: '/zh/',
         themeConfig: {
-          // EN nav 故意只列 Home + Guide。
-          // Tour / Test 内容(showcase + 测试笔记)还没翻译,EN 用户要看
-          // 需要先用右上角语言切换器切回中文。这避免了跨 locale 跳转把
-          // /tour/foo 被 EN 上下文加 prefix 成 /en/tour/foo 的 404 问题。
           nav: [
-            { text: 'Home', link: '/en/', activeMatch: '^/en/(?!guide/)' },
-            { text: 'Guide', link: '/en/guide/overview', activeMatch: '^/en/guide/' },
+            { text: '首页', link: '/zh/', activeMatch: '^/zh/(?!guide/|showcase/|tour/)' },
+            { text: '功能展示', link: '/zh/showcase/', activeMatch: '^/zh/showcase/' },
+            { text: '文档', link: '/zh/guide/overview', activeMatch: '^/zh/guide/' },
+            { text: '巡览', link: '/zh/tour/v0.5-tour', activeMatch: '^/zh/tour/' },
+            { text: '测试', link: '/test/header/', activeMatch: '^/test/' },
           ],
         },
       },
@@ -63,16 +67,14 @@ export default defineConfigWithAllYouNeed(
     sidebarAuto: {
       mode: 'fill-if-empty',
       layout: 'tree',               // ⭐ 默认推荐:单一全局嵌套 sidebar
-      // 想试"nav tab 切换 → 切 sidebar" 体验,改成 'per-folder' + 删 nav 手写
       collapsed: false,
       sortBy: 'order-then-title',
       groupLink: 'all',
-      // v0.4.0:autoFolderIndex 已删除,文件夹链接由 folderLinkOrder 直接解析
       folderLinkOrder: ['same-name', 'index', 'readme', 'first-file'],
       stripNumericPrefix: true,
-      groupOrder: ['Guide', 'Tour', 'Test'],
-      // i18n:wrapper 会自动给 root 加 excludePrefixes: ['en'],
-      // 给 en locale 加 includePrefix: 'en'
+      groupOrder: ['Showcase', 'Guide', 'Tour', 'Test'],
+      // i18n:wrapper 会自动给 root(英文)加 excludePrefixes: ['zh'],
+      // 给 zh locale 加 includePrefix: 'zh'
     },
   },
 )

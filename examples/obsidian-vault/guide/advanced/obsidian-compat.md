@@ -1,83 +1,83 @@
 ---
-title: Obsidian 兼容性矩阵
-sidebarTitle: Obsidian 兼容
+title: Obsidian compatibility matrix
+sidebarTitle: Obsidian compat
 order: 4
 tags: [advanced, obsidian, compat]
 ---
 
-# 把 Obsidian vault 打包成 VitePress 站点 —— 能跑哪些?
+# Packaging an Obsidian vault as a VitePress site — what works?
 
 ## TL;DR
 
-| Vault 类型 | 状况 |
+| Vault type | Status |
 |---|---|
-| **纯 Markdown + Obsidian 原生语法** | ✅ 几乎零修改 |
-| **带 Dataview / Templater / Tasks 等插件查询** | ❌ 这些插件语法在 vault 里以代码块/特殊语法存在,本插件不会执行,会原样输出代码块 |
-| **重度使用 canvas / excalidraw** | ⚠️ 文件被当 asset 拷贝,**不渲染图形**,需要静态导出 |
-| **数学公式(`$...$` / `$$`)** | ⚠️ VitePress 自己有 `markdown.math` 支持,需要用户启用 |
+| **Plain Markdown + native Obsidian syntax** | ✅ Near-zero changes |
+| **With Dataview / Templater / Tasks queries** | ❌ Those plugin syntaxes stay as code blocks |
+| **Heavy canvas / excalidraw** | ⚠️ Files copied as assets, **graphs not rendered**; export first |
+| **Math (`$...$` / `$$`)** | ⚠️ VitePress has `markdown.math`; user enables it |
 
-## 详细对照
+## Detail matrix
 
-### ✅ 完全支持
+### ✅ Fully supported
 
-| Obsidian 语法 | 渲染 |
+| Obsidian syntax | Renders to |
 |---|---|
-| `[[note]]` / `[[note\|alias]]` / `[[note#heading]]` / `[[note#heading\|alias]]` | wikilink + 锚点 + 别名 |
-| `[[folder/note]]` | 路径形式 wikilink |
-| frontmatter `aliases:` | 参与 wikilink 解析 |
-| `![[image.png]]` / `![[image.png\|400]]` / `![[image.png\|alt\|400x300]]` | `<img>` + width/height 属性 |
+| `[[note]]` / `[[note\|alias]]` / `[[note#heading]]` / `[[note#heading\|alias]]` | wikilink + anchor + alias |
+| `[[folder/note]]` | Path wikilink |
+| frontmatter `aliases:` | Part of resolution |
+| `![[image.png]]` / `![[image.png\|400]]` / `![[image.png\|alt\|400x300]]` | `<img>` with width/height |
 | `![[clip.mp3]]` | `<audio controls>` |
-| `![[movie.mp4\|640x360]]` | `<video controls width height>` |
+| `![[movie.mp4\|640x360]]` | `<video controls>` |
 | `![[doc.pdf\|800x600]]` | `<iframe>` |
-| `![[note]]` / `![[note#heading]]` | transclusion(内联笔记/节段),含循环检测、深度限制 |
-| `> [!type]` callouts(13 种 + 别名 + `+` `-` 折叠 + 嵌套) | `<div class="callout">` |
-| `==高亮==` | `<mark>` |
-| `%%comment%%` | 删除(不渲染) |
-| `[^id]` + 单独一行 `[^id]: text` | Pandoc 风格脚注 |
-| 段落末尾 `^block-id` | 给该块加 `id="^block-id"`,URL hash 跳转可用 |
-| 正文 `#tag` | `<a class="ayn-tag">#tag</a>` 链到 `/_perspectives_/tags#tag` |
-| 中文文件名(`中文笔记.md`) | URL 安全编码,wikilink 可用 |
-| `frontmatter` 自定义字段 | 暴露给主题/DocHeader |
+| `![[note]]` / `![[note#heading]]` | Transclusion (full/section), cycle + depth limit |
+| `> [!type]` callouts (13 + aliases + `+` `-` folding + nesting) | `<div class="callout">` |
+| `==highlight==` | `<mark>` |
+| `%%comment%%` | Stripped |
+| `[^id]` + `[^id]: text` | Pandoc footnotes |
+| Trailing `^block-id` | Adds `id="^block-id"` + `class="ayn-block-anchor"`; URL hash jump works |
+| Body `#tag` | `<a class="ayn-tag">#tag</a>` linking to `/_perspectives_/tags#tag` |
+| Chinese filenames (`中文笔记.md`) | URL-safe encoded; wikilink works |
+| Custom frontmatter fields | Exposed to theme / DocHeader |
 
-### ⚠️ 部分支持 / 注意
+### ⚠️ Partial / notes
 
-| 项 | 状况 | 备注 |
+| Item | Status | Note |
 |---|---|---|
-| `[[note#^block-id]]` 跨页跳 block-ref | ⚠️ 部分 | 渲染时 anchor 已加在 DOM 上,**浏览器原生 URL hash 可用**;但 wikilink resolver 还没识别 `#^id` 语法,会当成普通锚点失败处理(v0.5 计划) |
-| 数学 `$x^2$` / `$$...$$` | ⚠️ 用户启用 | VitePress 内置 `markdown.math: true` 选项(需要装 `markdown-it-mathjax3`) |
-| `cssclasses:` frontmatter | ✅ | DocHeader Layout 自动应用到 `<body>` |
-| Excalidraw / Canvas (`.canvas` / `.excalidraw`) 文件 | ⚠️ | 被当 asset 拷贝到 dist,wikilink/embed 不知道怎么渲染。建议先在 Obsidian 里 export 为 svg/png 再 embed |
-| `<%`/`<%+`/`<%-` (Templater) | ❌ | 原样保留;Templater 是动态语法,VitePress 是静态构建 |
-| ` ```dataview` / ` ```dataviewjs` 代码块 | ❌ | 原样输出代码块(v0.5 路线计划做静态求值) |
-| Tasks 插件查询 / 内嵌 query | ❌ | 同上,原样输出 |
-| Daily notes UI / Calendar 插件 | ❌ | 这些是 Obsidian app UI,不是 markdown 语法 |
-| `[[]]` 用 `../` 相对路径 | ❌ | Obsidian 自己也不支持。用 basename 或绝对路径 |
+| `[[note#^block-id]]` cross-page jump | ⚠️ partial | Anchor in DOM; **browser URL hash works**. But wikilink resolver doesn't yet parse `#^id` (v0.5 planned) |
+| Math `$x^2$` / `$$...$$` | ⚠️ user enables | VitePress built-in `markdown.math: true` (needs `markdown-it-mathjax3` or similar) |
+| `cssclasses:` frontmatter | ✅ | DocHeader Layout auto-applies to `<body>` |
+| Excalidraw / Canvas (`.canvas` / `.excalidraw`) | ⚠️ | Files copied as assets; wikilink/embed doesn't render them. Export to svg/png in Obsidian first |
+| `<%`/`<%+`/`<%-` (Templater) | ❌ | Preserved as-is; Templater is dynamic, VitePress is static-build |
+| ` ```dataview` / ` ```dataviewjs` | ❌ | Preserved as code blocks (v0.5 roadmap: static eval) |
+| Tasks plugin queries | ❌ | Same |
+| Daily notes UI / Calendar | ❌ | Those are Obsidian app UI, not markdown |
+| `[[]]` with `../` relative path | ❌ | Obsidian doesn't support it either; use basename or absolute path |
 
-### ❌ 不支持
+### ❌ Not supported
 
-- Obsidian Sync / Publish 服务端能力(本插件是纯前端静态站)
-- 插件管理 / 第三方插件 runtime
-- 动态查询(任何依赖 Obsidian 内部 API 的)
-- `mod` icon / 内嵌 SVG shortcodes
+- Obsidian Sync / Publish server features (this plugin is pure static)
+- Plugin runtime / 3rd-party plugins
+- Dynamic queries (anything needing Obsidian internal API)
+- Mod icons / inline SVG shortcodes
 
-## 推荐迁移流程
+## Recommended migration flow
 
-1. **复制 vault 到一个新目录** —— 避免破坏原 vault
-2. **加 `.vitepress/config.ts` + `.vitepress/theme/index.ts`** —— 见 [[install|Install]]/[[configure|Configure]]
-3. `npm run dev` —— 启动时看 console 中**所有死链汇总**(v0.3 加的),逐个修
-4. 复杂用 Dataview/Templater 的页面:暂时手动写 markdown 或留空
-5. 检查 frontmatter 字段(`cover`/`tags`/`created`/`updated`)是否符合 [[doc-header|DocHeader]] 约定,需要时补
-6. `.canvas` / `.excalidraw`:先在 Obsidian 里导出图片,再 embed
-7. `npm run build` 出静态站
+1. **Copy vault to a new dir** — don't break the original
+2. **Add `.vitepress/config.ts` + `.vitepress/theme/index.ts`** — see [[install|Install]]/[[configure|Configure]]
+3. `npm run dev` — startup prints **all dead links in console** (v0.3 feature), fix them
+4. Pages heavy on Dataview/Templater: write markdown manually for now
+5. Check frontmatter (`cover/tags/created/updated`) against [[doc-header|DocHeader]] conventions
+6. `.canvas` / `.excalidraw`: export images first, then embed
+7. `npm run build` → static site
 
-## 与 Obsidian Publish 的差异
+## vs Obsidian Publish
 
-| 维度 | Obsidian Publish | vitepress-allyouneed |
+| Dimension | Obsidian Publish | vitepress-allyouneed |
 |---|---|---|
-| 部署 | 官方托管 | 任意静态托管(GitHub Pages / Vercel / Netlify / 自己 nginx) |
-| 价钱 | $$ | 免费(开源) |
-| 自定义主题 | 受限 | 完全自由(VitePress 主题系统) |
-| 搜索 | 自带 | VitePress 内置(本地索引) |
-| Graph view | 自带 | 自带([[v0.3-tour|v0.3 Tour]]) |
-| Dataview | 部分 | 不支持(v0.5 路线) |
-| 速度 | 慢(运行时渲染) | 快(静态生成 + Vite HMR) |
+| Hosting | Official | Any static host (GitHub Pages / Vercel / Netlify / nginx) |
+| Cost | $$ | Free (open source) |
+| Custom theme | Limited | Full freedom (VitePress theme system) |
+| Search | Built-in | VitePress built-in (local index) |
+| Graph view | Built-in | Built-in (see [[v0.3-tour|tour]]) |
+| Dataview | Partial | Not yet (v0.5 roadmap) |
+| Speed | Slow (runtime render) | Fast (static gen + Vite HMR) |
