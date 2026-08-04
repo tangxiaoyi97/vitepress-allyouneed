@@ -1,18 +1,15 @@
 /**
  * Heading 收集。
  *
- * 不引入完整 markdown-it 单纯为了收 heading —— 自己用正则扫,够快、零依赖。
- * 处理 ATX 风格(# / ## / ###),不处理 Setext(`===` / `---` 下划线风格,
- * Obsidian / VitePress 实际都极少用)。
- *
- * 识别 `{#custom-id}` 自定义 anchor 语法。
+ * 使用 markdown-it 的 block/inline token,与 VitePress anchor 插件看到的
+ * heading 文本保持一致（包括 Setext、inline Markdown 与 code spans）。
  */
 
 import type { HeadingEntry } from '../types.js'
 import { extractCustomId } from '../slugify.js'
+import MarkdownIt from 'markdown-it'
 
-const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/
-const FENCE_RE = /^(`{3,}|~{3,})/
+const headingParser = new MarkdownIt({ html: true })
 
 /**
  * 从源文件正文(去掉 frontmatter 之后)收集 heading。
@@ -24,38 +21,35 @@ export function collectHeadings(
   content: string,
   slugify: (text: string) => string,
 ): HeadingEntry[] {
-  const lines = content.split(/\r?\n/)
   const out: HeadingEntry[] = []
+  const usedSlugs = new Set<string>()
+  const tokens = headingParser.parse(content, {})
 
-  let inFence = false
-  let fenceMarker = ''
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const open = tokens[i]!
+    if (open.type !== 'heading_open') continue
+    const inline = tokens[i + 1]!
+    if (inline.type !== 'inline') continue
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!
-
-    // 跳过代码块内部
-    const fenceMatch = line.match(FENCE_RE)
-    if (fenceMatch) {
-      if (!inFence) {
-        inFence = true
-        fenceMarker = fenceMatch[1]!
-      } else if (line.startsWith(fenceMarker)) {
-        inFence = false
-        fenceMarker = ''
-      }
-      continue
-    }
-    if (inFence) continue
-
-    const m = line.match(HEADING_RE)
-    if (!m) continue
-
-    const level = m[1]!.length
-    const rawText = m[2]!
+    const rawText = (inline.children ?? [])
+      .filter((token) => token.type === 'text' || token.type === 'code_inline')
+      .map((token) => token.content)
+      .join('')
     const { text, customId } = extractCustomId(rawText)
-    const slug = customId ?? slugify(text)
+    const baseSlug = customId ?? slugify(text)
+    let uniqueSlug = baseSlug
+    let suffix = 1
+    while (usedSlugs.has(uniqueSlug)) {
+      uniqueSlug = `${baseSlug}-${suffix++}`
+    }
+    usedSlugs.add(uniqueSlug)
 
-    out.push({ level, text, slug, line: i })
+    out.push({
+      level: Number(open.tag.slice(1)),
+      text,
+      slug: uniqueSlug,
+      line: open.map?.[0] ?? 0,
+    })
   }
 
   return out

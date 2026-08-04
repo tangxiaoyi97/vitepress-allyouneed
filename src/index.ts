@@ -26,6 +26,7 @@ export type {
   FileEntry,
   AssetEntry,
   HeadingEntry,
+  BlockEntry,
   BacklinkEntry,
   ScanWarning,
   AllYouNeedEnv,

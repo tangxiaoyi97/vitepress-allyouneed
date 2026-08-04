@@ -7,12 +7,22 @@
  * 用户可以 `import Layout from 'vitepress-allyouneed/theme'` 之后自己包二层,
  * 或者直接用我们注册的默认 Theme.Layout
  */
-import { onMounted, onUnmounted, watch, computed } from 'vue'
+import {
+  onMounted,
+  onUnmounted,
+  watch,
+  computed,
+  useSlots,
+  type Component,
+} from 'vue'
 import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import DocHeader from './DocHeader.vue'
+import LocalGraph from './LocalGraph.vue'
 
+const props = defineProps<{ layout?: Component }>()
 const { frontmatter } = useData()
+const slots = useSlots()
 
 const cssClasses = computed<string[]>(() => {
   const v = frontmatter.value.cssclasses
@@ -42,16 +52,26 @@ onUnmounted(() => {
 })
 watch(cssClasses, applyClasses)
 
-const LayoutComp = DefaultTheme.Layout
+const LayoutComp = computed<Component>(() => props.layout ?? DefaultTheme.Layout)
+const forwardedSlotNames = computed(() =>
+  Object.keys(slots).filter(
+    (name) => name !== 'doc-before' && name !== 'aside-top',
+  ),
+)
 </script>
 
 <template>
   <component :is="LayoutComp">
     <template #doc-before>
       <DocHeader />
+      <slot name="doc-before" />
+    </template>
+    <template #aside-top>
+      <LocalGraph />
+      <slot name="aside-top" />
     </template>
     <!-- 透传所有其它 slot -->
-    <template v-for="(_, name) in $slots" #[name]="slotData">
+    <template v-for="name in forwardedSlotNames" :key="name" #[name]="slotData">
       <slot :name="name" v-bind="slotData ?? {}" />
     </template>
   </component>

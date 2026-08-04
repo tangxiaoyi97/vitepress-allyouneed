@@ -6,6 +6,7 @@
  */
 
 import matter from 'gray-matter'
+import { isValidTag, normalizeTag } from '../tags.js'
 
 export interface ParsedFrontmatter {
   /** 解析后的 frontmatter 对象,失败时为空对象 */
@@ -54,16 +55,16 @@ export function normalizeAliases(raw: unknown): string[] {
 export function normalizeTags(raw: unknown): string[] {
   if (raw == null) return []
   if (typeof raw === 'string') {
-    return raw
+    return [...new Set(raw
       .split(/[,\s]+/)
-      .map((s) => s.trim().replace(/^#/, ''))
-      .filter(Boolean)
+      .map(normalizeTag)
+      .filter(isValidTag))]
   }
   if (Array.isArray(raw)) {
-    return raw
+    return [...new Set(raw
       .filter((v): v is string => typeof v === 'string')
-      .map((s) => s.trim().replace(/^#/, ''))
-      .filter(Boolean)
+      .map(normalizeTag)
+      .filter(isValidTag))]
   }
   return []
 }

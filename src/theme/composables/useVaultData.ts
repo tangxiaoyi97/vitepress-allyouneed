@@ -11,6 +11,11 @@ export interface UseVaultDataResult {
   reload: () => Promise<void>
 }
 
+export interface UseVaultDataOptions {
+  /** 默认 true。设 false 时由调用方在需要时调用 reload()。 */
+  immediate?: boolean
+}
+
 /**
  * 校验 parse 出来的 vault-data.json 是否含**组件实际依赖的全部字段**。
  *
@@ -35,9 +40,11 @@ export function validateVaultData(parsed: unknown): string[] {
 
 export function useVaultData(
   fileName: string = 'vault-data.json',
+  options: UseVaultDataOptions = {},
 ): UseVaultDataResult {
+  const immediate = options.immediate ?? true
   const data = ref<VaultData | null>(null)
-  const loading = ref(true)
+  const loading = ref(immediate)
   const error = ref<string | null>(null)
 
   async function load(): Promise<void> {
@@ -82,6 +89,8 @@ export function useVaultData(
     }
   }
 
-  onMounted(load)
+  onMounted(() => {
+    if (immediate) void load()
+  })
   return { data, loading, error, reload: load }
 }

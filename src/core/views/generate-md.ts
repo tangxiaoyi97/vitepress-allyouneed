@@ -94,7 +94,7 @@ function buildViewList(options: ResolvedOptions): ViewTemplate[] {
       fileName: `${names.graph}.md`,
       title: sidebarText.graph,
       // 把配置里的 graphMaxNodes 直接注入到组件 prop
-      component: `<VaultGraph :max-nodes="${graphMaxNodes}" />`,
+      component: `<VaultGraph :max-nodes="${graphMaxNodes}" data-file-name="${escapeHtmlAttribute(options.views.dataFileName)}" />`,
     })
   }
   if (enabled.stats) {
@@ -102,7 +102,7 @@ function buildViewList(options: ResolvedOptions): ViewTemplate[] {
       kind: 'stats',
       fileName: `${names.stats}.md`,
       title: sidebarText.stats,
-      component: '<VaultStats />',
+      component: `<VaultStats data-file-name="${escapeHtmlAttribute(options.views.dataFileName)}" />`,
     })
   }
   if (enabled.tags) {
@@ -110,7 +110,7 @@ function buildViewList(options: ResolvedOptions): ViewTemplate[] {
       kind: 'tags',
       fileName: `${names.tags}.md`,
       title: sidebarText.tags,
-      component: '<Tags />',
+      component: `<Tags data-file-name="${escapeHtmlAttribute(options.views.dataFileName)}" />`,
     })
   }
   return list
@@ -122,7 +122,7 @@ function renderTemplate(v: ViewTemplate): string {
   // 视图页全屏展示 — sidebar/aside/outline 都隐藏,只剩中间 graph/stats/tags 组件
   return [
     '---',
-    `title: ${v.title}`,
+    `title: ${JSON.stringify(v.title)}`,
     'layout: doc',
     'sidebar: false',
     'aside: false',
@@ -136,4 +136,12 @@ function renderTemplate(v: ViewTemplate): string {
     v.component,
     '',
   ].join('\n')
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }

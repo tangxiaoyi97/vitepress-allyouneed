@@ -4,22 +4,19 @@
  * 职责:
  *   - configResolved 时扫描 vault 建立 VaultIndex
  *   - configureServer 注册 dev middleware(asset 流式响应,作为兜底)
- *   - **resolveId**:拦截 markdown-it 渲染时产出的 /__ayn_asset__/ 占位 URL,
- *     **直接返回 asset 的绝对文件路径**,后续交给 Vite 自带的资源管线处理:
- *       - dev:Vite 自动按文件路径服务,URL 形如 /<srcDir 相对>/<asset 路径>
- *       - build:Vite 自动 emit + 加 hash,URL 形如 /<assetsDir>/<name>-<hash>.<ext>
- *     这样我们就完全不用维护虚拟模块、不用写 load()、不会再撞 ?import 之类的边界
+ *   - **resolveId/load**:把 /__ayn_asset__/ 占位 URL 映射到稳定的虚拟模块:
+ *       - dev:导出由 dev middleware 提供的公开 URL
+ *       - build:用 this.emitFile 输出到 assets.outputDir,并按配置保留路径
  *   - handleHotUpdate:dev 增量更新
  *   - config 钩子扩 server.fs.allow:用户的 vault 可能在项目根外,Vite 默认拒绝
  *
- * 设计:**完全不用 `\0` 虚拟模块**。虚拟模块需要 Vite 在 URL 里把 id 编码成
- * `__x00__...`,加上 ?import 之类的 query,加上 URL 里 `/` 的歧义,导致 load()
- * 的 id 形态不稳定,要么找不到 asset 要么返回 HTML 把页面崩了(实测 v0.1
- * 收尾时撞过)。让 Vite 处理真实文件路径就完全没这一摊烦心事。
+ * 虚拟 id 仅携带 Base64URL 编码后的 vault 相对路径,query/hash 在占位 URL
+ * 解析时已分离。标识中没有 `/`、`%2F` 或 URL 结构字符,加载时再无损解码。
  */
 
 import fs from 'node:fs'
 import nodePath from 'node:path'
+import { createHash } from 'node:crypto'
 import type { Plugin, ResolvedConfig } from 'vite'
 import type {
   AllYouNeedOptions,
@@ -29,7 +26,11 @@ import type {
 import { resolveOptions } from './core/config-bridge.js'
 import { scanVault, updateFile, removeFile } from './core/vault/index.js'
 import { createDevMiddleware } from './core/asset-pipeline/dev-middleware.js'
-import { ASSET_PLACEHOLDER_PREFIX } from './core/asset-pipeline/build-emit.js'
+import {
+  ASSET_PLACEHOLDER_PREFIX,
+  buildAssetOutputPath,
+  buildPublicUrl,
+} from './core/asset-pipeline/build-emit.js'
 import { toPosix } from './utils/path.js'
 import { generateViewMarkdown } from './core/views/generate-md.js'
 import { writeVaultData } from './core/views/generate-data.js'
@@ -44,12 +45,35 @@ function stripQueryAndHash(id: string): string {
   return id.split('?')[0]!.split('#')[0]!
 }
 
+const VIRTUAL_ASSET_PREFIX = '\0vitepress-allyouneed:asset:'
+
+/**
+ * Rollup may derive a generated chunk name from a virtual module id. Encoding
+ * a vault path with encodeURIComponent leaves `%2F` sequences in that name;
+ * Node rejects such specifiers during VitePress SSR. Base64URL is reversible,
+ * collision-free and contains neither path separators nor percent escapes.
+ */
+function encodeVirtualAssetPath(relativePath: string): string {
+  return Buffer.from(relativePath, 'utf8').toString('base64url')
+}
+
+function decodeVirtualAssetPath(encoded: string): string | undefined {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded)) return undefined
+  try {
+    const decoded = Buffer.from(encoded, 'base64url').toString('utf8')
+    return encodeVirtualAssetPath(decoded) === encoded ? decoded : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function viteAllYouNeed(
   userOptions: AllYouNeedOptions = {},
 ): VitePluginAllYouNeedReturn {
   let resolved: ResolvedOptions
   let index: VaultIndex | undefined
   let viteConfig: ResolvedConfig | undefined
+  const emittedAssets = new Map<string, string>()
 
   const plugin: VitePluginAllYouNeedReturn = {
     name: 'vitepress-allyouneed',
@@ -96,7 +120,7 @@ export function viteAllYouNeed(
             index = scanVault(resolved)
           }
           try {
-            const dataReport = writeVaultData(index, resolved)
+            const dataReport = writeVaultData(index, resolved, cfg.publicDir)
             cfg.logger.info(
               `[vitepress-allyouneed] wrote ${dataReport.path} (${dataReport.bytes}B)`,
             )
@@ -129,7 +153,14 @@ export function viteAllYouNeed(
           }`,
         )
         index = undefined
+        // Configured strict policies (and genuine scanner failures) must stop
+        // the build instead of silently disabling the plugin.
+        throw err
       }
+    },
+
+    buildStart() {
+      emittedAssets.clear()
     },
 
     configureServer(server) {
@@ -147,18 +178,19 @@ export function viteAllYouNeed(
       // 只能刷新 Vite 插件的 index(用于 wikilink / asset / vault-data.json),
       // **不能**让 sidebar 跟着变。所以 add / remove 时必须 warn,告诉用户结
       // 构变了要重启 dev。
-      // 只关心 .md / .markdown(其它文件变化跟 sidebar/nav 结构无关)
-      const isMd = /\.(md|markdown)$/i.test(ctx.file)
-      const wasIndexed = isMd && index.files.has(ctx.file)
+      // VitePress 1.x only builds .md pages.
+      const posixFile = toPosix(ctx.file)
+      const isMd = /\.md$/i.test(posixFile)
+      const wasIndexed = isMd && index.files.has(posixFile)
       let structuralChange: 'add' | 'remove' | null = null
       try {
         const stat = fs.statSync(ctx.file)
         if (stat.isFile()) {
-          updateFile(index, ctx.file, resolved)
-          const isNowIndexed = index.files.has(ctx.file)
+          updateFile(index, posixFile, resolved)
+          const isNowIndexed = index.files.has(posixFile)
           if (!wasIndexed && isNowIndexed) structuralChange = 'add'
         } else if (!fs.existsSync(ctx.file)) {
-          removeFile(index, ctx.file, resolved)
+          removeFile(index, posixFile, resolved)
           if (wasIndexed) structuralChange = 'remove'
         }
       } catch (err) {
@@ -167,7 +199,7 @@ export function viteAllYouNeed(
         // 重命名、Windows 上占用锁),此前 bare catch 一律当删除处理,会误删
         // 仍存在的文件并触发一次多余的 dev-server 重启。
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-          removeFile(index, ctx.file, resolved)
+          removeFile(index, posixFile, resolved)
           if (wasIndexed) structuralChange = 'remove'
         } else {
           console.warn(
@@ -206,7 +238,7 @@ export function viteAllYouNeed(
       // v0.2:数据变了 → 重新生成 vault-data.json
       if (resolved.modules.views) {
         try {
-          writeVaultData(index, resolved)
+          writeVaultData(index, resolved, viteConfig?.publicDir)
         } catch (e) {
           // v0.3.4:加 warn — Graph/Stats/Tags 不更新通常就是这里失败了
           console.warn(
@@ -218,14 +250,11 @@ export function viteAllYouNeed(
     },
 
     /**
-     * 拦截占位符 URL,**返回真实绝对文件路径**(POSIX 风格)。
-     *
-     * Vite 拿到文件路径会:
-     *   - dev:按文件系统服务,id 经 transform 后变成 `export default '<url>'`
-     *   - build:emit asset、Rollup 自动加 hash,导出最终 URL
+     * 拦截占位符 URL,返回携带相对路径的稳定虚拟模块 id。
      */
     resolveId(id) {
       if (!index) return null
+      if (id.startsWith(VIRTUAL_ASSET_PREFIX)) return id
       const stripped = stripQueryAndHash(id)
       const ph = ASSET_PLACEHOLDER_PREFIX // '/__ayn_asset__/'
       const phIdx = stripped.indexOf(ph)
@@ -233,16 +262,52 @@ export function viteAllYouNeed(
       const encoded = stripped.slice(phIdx + ph.length)
       let relPath: string
       try {
-        relPath = decodeURI(encoded)
+        relPath = decodeURIComponent(encoded)
       } catch {
         return null
       }
       const asset = index.assetsByRelativePath.get(relPath)
       if (!asset) return null
-      // 把原 query(?import / ?inline / ?url 等)透传给下游,否则 Vite 会
-      // 用错误的 transform 来处理
-      const query = id.slice(stripped.length)
-      return asset.absolutePath + query
+      return VIRTUAL_ASSET_PREFIX + encodeVirtualAssetPath(asset.relativePath)
+    },
+
+    load(id) {
+      if (!index || !id.startsWith(VIRTUAL_ASSET_PREFIX)) return null
+      const relPath = decodeVirtualAssetPath(
+        id.slice(VIRTUAL_ASSET_PREFIX.length),
+      )
+      if (!relPath) return null
+      const asset = index.assetsByRelativePath.get(relPath)
+      if (!asset) return null
+
+      if (viteConfig?.command === 'serve') {
+        return `export default ${JSON.stringify(buildPublicUrl(asset, resolved))}`
+      }
+
+      let referenceId = emittedAssets.get(asset.absolutePath)
+      if (!referenceId) {
+        const source = fs.readFileSync(asset.absolutePath)
+        const hash = createHash('sha256').update(source).digest('hex').slice(0, 8)
+        const fileName = buildAssetOutputPath(asset, resolved, hash)
+        referenceId = this.emitFile({ type: 'asset', fileName, source })
+        emittedAssets.set(asset.absolutePath, referenceId)
+        asset.outputPath = fileName
+      }
+      return {
+        code: `export default import.meta.ROLLUP_FILE_URL_${referenceId}`,
+        moduleSideEffects: false,
+      }
+    },
+
+    buildEnd(buildError) {
+      if (buildError || viteConfig?.command !== 'build' || !index) return
+      const failures = collectPolicyFailures(index, resolved)
+      if (failures.length > 0) {
+        this.error(
+          `vitepress-allyouneed: build failed due to configured error policy:\n` +
+            failures.map((message) => `  - ${message}`).join('\n'),
+        )
+      }
     },
 
     /**
@@ -256,10 +321,33 @@ export function viteAllYouNeed(
     },
   }
 
-  // 防 unused
-  void viteConfig
-
   return plugin
+}
+
+function collectPolicyFailures(
+  index: VaultIndex,
+  options: ResolvedOptions,
+): string[] {
+  const failures: string[] = []
+  if (options.onAliasConflict === 'error') {
+    failures.push(
+      ...index.warnings
+        .filter((warning) => warning.kind === 'duplicate-alias')
+        .map((warning) => warning.message),
+    )
+  }
+  if (options.deadLink === 'error') {
+    failures.push(
+      ...index.warnings
+        .filter((warning) =>
+          /vitepress-allyouneed: (?:dead link|missing .* embed)/.test(
+            warning.message,
+          ),
+        )
+        .map((warning) => warning.message),
+    )
+  }
+  return [...new Set(failures)]
 }
 
 export default viteAllYouNeed

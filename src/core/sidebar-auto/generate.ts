@@ -191,6 +191,18 @@ function resolveFolderLink(
   return null
 }
 
+function shouldOmitFolderCandidate(
+  node: DirNode,
+  file: FileEntry,
+  winner: ReturnType<typeof resolveFolderLink>,
+): boolean {
+  if (winner?.kind !== 'first-file' && winner?.entry === file) return true
+  // A frontmatter-only candidate is metadata for the folder and deliberately
+  // opts out of a group link; it is not a useful standalone sidebar page.
+  return file.content.trim() === '' &&
+    [...node.dirIndexCandidates.values()].includes(file)
+}
+
 // ── 主入口 ──────────────────────────────────────────────────────
 
 export function generateSidebar(
@@ -356,16 +368,15 @@ function renderNode(
     if (override) return override
   }
 
-  // v0.4.0:dirIndex 候选(same-name/index/readme)永远不进 items(它们是 group link
-  // 来源)。**first-file winner 不排除** —— 保持 v0.3.x 行为(first-file 既是 link
-  // 又是 sibling item;轻微重复但符合预期)。
-  const dirIndexCandidatesSet = new Set<FileEntry>(node.dirIndexCandidates.values())
+  // Only the candidate actually selected as the folder link is omitted from
+  // sibling items. Non-winning candidates are ordinary reachable pages.
+  const folderWinner = resolveFolderLink(node, opts)
 
   // 抽出 sidebarGroup 标记的文件(虚拟 group)
   const virtualGroups = new Map<string, FileEntry[]>()
   const normalFiles: FileEntry[] = []
   for (const f of node.files) {
-    if (dirIndexCandidatesSet.has(f)) continue
+    if (shouldOmitFolderCandidate(node, f, folderWinner)) continue
     const g = readVirtualGroup(f)
     if (g) {
       const arr = virtualGroups.get(g) ?? []
@@ -540,12 +551,10 @@ function sortChildKeys(
 function toFlatSidebar(root: DirNode, opts: ResolvedSidebarAutoOptions): SidebarItem[] {
   // v0.3.10:flat 已 @deprecated,保留实现以兼容旧用户
   const out: SidebarItem[] = []
-  // 根 — 排除 dirIndex 候选 + first-file winner
+  // 根 — 只排除真正选中的 dirIndex；first-file 仍保留为普通条目。
   const rootWinner = resolveFolderLink(root, opts)
-  const rootCandidates = new Set<FileEntry>(root.dirIndexCandidates.values())
-  if (rootWinner) rootCandidates.add(rootWinner.entry)
   const rootFiles = [...root.files]
-    .filter((f) => !rootCandidates.has(f))
+    .filter((f) => !shouldOmitFolderCandidate(root, f, rootWinner))
     .sort((a, b) => compareEntries(a, b, opts))
   for (const f of rootFiles) out.push({ text: opts.formatItemTitle(f), link: f.url })
 
@@ -553,10 +562,8 @@ function toFlatSidebar(root: DirNode, opts: ResolvedSidebarAutoOptions): Sidebar
   walkDirs(root, allDirs)
   for (const d of allDirs) {
     const winner = resolveFolderLink(d, opts)
-    const candidates = new Set<FileEntry>(d.dirIndexCandidates.values())
-    if (winner) candidates.add(winner.entry)
     const files = [...d.files]
-      .filter((f) => !candidates.has(f))
+      .filter((f) => !shouldOmitFolderCandidate(d, f, winner))
       .sort((a, b) => compareEntries(a, b, opts))
     const items = files.map((f) => ({ text: opts.formatItemTitle(f), link: f.url }))
     if (items.length === 0 && !winner) continue
@@ -598,12 +605,10 @@ function toPerFolderSidebar(
   const out: Record<string, SidebarItem[]> = {}
 
   const rootItems: SidebarItem[] = []
-  // v0.3.10:根 files 也排除 dirIndex 候选 + winner
+  // 根 files 只排除真正选中的 dirIndex。
   const rootWinner = resolveFolderLink(root, opts)
-  const rootCands = new Set<FileEntry>(root.dirIndexCandidates.values())
-  if (rootWinner) rootCands.add(rootWinner.entry)
   const sortedRootFiles = [...root.files]
-    .filter((f) => !rootCands.has(f))
+    .filter((f) => !shouldOmitFolderCandidate(root, f, rootWinner))
     .sort((a, b) => compareEntries(a, b, opts))
   for (const f of sortedRootFiles) {
     rootItems.push({ text: opts.formatItemTitle(f), link: f.url })

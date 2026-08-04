@@ -2,7 +2,7 @@
  * Obsidian callouts —— `> [!type][+-]? <title>` 块语法。
  *
  * 实现思路:
- *   - 注册一条 markdown-it **core** rule(在 'block' 之后跑),扫所有 token
+ *   - 注册一条 markdown-it **core** rule(在 'inline' 之后跑),扫所有 token
  *     找到 blockquote_open ... paragraph_open ... 第一段首行是 `[!type] ...` 的,
  *     把整块 blockquote 改写成 html_block 包 `<div class="callout">…</div>`
  *   - 嵌套:Obsidian 嵌套 callout 用 `> > [!info]`,markdown-it blockquote
@@ -56,7 +56,7 @@ export function parseCalloutHeader(line: string): CalloutHeader | null {
  */
 export function registerCalloutsCore(md: MarkdownIt): void {
   md.core.ruler.after(
-    'block',
+    'inline',
     'allyouneed_callouts',
     function calloutsRule(state: StateCore): boolean {
       const tokens = state.tokens
@@ -74,7 +74,14 @@ export function registerCalloutsCore(md: MarkdownIt): void {
         // 提取剩余内容(去掉 header 行后的所有内容)
         const bodyHtml = renderBody(inner, header.firstLineRest, md, state.env)
         // v0.3.4:标题走 inline 渲染,**bold**/`code`/[[wiki]] 等都生效
-        const html = renderCallout(header.parsed, bodyHtml, md, state.env)
+        const html = renderCallout(
+          header.parsed,
+          bodyHtml,
+          md,
+          state.env,
+          t.attrGet('id') ?? undefined,
+          t.attrGet('class') ?? undefined,
+        )
         // 用 html_block 替换 blockquote_open...blockquote_close
         const newToken = new state.Token('html_block', '', 0)
         newToken.content = html + '\n'
@@ -191,6 +198,8 @@ function renderCallout(
   bodyHtml: string,
   md: MarkdownIt,
   env: object,
+  blockId?: string,
+  blockClass?: string,
 ): string {
   const { type, foldable, title } = header
   const rawTitle = title || DEFAULT_TITLES[type]
@@ -204,12 +213,16 @@ function renderCallout(
     CALLOUT_ICONS[type] +
     `</svg>`
 
-  const cls = `callout callout--${type}` + (foldable ? ' callout--foldable' : '')
+  const cls = [
+    `callout callout--${type}` + (foldable ? ' callout--foldable' : ''),
+    blockClass,
+  ].filter(Boolean).join(' ')
+  const idAttr = blockId ? ` id="${escapeHtml(blockId)}"` : ''
 
   if (foldable) {
     const isOpen = foldable === 'open'
     return (
-      `<details class="${cls}" data-callout="${type}"${isOpen ? ' open' : ''}>` +
+      `<details class="${cls}" data-callout="${type}"${idAttr}${isOpen ? ' open' : ''}>` +
       `<summary class="callout-title">${iconSvg}<span class="callout-title-text">${titleHtml}</span></summary>` +
       `<div class="callout-content">${bodyHtml}</div>` +
       `</details>`
@@ -217,7 +230,7 @@ function renderCallout(
   }
 
   return (
-    `<div class="${cls}" data-callout="${type}">` +
+    `<div class="${cls}" data-callout="${type}"${idAttr}>` +
     `<div class="callout-title">${iconSvg}<span class="callout-title-text">${titleHtml}</span></div>` +
     `<div class="callout-content">${bodyHtml}</div>` +
     `</div>`

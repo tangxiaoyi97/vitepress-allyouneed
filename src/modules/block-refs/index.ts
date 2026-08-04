@@ -1,4 +1,4 @@
-/** v0.3 block-refs (`^block-id`) 模块入口 */
+/** Obsidian block refs (`^block-id`) rendering entry. */
 import type MarkdownIt from 'markdown-it'
 import { registerBlockRefs } from './rule.js'
 

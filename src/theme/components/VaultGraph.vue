@@ -16,6 +16,7 @@ import {
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior } from 'd3-zoom'
 import { drag as d3drag } from 'd3-drag'
 import { useVaultData } from '../composables/useVaultData.js'
+import type { VaultData } from '../types.js'
 
 const router = useRouter()
 
@@ -29,9 +30,21 @@ interface GraphLink extends SimulationLinkDatum<GraphNode> {
   type: 'wikilink' | 'transclusion'
 }
 
-const props = defineProps<{ maxNodes?: number }>()
+const props = defineProps<{
+  maxNodes?: number
+  dataFileName?: string
+  /** 已加载的数据。LocalGraph modal 用它避免重复 fetch。 */
+  vaultData?: VaultData
+  /** 高亮当前页节点。 */
+  focusNodeId?: string
+}>()
 
-const { data, loading, error } = useVaultData()
+const loaded = useVaultData(props.dataFileName, {
+  immediate: props.vaultData === undefined,
+})
+const data = computed(() => props.vaultData ?? loaded.data.value)
+const loading = computed(() => props.vaultData === undefined && loaded.loading.value)
+const error = computed(() => props.vaultData === undefined ? loaded.error.value : null)
 const svgRef = ref<SVGSVGElement | null>(null)
 const tooHeavy = ref(false)
 
@@ -141,6 +154,18 @@ function build(): void {
   const rect = svgEl.getBoundingClientRect()
   const width = Math.max(rect.width, 320)
   const height = Math.max(rect.height, 320)
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const focusedNode = simNodes.find((node) => node.id === props.focusNodeId)
+  if (focusedNode) {
+    focusedNode.x = width / 2
+    focusedNode.y = height / 2
+    // 局部图弹窗始终以当前页为视觉锚点。用户仍可拖动它;
+    // d3 drag end 会清掉 fx/fy,之后恢复自由布局。
+    focusedNode.fx = width / 2
+    focusedNode.fy = height / 2
+  }
 
   // 重置 viewBox 与容器实际大小一致,避免 viewBox 缩放和 forceCenter 坐标错位
   svg.attr('viewBox', `0 0 ${width} ${height}`)
@@ -166,6 +191,7 @@ function build(): void {
     .data(simNodes, (d) => d.id)
     .join('g')
     .attr('class', 'ayn-graph-node')
+    .classed('is-current', (d) => d.id === props.focusNodeId)
 
   const nodeR = (d: GraphNode): number => 4 + Math.min(d.inDegree, 8)
   // v0.5:透明"命中圈" —— 比可见圆大一圈且固定不变,作为稳定的鼠标命中区。
@@ -249,7 +275,12 @@ function build(): void {
   //   k <= LABEL_FADE_START → 0(隐藏,和 Obsidian 缩小后只剩点一致)
   const LABEL_FULL = 1.1
   const LABEL_FADE_START = 0.55
+  const INITIAL_FIT_LABEL_FLOOR = 0.45
   const labelSel = g.selectAll<SVGTextElement, GraphNode>('text.ayn-graph-label')
+  let didInitialFit = false
+  let userAdjustedView = false
+  let userAdjustedScale = false
+  let lastZoomScale = 1
   const applyLabelZoom = (k: number): void => {
     let t: number
     if (k >= LABEL_FULL) t = 1
@@ -258,6 +289,10 @@ function build(): void {
       const x = (k - LABEL_FADE_START) / (LABEL_FULL - LABEL_FADE_START)
       t = x * x * (3 - 2 * x) // smoothstep,首尾导数为 0,过渡更丝滑
     }
+    // 大型 vault 初始 fit 往往会小于 LABEL_FADE_START。若直接用 0,
+    // 用户打开图页时只能看到圆点。在用户亲自缩放前保留一个可读下限;
+    // 一旦发生鼠标/触摸缩放,立即恢复完整的渐隐曲线。
+    if (!userAdjustedScale) t = Math.max(t, INITIAL_FIT_LABEL_FLOOR)
     // 写到 group 上,CSS 变量继承给所有 label;隐藏时彻底关掉指针事件
     g.style('--ayn-label-zoom', t.toFixed(3))
     labelSel.style('pointer-events', t < 0.05 ? 'none' : null)
@@ -269,11 +304,32 @@ function build(): void {
     .wheelDelta((event) => -event.deltaY * (event.deltaMode === 1 ? 0.025 : 0.0015))
     .on('zoom', (event) => {
       const k = event.transform.k as number
+      if (event.sourceEvent) {
+        userAdjustedView = true
+        // 纯平移不该让大图标签突然变透明;只有用户主动改变缩放
+        // 比例后,才解除初始 fit 的可读性下限。
+        if (Math.abs(k - lastZoomScale) > 0.0001) userAdjustedScale = true
+        if (fitTimer !== null) {
+          clearTimeout(fitTimer)
+          fitTimer = null
+        }
+      }
       g.attr('transform', event.transform.toString())
       applyLabelZoom(k)
+      lastZoomScale = k
     })
   svg.call(zoomBehavior).call(zoomBehavior.transform, zoomIdentity)
   applyLabelZoom(1) // 初始档位
+
+  const performInitialFit = (): void => {
+    if (didInitialFit || userAdjustedView) return
+    didInitialFit = true
+    if (fitTimer !== null) {
+      clearTimeout(fitTimer)
+      fitTimer = null
+    }
+    fitToView(svg, simNodes, width, height)
+  }
 
   // ── 物理 ────────────────────────────────────────────────────
   // v0.5:重调力参数,贴近 Obsidian 的"轻柔铺开、缓慢收敛、不抖"手感。
@@ -291,7 +347,9 @@ function build(): void {
 
   simulation = forceSimulation<GraphNode>(simNodes)
     // 收敛速度:越小越慢越顺。大图略快以免久久不停。
-    .alphaDecay(isVeryHeavy ? 0.028 : isHeavy ? 0.022 : 0.0165)
+    .alphaDecay(
+      reduceMotion ? 0.65 : isVeryHeavy ? 0.028 : isHeavy ? 0.022 : 0.0165,
+    )
     .alphaMin(0.001)
     .velocityDecay(isVeryHeavy ? 0.45 : 0.38)
     .force(
@@ -358,7 +416,7 @@ function build(): void {
         cancelAnimationFrame(rafId)
         rafId = 0
       }
-      fitToView(svg, simNodes, width, height)
+      performInitialFit()
     })
   // 启动渲染循环
   if (rafId) cancelAnimationFrame(rafId)
@@ -368,7 +426,7 @@ function build(): void {
   // v0.5:保存句柄,build() 重建与卸载时清除,避免在已移除的 DOM 上触发。
   fitTimer = setTimeout(() => {
     fitTimer = null
-    fitToView(svg, simNodes, width, height)
+    performInitialFit()
   }, 2000)
 }
 
@@ -408,7 +466,11 @@ function fitToView(
   const tx = width / 2 - cx * scale
   const ty = height / 2 - cy * scale
   const t = zoomIdentity.translate(tx, ty).scale(scale)
-  svg.transition().duration(450).call(zoomBehavior.transform, t)
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduceMotion) svg.call(zoomBehavior.transform, t)
+  else svg.transition().duration(450).call(zoomBehavior.transform, t)
 }
 
 /**

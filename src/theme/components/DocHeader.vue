@@ -30,7 +30,14 @@
  */
 
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useData } from 'vitepress'
+import { useData, withBase } from 'vitepress'
+import {
+  isExternalUrl,
+  normalizeDocTags,
+  resolveCoverPath,
+  toSitePath,
+} from '../doc-header.js'
+import LocalGraph from './LocalGraph.vue'
 
 const { frontmatter, page, theme } = useData()
 
@@ -61,9 +68,16 @@ const cfg = computed<DocHeaderConfig>(() => {
 
 // ── cover + banner 配置 ──────────────────────────────────────────
 
+/**
+ * Frontmatter 中的 cover 和 Markdown 图片一样,相对路径以当前页文件所在
+ * 目录为基准。这里面向 publicDir 资源生成带 VitePress base 的站内 URL。
+ */
 const coverSrc = computed<string | null>(() => {
   const v = frontmatter.value.cover
-  if (typeof v === 'string' && v.trim()) return v.trim()
+  if (typeof v === 'string' && v.trim()) {
+    const resolved = resolveCoverPath(v.trim(), page.value.relativePath ?? '')
+    return isExternalUrl(resolved) ? resolved : withBase(resolved)
+  }
   return null
 })
 
@@ -138,10 +152,7 @@ const pageTitle = computed<string>(() => {
 // ── 标签 ─────────────────────────────────────────────────────────
 
 const tags = computed<string[]>(() => {
-  const v = frontmatter.value.tags
-  if (Array.isArray(v)) return v.filter((x) => typeof x === 'string')
-  if (typeof v === 'string') return v.split(/[,\s]+/).filter(Boolean)
-  return []
+  return normalizeDocTags(frontmatter.value.tags)
 })
 
 // ── 日期 ─────────────────────────────────────────────────────────
@@ -180,9 +191,23 @@ function formatDate(raw: unknown): string | null {
 // ── 字数 + 阅读时长 ──────────────────────────────────────────────
 
 const wordCount = ref(0)
+const wordsPerMinute = computed<number>(() => {
+  const frontmatterValue = frontmatter.value.wordsPerMinute
+  if (
+    typeof frontmatterValue === 'number' &&
+    Number.isFinite(frontmatterValue) &&
+    frontmatterValue > 0
+  ) {
+    return frontmatterValue
+  }
+  const themeValue = cfg.value.wordsPerMinute
+  return typeof themeValue === 'number' && Number.isFinite(themeValue) && themeValue > 0
+    ? themeValue
+    : 300
+})
 const readingTime = computed(() => {
   if (wordCount.value === 0) return 0
-  return Math.max(1, Math.round(wordCount.value / (cfg.value.wordsPerMinute ?? 300)))
+  return Math.max(1, Math.round(wordCount.value / wordsPerMinute.value))
 })
 
 function recountWords(): void {
@@ -235,7 +260,10 @@ watch(() => page.value.relativePath, recountWords)
 // ── tag URL ──────────────────────────────────────────────────────
 
 function tagHref(tag: string): string {
-  const base = (cfg.value.tagsViewUrl ?? '/_perspectives_/tags').replace(/\/$/, '')
+  const configured = (cfg.value.tagsViewUrl ?? '/_perspectives_/tags').replace(/\/$/, '')
+  const base = isExternalUrl(configured)
+    ? configured
+    : withBase(toSitePath(configured))
   return `${base}#${encodeURIComponent(tag)}`
 }
 
@@ -326,10 +354,9 @@ watch([visible, () => cfg.value.hideH1, pageTitle, () => page.value.relativePath
     <div class="ayn-doc-header-inner">
       <!--
         v0.5.0-beta.2: 这里**故意不用 `<h1>`**,改用 `<div role="heading" aria-level="1">`。
-        原因:`<h1>` 在 `.vp-doc` 内会被 VitePress 的 `.vp-doc h1` 选择器抓住 → VP 默认
-        32px 字号(unlayered)永远赢我们 layered 的 clamp 大字号,banner title 字号塌缩。
-        改 div + ARIA 后,VP 的 `h1` 选择器不匹配,我们的 `.ayn-doc-banner-title` 字号
-        在 @layer 里也能干净生效。
+        原因:`<h1>` 在 `.vp-doc` 内会被 VitePress 的 `.vp-doc h1` 选择器抓住,
+        主题样式会与 banner 大标题互相竞争。改 div + ARIA 后,VP 的 `h1`
+        选择器不匹配,组件字号可稳定生效。
         辅助技术:`role="heading" aria-level="1"` 是 WAI-ARIA 标准,屏幕阅读器按 h1
         念出来,跟原生 `<h1>` 等效;但 VitePress CSS 抓不到。
       -->
@@ -393,6 +420,8 @@ watch([visible, () => cfg.value.hideH1, pageTitle, () => page.value.relativePath
       <div v-if="hasTagsRow" class="ayn-doc-tags">
         <a v-for="t in tags" :key="t" class="ayn-doc-tag" :href="tagHref(t)">#{{ t }}</a>
       </div>
+
+      <LocalGraph mode="mobile-button" />
     </div>
   </header>
 </template>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240" role="img" aria-labelledby="title desc">
+  <title id="title">Nested asset fixture</title>
+  <desc id="desc">Three linked nodes used by the build fixture.</desc>
+  <rect width="640" height="240" rx="32" fill="#eef2ff"/>
+  <path d="M160 120h150m20 0h150" stroke="#6366f1" stroke-width="8"/>
+  <g fill="#4f46e5">
+    <circle cx="120" cy="120" r="44"/>
+    <circle cx="320" cy="120" r="44"/>
+    <circle cx="520" cy="120" r="44"/>
+  </g>
+</svg>

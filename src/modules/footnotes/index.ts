@@ -1,4 +1,4 @@
-/** v0.3 footnotes 模块入口(Pandoc 风格 `[^id]` + `[^id]: text`) */
+/** Multiline reference footnotes plus Obsidian `^[inline footnote]`. */
 import type MarkdownIt from 'markdown-it'
 import { registerFootnotes } from './rule.js'
 

@@ -7,16 +7,11 @@ import type MarkdownIt from 'markdown-it'
 import type { AllYouNeedEnv } from '../../core/types.js'
 import { escapeHtml } from '../../utils/escape.js'
 import { applyCleanUrls } from '../../utils/url.js'
-
-// v0.3.9:默认 TAG_RE 仍用老 pattern,但 ruleFn 优先读 env.options.views.inlineTagPattern
-const DEFAULT_TAG_RE = /^#([\p{L}_][\p{L}\p{N}_/-]*)/u
-
-function isValidPrecedingChar(c: string | undefined): boolean {
-  if (c === undefined) return true
-  if (/\s/.test(c)) return true
-  if ('([{,;。,;'.includes(c)) return true
-  return false
-}
+import {
+  DEFAULT_INLINE_TAG_PATTERN,
+  isValidTagBoundary,
+  matchInlineTag,
+} from '../../core/tags.js'
 
 export function makeTagRule(): (state: StateInline, silent: boolean) => boolean {
   return function tagRule(state, silent) {
@@ -25,16 +20,15 @@ export function makeTagRule(): (state: StateInline, silent: boolean) => boolean 
     if (src.charCodeAt(start) !== 0x23 /* # */) return false
 
     const prev = start === 0 ? undefined : src[start - 1]
-    if (!isValidPrecedingChar(prev)) return false
+    if (!isValidTagBoundary(prev)) return false
 
     const slice = src.slice(start)
     // v0.3.9:优先从 env.options.views.inlineTagPattern 读;没注入就用默认
     const env = state.env as AllYouNeedEnv & { referencedTags?: Set<string> }
-    const pattern = env.options?.views?.inlineTagPattern ?? DEFAULT_TAG_RE
-    const m = pattern.exec(slice)
-    if (!m) return false
-
-    const tag = m[1]!
+    const pattern = env.options?.views?.inlineTagPattern ?? DEFAULT_INLINE_TAG_PATTERN
+    const match = matchInlineTag(slice, pattern)
+    if (!match) return false
+    const tag = match.tag
 
     // ── HOTFIX(0.5.2):silent 模式必须**推进 state.pos** ───────────────
     // 与 wikilink rule 同一类 bug(见 modules/wikilinks/rule.ts 的 0.5.1 注释)。
@@ -49,7 +43,7 @@ export function makeTagRule(): (state: StateInline, silent: boolean) => boolean 
     //
     // 修法对齐 markdown-it 自带规则:silent 也设 pos,仅把 token 产出门控在 !silent。
     if (silent) {
-      state.pos = start + m[0].length
+      state.pos = start + match.length
       return true
     }
 
@@ -71,7 +65,7 @@ export function makeTagRule(): (state: StateInline, silent: boolean) => boolean 
     const token = state.push('html_inline', '', 0)
     token.content = html
 
-    state.pos = start + m[0].length
+    state.pos = start + match.length
     return true
   }
 }

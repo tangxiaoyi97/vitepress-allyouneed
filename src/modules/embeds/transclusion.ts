@@ -15,12 +15,17 @@
 
 import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs'
 import type MarkdownIt from 'markdown-it'
-import type { AllYouNeedEnv, FileEntry } from '../../core/types.js'
+import type { AllYouNeedEnv, FileEntry, HeadingEntry } from '../../core/types.js'
 import { resolveWikilink } from '../../core/resolver.js'
 import { escapeHtml } from '../../utils/escape.js'
 
 interface TransclusionCacheEntry {
   html: string
+}
+
+interface TransclusionRenderContext {
+  /** 同一外层 render 内按嵌入出现顺序分配唯一实例号。 */
+  nextInstance: number
 }
 
 /**
@@ -65,7 +70,10 @@ export function renderTransclusionHtml(
   }
   index.backlinks.set(target.absolutePath, arr)
 
-  const stack = env.transclusionStack ?? []
+  // 第一层嵌入也要把根文档纳入调用栈。否则 A → B → A
+  // 会多渲染一整层 A，到下一层才能发现循环。
+  const stack =
+    env.transclusionStack ?? (env.currentPath ? [env.currentPath] : [])
   if (stack.includes(target.absolutePath)) {
     return `<div class="transclusion transclusion--cycle" data-target="${escapeHtml(
       rawTarget,
@@ -81,20 +89,26 @@ export function renderTransclusionHtml(
     )}">⚠️ Transclusion nesting too deep (&gt; ${options.embeds.transclusionMaxDepth})</div>`
   }
 
-  const headingPart = extractHeading(rawTarget)
-  const fragment = headingPart
-    ? sliceByHeading(target, headingPart, options.slugify)
-    : target.content
+  const rawFragment = extractFragment(rawTarget)
+  const fragment = result.fragment?.type === 'block'
+    ? result.fragment.block?.content
+    : result.fragment?.type === 'heading' && result.fragment.heading
+      ? sliceByHeading(target, result.fragment.heading)
+      : rawFragment
+        ? undefined
+        : target.content
 
   if (fragment == null) {
     return `<div class="transclusion transclusion--unmatched-anchor" data-target="${escapeHtml(
       rawTarget,
-    )}">⚠️ Heading not found: <code>#${escapeHtml(
-      headingPart,
+    )}">⚠️ Block or heading not found: <code>#${escapeHtml(
+      rawFragment,
     )}</code></div>`
   }
 
-  const cacheKey = `${target.absolutePath}::${headingPart ?? ''}`
+  // 循环判定依赖来路，所以缓存键必须包含当前调用栈。
+  // 否则同一笔记先从 A 嵌入、再从 C 嵌入时可能复用错误的循环结果。
+  const cacheKey = `${stack.join('\u0000')}::${target.absolutePath}::${rawFragment}`
   const cache = getCache(env)
   let inner: string
   const cached = cache.get(cacheKey)
@@ -121,14 +135,31 @@ export function renderTransclusionHtml(
     ;(childEnv as unknown as Record<string, unknown>)._transclusionCache = (
       env as unknown as Record<string, unknown>
     )._transclusionCache
+    ;(childEnv as unknown as Record<string, unknown>)._transclusionRenderContext =
+      getRenderContext(env)
 
     inner = md.render(fragment, childEnv)
     cache.set(cacheKey, { html: inner })
   }
 
-  const sourceUrl = headingPart
-    ? `${target.url}#${options.slugify(headingPart)}`
-    : target.url
+  // 每个 transclusion 实例都需要自己的 DOM id 命名空间。
+  // 同一笔记多次嵌入时，heading / footnote / block-ref 默认
+  // 都会产生相同 id；这里同步改写 id 与其页内引用。缓存保留
+  // 未针对当前实例命名的 HTML，因此命中缓存也不会重复 id。
+  const renderContext = getRenderContext(env)
+  const instance = renderContext.nextInstance++
+  const instanceKey = [
+    stack[0] ?? env.currentPath ?? '<root>',
+    stack.join('>'),
+    target.relativePath,
+    rawFragment,
+  ].join('::')
+  inner = namespaceEmbeddedIds(
+    inner,
+    `ayn-tx-${stableHash(instanceKey)}-${instance.toString(36)}`,
+  )
+
+  const sourceUrl = result.url
 
   const aliasData = aliasParts.length
     ? ` data-caption="${escapeHtml(aliasParts.join('|'))}"`
@@ -186,7 +217,7 @@ export function handleTransclusion(
   return true
 }
 
-function extractHeading(raw: string): string {
+function extractFragment(raw: string): string {
   const hashIdx = raw.indexOf('#')
   if (hashIdx < 0) return ''
   return raw.slice(hashIdx + 1).trim()
@@ -194,17 +225,8 @@ function extractHeading(raw: string): string {
 
 function sliceByHeading(
   target: FileEntry,
-  headingPart: string,
-  slugify: (s: string) => string,
-): string | undefined {
-  const matched = target.headings.find(
-    (h) =>
-      h.text === headingPart ||
-      h.slug === headingPart ||
-      h.slug === slugify(headingPart),
-  )
-  if (!matched) return undefined
-
+  matched: HeadingEntry,
+): string {
   const lines = target.content.split(/\r?\n/)
   const startLine = matched.line + 1
   let endLine = lines.length
@@ -225,4 +247,72 @@ function getCache(env: AllYouNeedEnv): Map<string, TransclusionCacheEntry> {
   }
   if (!e._transclusionCache) e._transclusionCache = new Map()
   return e._transclusionCache
+}
+
+function getRenderContext(env: AllYouNeedEnv): TransclusionRenderContext {
+  const e = env as unknown as {
+    _transclusionRenderContext?: TransclusionRenderContext
+  }
+  if (!e._transclusionRenderContext) {
+    e._transclusionRenderContext = { nextInstance: 0 }
+  }
+  return e._transclusionRenderContext
+}
+
+/**
+ * 为嵌入片段内所有 DOM id 加实例前缀，并同步改写只指向
+ * 该片段内 id 的 href / IDREF 属性。普通页面渲染不经过此函数，
+ * 所以源笔记自身的锚点保持兼容。
+ */
+function namespaceEmbeddedIds(html: string, namespace: string): string {
+  const ids = new Map<string, string>()
+  const idRe = /\bid=(['"])([^'"\s<>]+)\1/g
+  let match: RegExpExecArray | null
+  while ((match = idRe.exec(html)) !== null) {
+    const id = match[2]!
+    if (!ids.has(id)) ids.set(id, `${namespace}-${id}`)
+  }
+  if (ids.size === 0) return html
+
+  let output = html.replace(idRe, (_full, quote: string, id: string) => {
+    return `id=${quote}${ids.get(id) ?? id}${quote}`
+  })
+
+  // 页内链接只改写 href="#id"；源文档链接 /note#heading 不受影响。
+  output = output.replace(
+    /\bhref=(['"])#([^'"\s<>]+)\1/g,
+    (full, quote: string, id: string) => {
+      const mapped = ids.get(id)
+      return mapped ? `href=${quote}#${mapped}${quote}` : full
+    },
+  )
+
+  // 覆盖常见的单值及空格分隔 IDREF 属性。
+  output = output.replace(
+    /\b(for|aria-labelledby|aria-describedby|aria-controls)=(['"])([^'"]*)\2/g,
+    (full, attr: string, quote: string, value: string) => {
+      let changed = false
+      const mapped = value
+        .split(/(\s+)/)
+        .map((part) => {
+          const replacement = ids.get(part)
+          if (replacement) changed = true
+          return replacement ?? part
+        })
+        .join('')
+      return changed ? `${attr}=${quote}${mapped}${quote}` : full
+    },
+  )
+
+  return output
+}
+
+/** 小而稳定的 32-bit FNV-1a，仅用于生成 DOM id 前缀。 */
+function stableHash(value: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
 }

@@ -1,6 +1,3 @@
-/* v0.5.0-beta.3: file-internal @layer wrapper.  See styles/index.css for rationale. */
-@layer vitepress-allyouneed {
-
 .ayn-graph-container {
   position: relative;
   width: 100%;
@@ -95,6 +92,16 @@
   stroke: var(--ayn-graph-node-stroke);
   stroke-width: 2.5px;
 }
+.ayn-graph-node.is-current .ayn-graph-dot {
+  fill: var(--vp-c-brand-2, var(--ayn-graph-node-color));
+  stroke: var(--ayn-graph-node-stroke);
+  stroke-width: 3px;
+}
+.ayn-graph-node.is-current .ayn-graph-label {
+  --ayn-label-state: 1;
+  font-weight: 700;
+  opacity: calc(max(var(--ayn-label-zoom, 1), 0.9) * var(--ayn-label-state));
+}
 .ayn-graph-node.is-dimmed {
   --ayn-node-op: 0.15;
 }
@@ -107,7 +114,7 @@
 /*
  * v0.5 关键:标签透明度是两个维度的"乘积",用 calc 合成,二者互不打架:
  *   1. --ayn-label-zoom —— 由 JS zoom 回调写在 .ayn-graph-zoom-group 上(0..1),
- *      继承给所有 label;缩小→0(隐藏),放大→1。这修了"缩小后标签不变淡"。
+ *      初始 fit 保留可读下限;用户主动缩放后才允许渐隐到 0。
  *   2. --ayn-label-state —— 基础态 .55,hover/focus 相关时提到 1。
  * 最终 opacity = zoom * state。例如缩到中段(zoom .4)且 hover(state 1)→ .4,
  * 既尊重缩放档位又体现 hover,符合 Obsidian 直觉。
@@ -151,6 +158,4 @@
   .ayn-graph-label {
     transition: none;
   }
-}
-
 }

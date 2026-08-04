@@ -1,0 +1,11 @@
+{
+  "blockIds": ["callout", "list", "paragraph", "quote", "table"],
+  "links": {
+    "parentChild": "/target#child",
+    "otherChild": "/target#child-1",
+    "paragraph": "/target#^paragraph",
+    "selfHierarchy": "/target#child-1"
+  },
+  "tags": ["404error", "release2", "team/👍🏽", "team/🚀", "中文"],
+  "deadTargets": []
+}

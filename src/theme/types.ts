@@ -38,3 +38,19 @@ export interface VaultDataStats {
   totalWarnings: number
   mostRecent: { id: string; url: string; title: string; mtime: number }[]
 }
+
+export interface LocalGraphConfig {
+  enabled: boolean
+  depth: 1 | 2
+  maxNodes: number
+  modalDepth: 1 | 2
+  modalMaxNodes: number
+  mobile: 'button' | 'hidden'
+}
+
+export interface AllyouneedThemeConfig {
+  viewsUrlPrefix?: string
+  viewsNames?: { graph: string; stats: string; tags: string }
+  dataFileName?: string
+  localGraph?: Partial<LocalGraphConfig>
+}

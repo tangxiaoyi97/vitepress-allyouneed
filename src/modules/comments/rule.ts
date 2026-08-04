@@ -58,7 +58,13 @@ export function makeCommentInlineRule(): (
     }
 
     if (found < 0) return false
-    if (silent) return true
+    // 与正常模式一样消耗完整注释。markdown-it 在链接 label 等
+    // 嵌套语法中会用 silent 模式调用本规则，命中后不推进
+    // state.pos 会触发其 inline parser invariant。
+    if (silent) {
+      state.pos = found + 2
+      return true
+    }
 
     // v0.3.9:options.comments.preserveAsHtmlComment(默认 true)→ 转 HTML 注释
     const env = state.env as AllYouNeedEnv | undefined

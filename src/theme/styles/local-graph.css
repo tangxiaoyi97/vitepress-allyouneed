@@ -1,0 +1,303 @@
+/* ── Aside deterministic preview ── */
+
+.ayn-local-graph--aside {
+  display: none;
+  margin: 0 0 1.25rem;
+}
+
+@media (min-width: 1280px) {
+  .ayn-local-graph--aside {
+    display: block;
+  }
+}
+
+.ayn-local-graph-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+  color: var(--vp-c-text-1);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ayn-local-graph-count {
+  display: inline-flex;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ayn-local-graph-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.ayn-local-graph-preview:hover {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-bg-mute);
+}
+
+.ayn-local-graph-preview:focus-visible,
+.ayn-local-graph-mobile-trigger:focus-visible,
+.ayn-local-graph-dialog-close:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
+}
+
+.ayn-local-graph-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 116px;
+}
+
+.ayn-local-graph-preview-edges line {
+  stroke: var(--vp-c-divider);
+  stroke-width: 1.2;
+  stroke-opacity: 0.8;
+}
+
+.ayn-local-graph-preview-edges line.is-embed {
+  stroke: var(--vp-c-brand-2, var(--vp-c-brand-1));
+  stroke-dasharray: 3 2;
+}
+
+.ayn-local-graph-preview-nodes circle {
+  fill: var(--vp-c-text-3);
+}
+
+.ayn-local-graph-preview-nodes circle.is-current {
+  fill: var(--vp-c-brand-1);
+  stroke: var(--vp-c-bg);
+  stroke-width: 2;
+}
+
+.ayn-local-graph-preview-label {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.45rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  color: var(--vp-c-text-2);
+  background: color-mix(in srgb, var(--vp-c-bg) 88%, transparent);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+/* ── Compact/mobile DocHeader trigger ── */
+
+.ayn-local-graph--mobile-button {
+  display: block;
+  margin-top: 0.15rem;
+}
+
+@media (min-width: 1280px) {
+  .ayn-local-graph--mobile-button {
+    display: none;
+  }
+}
+
+.ayn-local-graph-mobile-trigger {
+  display: inline-flex;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.7rem;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ayn-local-graph-mobile-trigger svg {
+  width: 1rem;
+  height: 1rem;
+  fill: var(--vp-c-brand-1);
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.ayn-doc-header--with-banner .ayn-local-graph-mobile-trigger {
+  color: inherit;
+  background: rgba(17, 24, 39, 0.38);
+  border-color: rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(8px);
+}
+
+.ayn-doc-header--with-banner .ayn-local-graph-count {
+  color: inherit;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* ── Accessible modal ── */
+
+.ayn-local-graph-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  background: rgba(9, 12, 18, 0.64);
+  backdrop-filter: blur(6px);
+  animation: ayn-local-graph-fade 0.18s ease-out;
+}
+
+.ayn-local-graph-dialog {
+  display: flex;
+  width: min(1040px, 100%);
+  max-height: min(860px, calc(100vh - 2rem));
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 14px;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.32);
+  animation: ayn-local-graph-rise 0.2s ease-out;
+}
+
+.ayn-local-graph-dialog-header {
+  display: flex;
+  padding: 1rem 1rem 0.85rem 1.2rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.ayn-local-graph-dialog-eyebrow {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--vp-c-brand-1);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ayn-local-graph-dialog h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  line-height: 1.3;
+}
+
+.ayn-local-graph-dialog-close {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.ayn-local-graph-dialog-close:hover {
+  color: var(--vp-c-text-1);
+  border-color: var(--vp-c-divider);
+}
+
+.ayn-local-graph-dialog-close svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.ayn-local-graph-dialog-body {
+  min-height: 0;
+  flex: 1;
+  padding: 0.75rem;
+}
+
+.ayn-local-graph-dialog .ayn-view {
+  height: 100%;
+  margin: 0;
+}
+
+.ayn-local-graph-dialog .ayn-graph-container {
+  height: min(68vh, 680px);
+  min-height: 360px;
+  border-radius: 10px;
+}
+
+.ayn-local-graph-dialog-hint {
+  margin: 0;
+  padding: 0 1.2rem 0.9rem;
+  color: var(--vp-c-text-3);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+@keyframes ayn-local-graph-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ayn-local-graph-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 640px) {
+  .ayn-local-graph-modal {
+    padding: 0;
+  }
+
+  .ayn-local-graph-dialog {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .ayn-local-graph-dialog-body {
+    padding: 0.5rem;
+  }
+
+  .ayn-local-graph-dialog .ayn-graph-container {
+    height: calc(100vh - 10rem);
+    min-height: 300px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ayn-local-graph-preview,
+  .ayn-local-graph-modal,
+  .ayn-local-graph-dialog {
+    animation: none;
+    transition: none;
+  }
+}

@@ -12,6 +12,7 @@ import type {
   ImageEmbedAttrs,
 } from './types.js'
 import { defaultSlugify } from './slugify.js'
+import { DEFAULT_INLINE_TAG_PATTERN } from './tags.js'
 
 const DEFAULT_ASSET_EXTENSIONS = [
   // 位图
@@ -77,6 +78,7 @@ export function resolveOptions(
 
   const cleanUrls = user.cleanUrls ?? ctx.cleanUrls ?? false
   const slugify = user.slugify ?? ctx.externalSlugify ?? defaultSlugify
+  const rewrite = resolveRewrite(user.rewrites)
 
   const wikilinksUser = user.wikilinks ?? {}
   const embedsUser = user.embeds ?? {}
@@ -92,13 +94,17 @@ export function resolveOptions(
     srcDir,
     base,
     cleanUrls,
+    rewrite,
     caseSensitive: user.caseSensitive ?? false,
     deadLink: user.deadLink ?? 'warn',
     onConflict: user.onConflict ?? 'shortest',
     onAliasConflict: user.onAliasConflict ?? 'first',
 
     scan: {
-      include: scanUser.include ?? ['**/*.md', '**/*.markdown'],
+      // VitePress 1.x only discovers `.md` pages (`**.md`). Keeping the
+      // scanner on the same file set prevents links to pages that can never
+      // be built.
+      include: scanUser.include ?? ['**/*.md'],
       exclude: scanUser.exclude ?? [],
       followSymlinks: scanUser.followSymlinks ?? false,
       respectGitignore: scanUser.respectGitignore ?? true,
@@ -173,11 +179,22 @@ export function resolveOptions(
         tags: viewsUser.sidebarText?.tags ?? 'Tags',
       },
       graphMaxNodes: viewsUser.graphMaxNodes ?? 500,
+      localGraph: {
+        enabled: viewsUser.localGraph?.enabled ?? false,
+        depth: boundedDepth(viewsUser.localGraph?.depth, 1),
+        maxNodes: positiveInteger(viewsUser.localGraph?.maxNodes, 24),
+        modalDepth: boundedDepth(viewsUser.localGraph?.modalDepth, 2),
+        modalMaxNodes: positiveInteger(
+          viewsUser.localGraph?.modalMaxNodes,
+          100,
+        ),
+        mobile: viewsUser.localGraph?.mobile === 'hidden' ? 'hidden' : 'button',
+      },
       dataFileName: viewsUser.dataFileName ?? 'vault-data.json',
       parseInlineTags: viewsUser.parseInlineTags ?? true,
       // v0.3.9:行内 #tag 默认正则。tags/rule.ts + views/generate-data.ts 都读这个
       inlineTagPattern:
-        viewsUser.inlineTagPattern ?? /^#([\p{L}_][\p{L}\p{N}_/-]*)/u,
+        viewsUser.inlineTagPattern ?? DEFAULT_INLINE_TAG_PATTERN,
     },
 
     modules: {
@@ -200,4 +217,117 @@ export function resolveOptions(
 
     slugify,
   }
+}
+
+function positiveInteger(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 1
+    ? Math.floor(value)
+    : fallback
+}
+
+function boundedDepth(value: number | undefined, fallback: 1 | 2): 1 | 2 {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return value >= 2 ? 2 : 1
+}
+
+/**
+ * VitePress accepts either a rewrite function or an ordered path-to-regexp
+ * style rule map. We implement its commonly used named parameters locally so
+ * the scanner does not depend on VitePress' private bundled dependencies.
+ */
+function resolveRewrite(
+  rewrites: AllYouNeedOptions['rewrites'],
+): (id: string) => string {
+  if (typeof rewrites === 'function') {
+    return (id) => rewrites(id) || id
+  }
+  if (rewrites && typeof rewrites === 'object') {
+    const rules = Object.entries(rewrites).map(([from, to]) =>
+      compileRewriteRule(from, to),
+    )
+    return (id) => {
+      for (const rule of rules) {
+        const rewritten = rule(id)
+        if (rewritten !== undefined) return rewritten
+      }
+      return id
+    }
+  }
+  return (id) => id
+}
+
+type RewriteRule = (id: string) => string | undefined
+
+function compileRewriteRule(from: string, to: string): RewriteRule {
+  if (!from.startsWith('^') && !from.includes(':')) {
+    return (id) => (id === from ? to : undefined)
+  }
+
+  if (from.startsWith('^')) {
+    const regex = new RegExp(from)
+    return (id) => {
+      regex.lastIndex = 0
+      const match = regex.exec(id)
+      if (!match) return undefined
+      return interpolateRewriteTarget(to, match.groups ?? {}, match)
+    }
+  }
+
+  const names: string[] = []
+  let source = '^'
+  for (let i = 0; i < from.length;) {
+    if (from[i] !== ':') {
+      source += escapeRegexCharacter(from[i]!)
+      i += 1
+      continue
+    }
+
+    i += 1
+    const start = i
+    while (i < from.length && /[A-Za-z0-9_]/.test(from[i]!)) i += 1
+    const name = from.slice(start, i)
+    if (!name) {
+      source += ':'
+      continue
+    }
+    const modifier = /[*+?]/.test(from[i] ?? '') ? from[i++]! : ''
+    names.push(name)
+    source += modifier === '*'
+      ? '(.*)'
+      : modifier === '+'
+        ? '(.+)'
+        : modifier === '?'
+          ? '([^/]*)'
+          : '([^/]+)'
+  }
+  source += '$'
+  const regex = new RegExp(source)
+
+  return (id) => {
+    const match = regex.exec(id)
+    if (!match) return undefined
+    const params: Record<string, string> = {}
+    names.forEach((name, index) => {
+      params[name] = match[index + 1] ?? ''
+    })
+    return interpolateRewriteTarget(to, params, match)
+  }
+}
+
+function interpolateRewriteTarget(
+  target: string,
+  params: Record<string, string>,
+  match: RegExpExecArray,
+): string {
+  return target
+    .replace(/:([A-Za-z0-9_]+)[*+?]?/g, (_all, name: string) =>
+      params[name] ?? '',
+    )
+    .replace(/\$(\d+)/g, (_all, index: string) =>
+      match[Number(index)] ?? '',
+    )
+}
+
+function escapeRegexCharacter(character: string): string {
+  return /[\\^$.*+?()[\]{}|]/.test(character) ? `\\${character}` : character
 }

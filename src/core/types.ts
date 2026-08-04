@@ -27,6 +27,8 @@ export interface FileEntry {
   tags: string[]
   /** 该文件所有 heading */
   headings: HeadingEntry[]
+  /** Obsidian `^block-id` → source block metadata. */
+  blockIds: Map<string, BlockEntry>
   /** 修改时间(毫秒) */
   mtime: number
   /** 文件大小(字节) */
@@ -67,6 +69,19 @@ export interface HeadingEntry {
   slug: string
   /** 在源文件中的行号(0 起)*/
   line: number
+}
+
+/** A source block addressable through `[[note#^id]]`. */
+export interface BlockEntry {
+  id: string
+  /** Line containing the `^id` marker (0-based). */
+  markerLine: number
+  /** Source range for block transclusion (`endLine` is exclusive). */
+  startLine: number
+  endLine: number
+  kind: 'paragraph' | 'heading' | 'list' | 'list-item' | 'quote' | 'table'
+  /** Markdown source of the addressed block, excluding a standalone marker. */
+  content: string
 }
 
 /**
@@ -124,6 +139,8 @@ export interface VaultIndex {
   backlinks: Map<string, BacklinkEntry[]>
   /** 文件绝对路径 → headings(冗余,headings 也存在 FileEntry 上,这里方便跨页查 slug)*/
   headings: Map<string, HeadingEntry[]>
+  /** 文件绝对路径 → block-id map. */
+  blockIds: Map<string, Map<string, BlockEntry>>
 
   // ── 元信息 ──
   srcDir: string
@@ -386,6 +403,21 @@ export interface SidebarAutoUserOptions {
 
 // ── v0.2:自动视图选项 ────────────────────────────────────────
 
+export interface LocalGraphOptions {
+  /** 在文档 aside 显示当前页局部图谱。默认 false。 */
+  enabled?: boolean
+  /** 缩略图向外遍历的层数。默认 1。 */
+  depth?: 1 | 2
+  /** 缩略图最多节点数(含当前页)。默认 24。 */
+  maxNodes?: number
+  /** 弹窗图谱向外遍历的层数。默认 2。 */
+  modalDepth?: 1 | 2
+  /** 弹窗图谱最多节点数(含当前页)。默认 100。 */
+  modalMaxNodes?: number
+  /** 移动端在 DocHeader 中显示打开按钮;设 false 隐藏。 */
+  mobile?: 'button' | 'hidden'
+}
+
 export interface ViewsOptions {
   enabled?: {
     graph?: boolean
@@ -429,6 +461,8 @@ export interface ViewsOptions {
   }
   /** VaultGraph 节点数超过此值时降级为占位提示 */
   graphMaxNodes?: number
+  /** 文档页局部图谱(默认关闭)。 */
+  localGraph?: LocalGraphOptions
   /** vault-data.json 的输出文件名(相对 srcDir/public/)。默认 'vault-data.json' */
   dataFileName?: string
   /** 是否启用正文 #tag 解析(默认 true)。关掉则 tags 只来自 frontmatter */
@@ -436,12 +470,11 @@ export interface ViewsOptions {
   /**
    * v0.3.9:行内 #tag 的正则模式。**必须**捕获 tag 名作为 group 1。
    *
-   * 默认 `/^#([\p{L}_][\p{L}\p{N}_/-]*)/u`:
-   *   - 起手 `#`
-   *   - tag 名首字符:Unicode letter 或 `_`
-   *   - 后续字符:Unicode letter / number / `_` / `/` / `-`
+   * 默认支持 Unicode letters/marks/numbers、`_-/` 与 emoji/ZWJ 序列。
+   * 数字可出现在任意位置,但 tag 必须至少包含一个非数字字符;所有 tag
+   * 会 canonicalize 为小写,使 `#Release` 与 `#release` 归为同一项。
    *
-   * 用户可覆盖,例如只支持纯 ASCII:`/^#([A-Za-z_][A-Za-z0-9_/-]*)/`,
+   * 用户可覆盖,例如只支持纯 ASCII:`/^#([A-Za-z0-9_/-]+)/`,
    * 或加点支持:`/^#([\p{L}_][\p{L}\p{N}_./-]*)/u`,等等。
    *
    * ⚠ 正则**只匹配 # 之后**(前置边界字符由插件自己判断);
@@ -458,6 +491,8 @@ export interface AllYouNeedOptions {
   srcDir?: string
   base?: string
   cleanUrls?: boolean
+  /** VitePress page rewrite rules. The wrapper copies `config.rewrites` here. */
+  rewrites?: Record<string, string> | ((id: string) => string)
   caseSensitive?: boolean
   deadLink?: 'silent' | 'warn' | 'error'
 
@@ -509,6 +544,8 @@ export interface ResolvedOptions {
   srcDir: string
   base: string
   cleanUrls: boolean
+  /** Resolve a source-relative Markdown path to its rewritten page path. */
+  rewrite: (id: string) => string
   caseSensitive: boolean
   deadLink: 'silent' | 'warn' | 'error'
   onConflict: 'shortest' | 'first' | 'error'
@@ -529,6 +566,14 @@ export interface ResolvedOptions {
     sidebar: 'auto' | false   // 老字段,仅 injectInto 未显式传时被使用
     sidebarText: { group: string; graph: string; stats: string; tags: string }
     graphMaxNodes: number
+    localGraph: {
+      enabled: boolean
+      depth: 1 | 2
+      maxNodes: number
+      modalDepth: 1 | 2
+      modalMaxNodes: number
+      mobile: 'button' | 'hidden'
+    }
     dataFileName: string
     parseInlineTags: boolean
     inlineTagPattern: RegExp
@@ -579,6 +624,14 @@ export interface ResolveResult {
   isDead: boolean
   hasUnmatchedAnchor: boolean
   target?: FileEntry
+  /** Resolved heading path or `^block-id` fragment. */
+  fragment?: {
+    type: 'heading' | 'block'
+    raw: string
+    anchor: string
+    heading?: HeadingEntry
+    block?: BlockEntry
+  }
   /** 'page' / 'image' / 'transclusion' */
   kind: 'page' | 'image' | 'transclusion'
   /** 仅 image/transclusion 时填充 */

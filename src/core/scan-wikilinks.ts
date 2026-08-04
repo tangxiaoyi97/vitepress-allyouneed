@@ -8,9 +8,7 @@
 import type { ResolvedOptions, VaultIndex } from './types.js'
 import { splitWikilinkInner } from '../utils/wikilink.js'
 import { findAmbiguousLeadingNumberMatches, resolveWikilink } from './resolver.js'
-
-// v0.3.4:简化为捕获整段 inner,target 拆分交给 splitWikilinkInner(支持 \|)
-const WIKILINK_RE = /(!?)\[\[([^\]\n]+)\]\]/g
+import { stripNonContentMarkdown, WIKILINK_SOURCE } from './markdown-content.js'
 
 export interface DeadLinkReport {
   /** 总扫描的 wikilink 数 */
@@ -30,72 +28,6 @@ export interface DeadLinkReport {
   }>
 }
 
-/**
- * 把 fenced code block / inline code 全部抹掉成空白(保留长度,不破坏行号),
- * 这样后续 wikilink regex 不会扫到代码示例里的 `[[note]]`(它们渲染时也不会
- * 被 markdown-it 当 wikilink,因此不该报死链)。
- */
-function stripCodeForScan(src: string): string {
-  // ``` fenced ```
-  let r = src.replace(/```[\s\S]*?```/g, (m) => ' '.repeat(m.length))
-  // ~~~ fenced ~~~
-  r = r.replace(/~~~[\s\S]*?~~~/g, (m) => ' '.repeat(m.length))
-  // 行内 code(支持多个反引号,同数量反引号配对)。
-  // v0.5:改用线性扫描替代带反向引用的正则 `/(`+)(?:(?!\1)[\s\S])*?\1/g`,
-  // 后者在大量未闭合反引号的输入上会灾难性回溯(ReDoS),而本函数对每个
-  // 文件的全文运行,单个恶意/超大笔记即可拖垮 dev/build。
-  r = stripInlineCodeLinear(r)
-  return r
-}
-
-/**
- * 线性(O(n))地把行内 code span 抹成等长空白,保留长度与行号。
- * 规则模仿 CommonMark:开标记是一段 `+`,需要等长的同字符串收尾;
- * 找不到收尾就把开标记本身当普通文本(不抹)。绝不回溯。
- */
-function stripInlineCodeLinear(src: string): string {
-  const out = src.split('')
-  let i = 0
-  const n = src.length
-  while (i < n) {
-    if (src.charCodeAt(i) !== 0x60 /* ` */) {
-      i += 1
-      continue
-    }
-    // 数开标记反引号个数
-    let openLen = 0
-    while (i + openLen < n && src.charCodeAt(i + openLen) === 0x60) openLen += 1
-    const contentStart = i + openLen
-    // 从内容起点线性找等长收尾
-    let j = contentStart
-    let closeAt = -1
-    while (j < n) {
-      if (src.charCodeAt(j) === 0x60) {
-        let runLen = 0
-        while (j + runLen < n && src.charCodeAt(j + runLen) === 0x60) runLen += 1
-        if (runLen === openLen) {
-          closeAt = j
-          break
-        }
-        j += runLen // 不等长的反引号 run 整段跳过
-      } else {
-        j += 1
-      }
-    }
-    if (closeAt === -1) {
-      // 没有匹配收尾:开标记当普通文本,跳过这段反引号继续
-      i = contentStart
-      continue
-    }
-    // 抹掉 [i, closeAt + openLen) 整段(含两端反引号)为空格,保留换行
-    for (let k = i; k < closeAt + openLen; k++) {
-      if (out[k] !== '\n') out[k] = ' '
-    }
-    i = closeAt + openLen
-  }
-  return out.join('')
-}
-
 export function scanWikilinks(
   index: VaultIndex,
   options: ResolvedOptions,
@@ -108,8 +40,8 @@ export function scanWikilinks(
   const scanAmbig = anchorMode === 'leading-number'
 
   for (const f of index.files.values()) {
-    const cleaned = stripCodeForScan(f.content)
-    const matches = cleaned.matchAll(WIKILINK_RE)
+    const cleaned = stripNonContentMarkdown(f.content)
+    const matches = cleaned.matchAll(new RegExp(WIKILINK_SOURCE))
     for (const m of matches) {
       total += 1
       const isEmbed = m[1] === '!'
@@ -149,23 +81,24 @@ export function scanWikilinks(
         continue
       }
       // v0.3.9:成功 resolve,继续看锚点歧义
-      if (scanAmbig && headingPart) {
+      if (scanAmbig && headingPart && !headingPart.startsWith('^')) {
         const targetEntry = resolved.target
         if (!targetEntry) continue
-        const matches2 = findAmbiguousLeadingNumberMatches(targetEntry, headingPart)
+        const finalHeadingPart = headingPart.split('#').pop()!.trim()
+        const matches2 = findAmbiguousLeadingNumberMatches(targetEntry, finalHeadingPart)
         if (matches2.length > 1) {
           // 仅当 exact text/slug 都没命中(意味着真走了 leading-number 兜底)
           const exactHit = targetEntry.headings.some(
             (h) =>
-              h.text === headingPart ||
-              h.slug === headingPart ||
-              h.slug === options.slugify(headingPart),
+              h.text === finalHeadingPart ||
+              h.slug === finalHeadingPart ||
+              h.slug === options.slugify(finalHeadingPart),
           )
           if (!exactHit) {
             ambiguous.push({
               source: f.relativePath,
               raw: `${isEmbed ? '!' : ''}[[${rawTargetFull}]]`,
-              headingPart,
+              headingPart: finalHeadingPart,
               chosen: matches2[0]!.text,
               others: matches2.slice(1).map((h) => h.text),
             })
@@ -184,7 +117,10 @@ export function logDeadLinks(report: DeadLinkReport, deadLink: 'silent' | 'warn'
     const head = `vitepress-allyouneed: scanned ${report.total} wikilinks, ` +
       `found ${report.dead.length} dead link(s):`
     if (deadLink === 'error') {
-      console.error(head)
+      const details = report.dead
+        .map((item) => `  ${item.source}: ${item.raw}`)
+        .join('\n')
+      throw new Error(`${head}\n${details}`)
     } else {
       console.warn(head)
     }

@@ -11,8 +11,7 @@
  *   title: 'My Vault',
  *   srcDir: '../my-vault',
  *   cleanUrls: true,
- *   // ⚠️ index.md 和 README.md 同目录会冲突(都路由到 '/')。建议二选一:
- *   srcExclude: ['README.md'],
+ *   srcExclude: ['drafts/**'],
  * }, {
  *   onConflict: 'shortest',
  * })
@@ -36,6 +35,7 @@ import allYouNeedMarkdownIt from './markdown-it.js'
 import { resolveOptions } from './core/config-bridge.js'
 import { registerTagsInline } from './modules/tags/index.js'
 import { injectViewsSidebar, injectViewsNav } from './core/views/sidebar-inject.js'
+import { generateViewMarkdown } from './core/views/generate-md.js'
 import { generateSidebar, generateNav } from './core/sidebar-auto/index.js'
 import { generateSidebarMaterializations } from './core/sidebar-auto/generate-sidebar-materialize.js'
 import { scanVault } from './core/vault/index.js'
@@ -89,12 +89,19 @@ export function defineConfigWithAllYouNeed(
 ): UserConfig {
   // VitePress 的 srcExclude 也合并进我们扫描器,两边对同一份文件集合
   const vpExclude = Array.isArray(config.srcExclude) ? config.srcExclude : []
+  const externalSlugify = (
+    config.markdown as
+      | { anchor?: { slugify?: (text: string) => string } }
+      | undefined
+  )?.anchor?.slugify
 
   const mergedOptions: AllYouNeedOptions = {
     ...pluginOptions,
     srcDir: pluginOptions.srcDir ?? config.srcDir,
     base: pluginOptions.base ?? config.base,
     cleanUrls: pluginOptions.cleanUrls ?? config.cleanUrls,
+    rewrites: pluginOptions.rewrites ?? config.rewrites,
+    slugify: pluginOptions.slugify ?? externalSlugify,
     scan: {
       ...pluginOptions.scan,
       exclude: [
@@ -136,6 +143,36 @@ export function defineConfigWithAllYouNeed(
     cleanUrls: mergedOptions.cleanUrls ?? config.cleanUrls,
   })
 
+  // VitePress discovers source pages before Vite's configResolved hook runs.
+  // Generate view entry Markdown while evaluating the wrapper so a clean
+  // checkout builds Graph/Stats/Tags on its first invocation. The Vite plugin
+  // regenerates sentinel-owned files later for direct Vite integrations.
+  if (resolvedForWrapper.modules.views) {
+    try {
+      const report = generateViewMarkdown(
+        resolvedForWrapper,
+        scanVault(resolvedForWrapper),
+      )
+      for (const skipped of report.skipped) {
+        console.warn(
+          `vitepress-allyouneed: skipped ${skipped.path}: ${skipped.reason}`,
+        )
+      }
+    } catch (error) {
+      if (
+        resolvedForWrapper.onAliasConflict === 'error' &&
+        error instanceof Error &&
+        error.message.includes('alias conflict')
+      ) {
+        throw error
+      }
+      console.warn(
+        'vitepress-allyouneed: early view generation failed; Vite will retry during startup.',
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+
   const newMarkdownConfig = (md: MarkdownIt) => {
     // 1. 装我们的 inline/block 规则
     allYouNeedMarkdownIt(md, mergedOptions)
@@ -143,6 +180,7 @@ export function defineConfigWithAllYouNeed(
     // 2. v0.2:正文 #tag 规则
     if (
       resolvedForWrapper.modules.views &&
+      resolvedForWrapper.views.enabled.tags &&
       resolvedForWrapper.views.parseInlineTags
     ) {
       registerTagsInline(md)
@@ -163,6 +201,37 @@ export function defineConfigWithAllYouNeed(
 
   // v0.2/v0.3:自动注入视图条目 + sidebar 自动生成
   const themeConfig = (config.themeConfig ?? {}) as Record<string, unknown>
+
+  // 主题组件无法直接读取 Vite 插件选项,因此把它们收敛到
+  // themeConfig.allyouneed。用户手写的主题层字段最后合并,可单独调整 UI。
+  const applyAllyouneedThemeConfig = (target: Record<string, unknown>): void => {
+    const existing =
+      typeof target.allyouneed === 'object' && target.allyouneed !== null
+        ? target.allyouneed as Record<string, unknown>
+        : {}
+    const existingLocalGraph =
+      typeof existing.localGraph === 'object' && existing.localGraph !== null
+        ? existing.localGraph as Record<string, unknown>
+        : {}
+    target.allyouneed = {
+      ...existing,
+      viewsUrlPrefix: existing.viewsUrlPrefix ?? resolvedForWrapper.views.urlPrefix,
+      viewsNames: existing.viewsNames ?? resolvedForWrapper.views.names,
+      dataFileName: existing.dataFileName ?? resolvedForWrapper.views.dataFileName,
+      localGraph: {
+        ...resolvedForWrapper.views.localGraph,
+        ...existingLocalGraph,
+        // modules.views=false 时不会生成 vault-data.json。
+        enabled:
+          resolvedForWrapper.modules.views &&
+          Boolean(
+            existingLocalGraph.enabled ??
+              resolvedForWrapper.views.localGraph.enabled,
+          ),
+      },
+    }
+  }
+  applyAllyouneedThemeConfig(themeConfig)
 
   // v0.3:sidebar 自动生成
   //   - mode='off'           不动
@@ -219,6 +288,7 @@ export function defineConfigWithAllYouNeed(
           const report = scanWikilinks(index, resolvedForWrapper)
           logDeadLinks(report, resolvedForWrapper.deadLink)
         } catch (e) {
+          if (resolvedForWrapper.deadLink === 'error') throw e
           // 不阻塞,但要让用户看见(否则 debug "为什么死链不报" 太痛苦)
           console.warn(
             'vitepress-allyouneed: scanWikilinks failed, skipping dead-link summary.',
@@ -232,12 +302,15 @@ export function defineConfigWithAllYouNeed(
         const localeKeys = localesObj
           ? Object.keys(localesObj).filter((k) => k !== 'root')
           : []
+        const localePrefixes = localeKeys.map((lang) =>
+          localePrefix(localesObj?.[lang]?.link, lang),
+        )
 
         themeConfig.sidebar = generateSidebar(index, resolvedForWrapper, {
           ...sidebarAuto,
           excludePrefixes: [
             ...(sidebarAuto.excludePrefixes ?? []),
-            ...localeKeys, // 根 sidebar 排除掉所有 locale 子树
+            ...localePrefixes, // 根 sidebar 排除掉所有 locale 子树
           ],
         })
 
@@ -250,7 +323,10 @@ export function defineConfigWithAllYouNeed(
               localeCfg.themeConfig.sidebar = generateSidebar(
                 index,
                 resolvedForWrapper,
-                { ...sidebarAuto, includePrefix: lang },
+                {
+                  ...sidebarAuto,
+                  includePrefix: localePrefix(localeCfg.link, lang),
+                },
               )
             }
           }
@@ -265,6 +341,20 @@ export function defineConfigWithAllYouNeed(
           )
         }
       } catch (e) {
+        if (
+          resolvedForWrapper.onAliasConflict === 'error' &&
+          e instanceof Error &&
+          e.message.includes('alias conflict')
+        ) {
+          throw e
+        }
+        if (
+          resolvedForWrapper.deadLink === 'error' &&
+          e instanceof Error &&
+          e.message.includes('dead link')
+        ) {
+          throw e
+        }
         console.warn(
           'vitepress-allyouneed: sidebar auto-generation failed, skipping.',
           e instanceof Error ? e.message : String(e),
@@ -318,8 +408,22 @@ export function defineConfigWithAllYouNeed(
     }
   }
 
+  // VitePress 对 locale themeConfig 做浅合并。locale 若自己定义了
+  // allyouneed 会遮住顶层值,所以对已有 locale 配置再合并一次。
+  const localesForTheme = (config as {
+    locales?: Record<string, { themeConfig?: Record<string, unknown> }>
+  }).locales
+  if (localesForTheme) {
+    for (const locale of Object.values(localesForTheme)) {
+      if (locale.themeConfig) applyAllyouneedThemeConfig(locale.themeConfig)
+    }
+  }
+
   return {
     ...config,
+    // `_sidebar.md` is plugin metadata, not a VitePress page. Keep it in the
+    // vault scan (for override parsing) while excluding it from page builds.
+    srcExclude: [...new Set([...vpExclude, '_sidebar.md', '**/_sidebar.md'])],
     vite: newVite,
     themeConfig,
     markdown: {
@@ -327,6 +431,11 @@ export function defineConfigWithAllYouNeed(
       config: newMarkdownConfig,
     },
   }
+}
+
+function localePrefix(link: string | undefined, fallback: string): string {
+  const normalized = (link ?? fallback).replace(/^\/+|\/+$/g, '')
+  return normalized || fallback
 }
 
 /**

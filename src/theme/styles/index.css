@@ -1,31 +1,20 @@
 /*
  * vitepress-allyouneed v0.5 —— 主题样式入口。
  *
- * ━━ Layer 策略 ━━
+ * ━━ Cascade 策略 ━━
  *
- * 0.5.0-beta.3 起改设计:**不再用 `@import url(...) layer(name)` 子句**,
- * 而是**每个被 import 的 .css 自己头尾包 `@layer vitepress-allyouneed { ... }`**。
+ * 插件规则保持在普通(未分层)cascade 中。VitePress 的 reset 也是未分层规则;
+ * 如果本插件放在命名 `@layer` 中,reset 会无条件压过搜索框、按钮等组件样式。
  *
- * 原因:Vite + postcss-import / lightningcss 处理 `@import` 时,对 `layer()`
- * 子句的支持参差不齐(版本/插件链路不同表现不同)。某些组合会把 layer 名丢失,
- * 让我们的规则落进孤儿层 —— specificity 战不过宿主任何东西,Tags 这类视图直接
- * 失样(0.5.0-beta.0/.1/.2 都有这个隐患)。
- *
- * 改用 file-internal `@layer name { ... }` 块,语法 100% 浏览器原生 + 不经过
- * bundler 黑盒,可靠。
- *
- * ━━ 哪些 layered / 哪些 unlayered ━━
- *
- * 所有 7 个 .css 都 layered(0.5.0-beta.2 起 banner title 改用 div+ARIA
- * 解决了 doc-header.css 的特例)。用户 unlayered CSS 自动赢。
+ * 用户仍可通过在主题入口中先 import 本插件、后 import 自定义 CSS,按正常源顺序
+ * 覆盖同 specificity 的规则。
  */
-
-@layer vitepress-allyouneed;
 
 @import './shared.css';
 @import './stats.css';
 @import './tags.css';
 @import './graph.css';
+@import './local-graph.css';
 @import './callouts.css';
 @import './doc-header.css';
 @import '../../../style.css';

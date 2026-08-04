@@ -47,6 +47,10 @@ export default defineConfig({
     // .vue 组件在运行时(用户 Vite 编译时)会 import '../composables/useVaultData.js',
     // 所以必须把它编成单独的 dist 文件,而不是内联进 theme/index.js
     'theme/composables/useVaultData': 'src/theme/composables/useVaultData.ts',
+    // DocHeader.vue also imports pure helpers at runtime; keep the relative
+    // dist path available alongside the copied SFC.
+    'theme/doc-header': 'src/theme/doc-header.ts',
+    'theme/local-graph': 'src/theme/local-graph.ts',
   },
   format: ['esm', 'cjs'],
   define: {
@@ -61,6 +65,8 @@ export default defineConfig({
       vite: 'src/vite.ts',
       vitepress: 'src/vitepress.ts',
       'theme/composables/useVaultData': 'src/theme/composables/useVaultData.ts',
+      'theme/doc-header': 'src/theme/doc-header.ts',
+      'theme/local-graph': 'src/theme/local-graph.ts',
     },
   },
   sourcemap: true,

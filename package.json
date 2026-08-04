@@ -1,7 +1,7 @@
 {
   "name": "vitepress-allyouneed",
-  "version": "0.5.6",
-  "description": "VitePress plugin that turns an Obsidian/Notion-style vault into a website: wikilinks, transclusion, asset pipeline, auto-generated views (Graph/Stats/Tags), Obsidian syntax (callouts/highlight/comments/footnotes/block-refs/audio-video-pdf), sidebar auto-generation, document header. Forked from actuallysomecat/markdown-it-wikilinks-plus.",
+  "version": "0.6.0",
+  "description": "VitePress plugin that turns an Obsidian-style vault into a website: wikilinks, transclusion, assets, Graph/Stats/Tags/LocalGraph views, Obsidian syntax, auto sidebar, and document header.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -43,6 +43,7 @@
     "style.css",
     "README.md",
     "CHANGELOG.md",
+    "COMPATIBILITY.md",
     "LICENSE"
   ],
   "scripts": {
@@ -50,9 +51,10 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "vitepress build examples/e2e-vault && node scripts/assert-e2e-build.mjs",
     "test:watch": "vitest",
     "clean": "rimraf dist coverage",
-    "prepublishOnly": "npm run clean && npm run typecheck && npm run build && npm test"
+    "prepublishOnly": "npm run clean && npm run typecheck && npm run build && npm test && npm run test:e2e"
   },
   "keywords": [
     "vitepress",

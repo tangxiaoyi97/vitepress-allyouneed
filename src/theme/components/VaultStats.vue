@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import { withBase } from 'vitepress'
 import { useVaultData } from '../composables/useVaultData.js'
 
-const { data, loading, error } = useVaultData()
+const props = defineProps<{ dataFileName?: string }>()
+const { data, loading, error } = useVaultData(props.dataFileName)
 
 const cards = computed(() => {
   if (!data.value) return []

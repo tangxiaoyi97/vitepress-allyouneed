@@ -14,6 +14,7 @@ import type {
   ResolvedOptions,
   ResolveResult,
   FileEntry,
+  HeadingEntry,
 } from './types.js'
 import { sortByShortestPath } from './vault/index.js'
 import { stripMarkdownExt, toPosix, basename } from '../utils/path.js'
@@ -87,12 +88,11 @@ export function resolveWikilink(
   // 5. heading 匹配
   let url = entry.url
   let hasUnmatchedAnchor = false
+  let fragment: ResolveResult['fragment']
   if (headingPart) {
-    // v0.3.9:按 options.wikilinks.anchorMatch 选模式
-    const mode = options.wikilinks.anchorMatch ?? 'leading-number'
-    const heading = matchHeading(entry, headingPart, options.slugify, mode)
-    if (heading) {
-      url = entry.url + '#' + heading.slug
+    fragment = resolveEntryFragment(entry, headingPart, options)
+    if (fragment) {
+      url = entry.url + '#' + fragment.anchor
     } else {
       hasUnmatchedAnchor = true
       url = entry.url + '#' + encodeURIComponent(headingPart)
@@ -105,7 +105,46 @@ export function resolveWikilink(
     isDead: false,
     hasUnmatchedAnchor,
     target: entry,
+    fragment,
     kind,
+  }
+}
+
+/** Resolve a heading hierarchy (`h1#h2`) or an Obsidian `^block-id`. */
+export function resolveEntryFragment(
+  entry: FileEntry,
+  rawFragment: string,
+  options: ResolvedOptions,
+): ResolveResult['fragment'] {
+  const fragment = rawFragment.trim()
+  if (!fragment) return undefined
+
+  if (fragment.startsWith('^')) {
+    const requested = fragment.slice(1)
+    let block = entry.blockIds.get(requested)
+    if (!block && !options.caseSensitive) {
+      const lower = requested.toLowerCase()
+      block = [...entry.blockIds.values()].find(
+        (candidate) => candidate.id.toLowerCase() === lower,
+      )
+    }
+    if (!block) return undefined
+    return {
+      type: 'block',
+      raw: fragment,
+      anchor: `^${block.id}`,
+      block,
+    }
+  }
+
+  const mode = options.wikilinks.anchorMatch ?? 'leading-number'
+  const heading = matchHeadingPath(entry, fragment, options.slugify, mode)
+  if (!heading) return undefined
+  return {
+    type: 'heading',
+    raw: fragment,
+    anchor: heading.slug,
+    heading,
   }
 }
 
@@ -431,6 +470,50 @@ function matchHeading(
   if (candidates.length === 0) return undefined
   if (candidates.length === 1) return candidates[0]
   return [...candidates].sort((a, b) => a.text.length - b.text.length)[0]
+}
+
+/**
+ * Obsidian accepts a hierarchy such as `#Parent#Child`. Match the last heading
+ * only when its actual ancestor chain ends with all preceding segments.
+ */
+function matchHeadingPath(
+  entry: FileEntry,
+  headingPath: string,
+  slugify: (s: string) => string,
+  mode: 'exact' | 'leading-number' | 'fuzzy',
+): HeadingEntry | undefined {
+  const segments = headingPath.split('#').map((part) => part.trim()).filter(Boolean)
+  if (segments.length <= 1) {
+    return matchHeading(entry, segments[0] ?? headingPath, slugify, mode)
+  }
+
+  const stack: HeadingEntry[] = []
+  for (const heading of entry.headings) {
+    while (stack.length > 0 && stack[stack.length - 1]!.level >= heading.level) {
+      stack.pop()
+    }
+    const chain = [...stack, heading]
+    if (chain.length >= segments.length) {
+      const tail = chain.slice(chain.length - segments.length)
+      if (tail.every((candidate, index) =>
+        headingMatchesExact(candidate, segments[index]!, slugify),
+      )) {
+        return heading
+      }
+    }
+    stack.push(heading)
+  }
+  return undefined
+}
+
+function headingMatchesExact(
+  heading: HeadingEntry,
+  requested: string,
+  slugify: (s: string) => string,
+): boolean {
+  return heading.text === requested ||
+    heading.slug === requested ||
+    heading.slug === slugify(requested)
 }
 
 /**

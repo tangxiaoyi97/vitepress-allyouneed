@@ -34,3 +34,6 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Build e2e vault
+        run: npm run test:e2e

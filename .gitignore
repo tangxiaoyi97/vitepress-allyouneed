@@ -23,11 +23,13 @@ vitest.config.ts.timestamp-*.mjs
 .vitepress/dist
 **/.vitepress/cache
 **/.vitepress/dist
+**/.vitepress/.temp
 
 # ─ 示例站插件自动生成的产物(每次 build 由插件重写,不入库避免 diff 噪音)──
 # 注:若这些已被跟踪,需 `git rm --cached` 一次才真正生效
 examples/*/public/vault-data.json
 examples/*/_perspectives_/
+examples/e2e-vault/public-files/e2e-vault-data.json
 
 # ─ 一次性迁移脚本 / 临时验证残留(不入库)──
 examples/*/MIGRATE-i18n.sh

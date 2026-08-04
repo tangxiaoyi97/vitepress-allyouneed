@@ -3,10 +3,74 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
 
-## [Unreleased]
+## [Unreleased] — 0.6.0 release candidate
+
+0.6.0 is the next feature release, not a published version. Its scope is kept
+separate from the 0.5.7 stabilization release below.
+
+### Added
+
+- **Inline syntax hardening**: `==highlight==` is parsed atomically and can
+  contain inline Markdown without leaking across paragraphs, including CJK,
+  formulas, links, and adjacent emphasis.
+- **Mini Graph**: optional one/two-hop local graph above the TOC, deterministic
+  SVG preview, lazy full-graph modal, current-page focus, keyboard/focus handling,
+  reduced-motion support, base-safe navigation, and a mobile DocHeader button.
+  The public `views.localGraph` options and `LocalGraph` component are exported.
+- **Obsidian syntax parity**: block links/transclusion for structured blocks,
+  multi-level/self heading targets, PDF page/height fragments, multiline and
+  inline footnotes, and Unicode/emoji case-insensitive tag rules.
+- Golden fixtures now connect every new 0.6 compatibility claim to regression
+  tests.
+
+### Changed
+
+- The bilingual documentation/showcase and Pages deployment are prepared as a
+  standalone site repository. The npm package repository retains only a small
+  real-build e2e vault.
+- Dead-link, Graph, and Tags extraction share the same code/comment-aware body
+  scanner so those datasets do not drift apart.
+
+### Release boundary
+
+- Complete release review and publish only after the 0.5.7 stabilization tag is
+  available to the standalone site.
+- Keep 0.5.x-compatible defaults unless a breaking change is explicitly called
+  out with migration guidance.
+- Require typecheck, unit tests, package build, and e2e VitePress build before
+  tagging 0.6.0.
+
+## [0.5.7] - 2026-08-05
 
 ### Fixed
-- **`==highlight==` 在 CJK、粗体、链接或公式旁跨段错配**:高亮规则不再套用为 `*`/`_` 设计的 delimiter flanking 语义,改为原子解析成对 `==` 并递归解析内部 Markdown。`指==**重点**运行==的`、连续多个粗体高亮及高亮内公式/链接现在稳定输出 `<mark>`，不再残留原始 `==`。
+
+- Markdown-it silent look-ahead now advances parser state for comments and
+  footnotes; multi-paragraph/list callout content is no longer emptied. Nested
+  transclusion cycle detection and generated ids are stable across repeats.
+- Vault scanning now honours `scan.include` and ordered `.gitignore` negation,
+  keeps HMR indexes consistent, and matches VitePress `.md`, `index.md`, rewrite,
+  locale, duplicate-heading, and custom slugifier routing semantics.
+- `deadLink: 'error'` and alias-conflict errors now fail startup/build instead of
+  being logged and swallowed.
+- Asset URLs encode reserved path characters; `preserveAssetPaths` and
+  `outputDir` affect emitted files in build and dev. Views use VitePress's actual
+  `publicDir` and configured data filename, and exclude code/comments and
+  `_sidebar.md` metadata from graph/tag data.
+- Plugin component styles use normal unlayered cascade rules, restoring form and
+  tag-chip styling under VitePress. Theme composition preserves third-party base
+  Layouts; DocHeader links/covers respect `base`; graph labels remain readable
+  and initial fit no longer resets user interaction.
+
+### Changed
+
+- Added a compatibility contract, a concise package README, trusted Home feature
+  HTML assertions, and a 10–20 page e2e vault built by CI.
+- Began separating the large bilingual documentation site and deployment
+  workflow from the npm package repository.
+
+## [0.5.6] - 2026-06-20
+
+- Package metadata version correction; no runtime behavior change from 0.5.5.
 
 ## [0.5.5] - 2026-06-20
 

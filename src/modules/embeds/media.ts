@@ -188,23 +188,49 @@ export function renderPdfHtml(
   aliasParts: string[],
   env: AllYouNeedEnv,
 ): string {
-  const src = resolveSrc(rawTarget, env)
+  const pdfTarget = parsePdfTarget(rawTarget)
+  const baseSrc = resolveSrc(pdfTarget.assetTarget, env)
   // HOTFIX(0.5.2):缺失资源 → 告警 + 占位,绝不产出会崩 build 的绝对 src
-  if (src === null) {
+  if (baseSrc === null) {
     handleMissingMedia(env, 'pdf', rawTarget)
     return renderMissingMediaHtml(rawTarget, env)
   }
+  const src = pdfTarget.page === undefined
+    ? baseSrc
+    : `${baseSrc}#page=${pdfTarget.page}`
   const dim = parseAliasDim(aliasParts)
   // 默认尺寸:全宽 + 600px 高(给 iframe 一个起码可读的视口)
   const width = dim.width !== undefined ? `${dim.width}px` : '100%'
-  const height = dim.height !== undefined ? `${dim.height}px` : '600px'
+  const heightValue = dim.height ?? pdfTarget.height
+  const height = heightValue !== undefined ? `${heightValue}px` : '600px'
   return (
     `<iframe class="ayn-embed ayn-embed--pdf" ` +
     `src="${escapeHtml(src)}" ` +
     `style="width:${escapeHtml(width)};height:${escapeHtml(height)};border:0" ` +
-    `loading="lazy" title="${escapeHtml(basename(rawTarget))}">` +
+    `loading="lazy" title="${escapeHtml(basename(pdfTarget.assetTarget))}">` +
     `</iframe>`
   )
+}
+
+interface PdfTarget {
+  assetTarget: string
+  page?: number
+  height?: number
+}
+
+/** Parse Obsidian PDF fragments such as `#page=3` and `#height=480`. */
+function parsePdfTarget(rawTarget: string): PdfTarget {
+  const hashIndex = rawTarget.indexOf('#')
+  if (hashIndex < 0) return { assetTarget: rawTarget }
+  const result: PdfTarget = { assetTarget: rawTarget.slice(0, hashIndex) }
+  const fragment = rawTarget.slice(hashIndex + 1)
+  for (const part of fragment.split(/[&#]/)) {
+    const page = /^page=(\d+)$/i.exec(part.trim())
+    if (page && Number(page[1]) > 0) result.page = Number(page[1])
+    const height = /^height=(\d+)$/i.exec(part.trim())
+    if (height && Number(height[1]) > 0) result.height = Number(height[1])
+  }
+  return result
 }
 
 /**

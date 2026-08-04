@@ -48,18 +48,20 @@ export function buildIgnorer(
       for (const line of content.split(/\r?\n/)) {
         const trimmed = line.trim()
         if (!trimmed || trimmed.startsWith('#')) continue
-        // .gitignore 规则不完全等价于 picomatch 的 glob,
-        // 但对常见 'dist/'、'*.log' 这类够用了。
-        patterns.push(trimmed.endsWith('/') ? trimmed + '**' : trimmed)
+        patterns.push(trimmed)
       }
     } catch {
       // .gitignore 不存在或不可读 —— 静默跳过
     }
   }
 
-  const matchers = patterns.map((p) =>
-    picomatch(p, { dot: true, nocase: false }),
-  )
+  // Gitignore rules are ordered and `!` negates a previous match. Passing a
+  // negated rule directly to picomatch reverses the matcher itself and makes
+  // almost every unrelated path look ignored, so retain the rule polarity
+  // separately and evaluate in declaration order.
+  const rules = patterns
+    .map(compileIgnoreRule)
+    .filter((rule): rule is IgnoreRule => rule !== undefined)
 
   return (absPath: string): boolean => {
     const rel = toPosix(relative(srcDir, absPath))
@@ -70,10 +72,56 @@ export function buildIgnorer(
       if (HARD_IGNORE_DIRS.has(seg)) return true
     }
 
-    // 用户/gitignore 规则
-    for (const m of matchers) {
-      if (m(rel)) return true
+    // 用户/gitignore 规则（后规则覆盖前规则）
+    let ignored = false
+    for (const rule of rules) {
+      if (rule.match(rel)) ignored = !rule.negated
     }
-    return false
+    return ignored
+  }
+}
+
+interface IgnoreRule {
+  negated: boolean
+  match: (path: string) => boolean
+}
+
+function compileIgnoreRule(rawPattern: string): IgnoreRule | undefined {
+  let pattern = rawPattern.trim()
+  if (!pattern) return undefined
+
+  let negated = false
+  if (pattern.startsWith('!')) {
+    negated = true
+    pattern = pattern.slice(1)
+  } else if (pattern.startsWith('\\!')) {
+    pattern = pattern.slice(1)
+  }
+  if (pattern.startsWith('\\#')) pattern = pattern.slice(1)
+  if (!pattern) return undefined
+
+  const anchored = pattern.startsWith('/')
+  const directoryOnly = pattern.endsWith('/')
+  pattern = pattern.replace(/^\/+|\/+$/g, '')
+  if (!pattern) return undefined
+
+  const hasSlash = pattern.includes('/')
+  const candidates: string[] = []
+  if (hasSlash || anchored) {
+    candidates.push(pattern)
+    // A pattern matching a directory also ignores everything below it.
+    if (directoryOnly || !/[*?\[]/.test(pattern)) candidates.push(`${pattern}/**`)
+  } else {
+    // Slashless gitignore patterns match a basename at any depth.
+    candidates.push(`**/${pattern}`)
+    if (directoryOnly) candidates.push(`**/${pattern}/**`)
+  }
+
+  const matchers = candidates.map((candidate) =>
+    picomatch(candidate, { dot: true, nocase: false }),
+  )
+  return {
+    negated,
+    match: (path) => matchers.some((matcher) => matcher(path)),
   }
 }

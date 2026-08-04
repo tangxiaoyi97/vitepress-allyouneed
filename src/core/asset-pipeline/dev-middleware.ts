@@ -18,6 +18,7 @@ import type {
   AssetEntry,
 } from '../types.js'
 import { basename } from '../../utils/path.js'
+import { normalizeOutputDir } from './build-emit.js'
 
 export type DevMiddleware = (
   req: IncomingMessage,
@@ -51,7 +52,11 @@ export function createDevMiddleware(
     if (!/\.[a-zA-Z0-9]+$/.test(decoded)) return next()
 
     // 1) 先按相对路径查
-    const relCandidate = decoded.replace(/^\/+/, '')
+    let relCandidate = decoded.replace(/^\/+/, '')
+    const outputDir = normalizeOutputDir(options.assets.outputDir)
+    if (outputDir && relCandidate.startsWith(`${outputDir}/`)) {
+      relCandidate = relCandidate.slice(outputDir.length + 1)
+    }
     let asset: AssetEntry | undefined =
       index.assetsByRelativePath.get(relCandidate)
 
