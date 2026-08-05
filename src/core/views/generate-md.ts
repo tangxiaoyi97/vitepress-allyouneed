@@ -28,7 +28,7 @@ export interface GenerateMdReport {
 
 export function generateViewMarkdown(
   options: ResolvedOptions,
-  index: VaultIndex,
+  _index?: VaultIndex,
 ): GenerateMdReport {
   const report: GenerateMdReport = { written: [], skipped: [] }
   if (!options.modules.views) return report
@@ -50,6 +50,7 @@ export function generateViewMarkdown(
 
   for (const v of views) {
     const target = nodePath.join(viewDir, v.fileName)
+    const rendered = renderTemplate(v)
 
     if (fs.existsSync(target)) {
       let existing: string
@@ -68,12 +69,15 @@ export function generateViewMarkdown(
         })
         continue
       }
+      // Keep generation idempotent. Apart from avoiding unnecessary disk
+      // churn, `written` is used by the Vite integration to decide whether a
+      // full vault rescan is necessary.
+      if (existing === rendered) continue
     }
 
     try {
-      fs.writeFileSync(target, renderTemplate(v), 'utf8')
+      fs.writeFileSync(target, rendered, 'utf8')
       report.written.push(target)
-      void index
     } catch (err) {
       report.skipped.push({
         path: target,

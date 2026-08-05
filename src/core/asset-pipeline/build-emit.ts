@@ -51,12 +51,21 @@ export function buildPublicUrl(
   asset: AssetEntry,
   options: ResolvedOptions,
 ): string {
+  return options.base.slice(0, -1) + buildSiteAssetPath(asset, options)
+}
+
+/** Site-root asset path for Markdown link tokens (VitePress adds `base`). */
+export function buildSiteAssetPath(
+  asset: AssetEntry,
+  options: ResolvedOptions,
+): string {
+  if (asset.outputPath) return '/' + encodePathSegments(asset.outputPath)
   const path = options.assets.preserveAssetPaths
     ? asset.relativePath
     : basename(asset.absolutePath)
   const outputDir = normalizeOutputDir(options.assets.outputDir)
   const outputPath = outputDir ? `${outputDir}/${path}` : path
-  return options.base + encodePathSegments(outputPath)
+  return '/' + encodePathSegments(outputPath)
 }
 
 /** Build-time Rollup fileName, honouring outputDir and path preservation. */

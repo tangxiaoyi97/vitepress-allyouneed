@@ -20,6 +20,8 @@ export interface VaultDataEdge {
   type: 'wikilink' | 'transclusion'
 }
 export interface VaultDataTagInfo {
+  /** Added in 0.6.1; optional so cached 0.6.0 data remains renderable. */
+  label?: string
   count: number
   files: {
     id: string

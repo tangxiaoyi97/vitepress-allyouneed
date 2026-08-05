@@ -527,6 +527,8 @@ export interface AllYouNeedOptions {
     footnotes?: boolean
     /** v0.3:Obsidian block-ref marker `^block-id`(纯渲染层 anchor),默认开 */
     blockRefs?: boolean
+    /** Obsidian list tasks with any one-character status marker,默认开 */
+    tasks?: boolean
     // future: dataview
   }
 
@@ -587,6 +589,7 @@ export interface ResolvedOptions {
     comments: boolean
     footnotes: boolean
     blockRefs: boolean
+    tasks: boolean
   }
   /** v0.3:sidebar 自动生成原始选项(具体 resolve 由 sidebar-auto 模块内部完成,
    * 这里只透传给 wrapper)*/

@@ -23,8 +23,8 @@ import { buildPlaceholderUrl } from '../../core/asset-pipeline/build-emit.js'
 import { parseDimensionToken } from './dimensions.js'
 
 // webm 实际多为 video/webm,这里只放 video 列表;classifyMediaExt video-first
-const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac']
-const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv']
+const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', '3gp']
+const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv', 'ogv']
 const PDF_EXTS = ['pdf']
 
 export function isAudioExt(ext: string): boolean {

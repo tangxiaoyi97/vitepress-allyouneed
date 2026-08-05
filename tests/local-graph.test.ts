@@ -144,6 +144,9 @@ describe('local graph data selection', () => {
     const source = readFileSync(
       resolve(testDir, '../src/theme/components/LocalGraph.vue'),
       'utf8',
+    ) + readFileSync(
+      resolve(testDir, '../src/theme/components/LocalGraphPreview.vue'),
+      'utf8',
     )
     expect(source).not.toContain("from 'd3-force'")
     expect(source).toContain("import('./LocalGraphModal.vue')")

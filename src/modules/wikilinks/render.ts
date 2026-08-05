@@ -49,6 +49,33 @@ export function renderPageLink(
   return true
 }
 
+/** Render a resolved non-Markdown vault attachment as a normal link. */
+export function renderAttachmentLink(
+  state: StateInline,
+  href: string,
+  label: string,
+  relativePath: string,
+  env: AllYouNeedEnv,
+): boolean {
+  const open = state.push('link_open', 'a', 1)
+  const baseAttrs: Record<string, string> = {
+    href,
+    class: 'wikilink wikilink--attachment',
+    'data-wikilink-target': relativePath,
+  }
+  const extra = resolveExtraAttrs(env.options.wikilinks.htmlAttributes, {
+    originalHref: href,
+    label,
+    target: undefined,
+    isDead: false,
+    hasUnmatchedAnchor: false,
+  })
+  applyAttrs(open, baseAttrs, extra)
+  emitLabel(state, label, env)
+  state.push('link_close', 'a', -1)
+  return true
+}
+
 /**
  * 渲染死链:**不输出 href**,避免点击跳转到不存在的页面误导用户。
  * 用 <a class="wikilink wikilink--dead"> 不带 href → 视觉是链接、CSS 标红删除线、

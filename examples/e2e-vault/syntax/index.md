@@ -16,6 +16,14 @@ Visible text with %%discarded comment%% a footnote.[^fixture]
 
 Block target. ^fixture-block
 
+- [ ] Open task
+- [?] Review task
+- [✓] Verified task
+
+Download [[attachment only.pdf|the attachment-only PDF]].
+
+Tag casing stays author-facing: #StableRelease #stablerelease.
+
 ![External diagram|80x40](https://example.com/diagram.png "External diagram")
 
     [[missing-indented-e2e]] #fake-indented-e2e

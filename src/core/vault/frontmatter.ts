@@ -6,7 +6,7 @@
  */
 
 import matter from 'gray-matter'
-import { isValidTag, normalizeTag } from '../tags.js'
+import { displayTag, isValidTag, normalizeTag } from '../tags.js'
 
 export interface ParsedFrontmatter {
   /** 解析后的 frontmatter 对象,失败时为空对象 */
@@ -53,18 +53,26 @@ export function normalizeAliases(raw: unknown): string[] {
  * 把 frontmatter.tags 归一化为字符串数组(同上规则)。
  */
 export function normalizeTags(raw: unknown): string[] {
+  return normalizeTagEntries(raw).map((entry) => entry.tag)
+}
+
+/** Canonical tag keys paired with first spelling in this frontmatter value. */
+export function normalizeTagEntries(
+  raw: unknown,
+): Array<{ tag: string; display: string }> {
   if (raw == null) return []
-  if (typeof raw === 'string') {
-    return [...new Set(raw
-      .split(/[,\s]+/)
-      .map(normalizeTag)
-      .filter(isValidTag))]
+  const values = typeof raw === 'string'
+    ? raw.split(/[,\s]+/)
+    : Array.isArray(raw)
+      ? raw.filter((value): value is string => typeof value === 'string')
+      : []
+  const seen = new Set<string>()
+  const result: Array<{ tag: string; display: string }> = []
+  for (const value of values) {
+    const tag = normalizeTag(value)
+    if (!isValidTag(tag) || seen.has(tag)) continue
+    seen.add(tag)
+    result.push({ tag, display: displayTag(value) })
   }
-  if (Array.isArray(raw)) {
-    return [...new Set(raw
-      .filter((v): v is string => typeof v === 'string')
-      .map(normalizeTag)
-      .filter(isValidTag))]
-  }
-  return []
+  return result
 }

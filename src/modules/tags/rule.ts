@@ -60,7 +60,7 @@ export function makeTagRule(): (state: StateInline, silent: boolean) => boolean 
     const href = `${base}${pagePath}#${encodeURIComponent(tag)}`
     const html =
       `<a class="ayn-tag" data-tag="${escapeHtml(tag)}" ` +
-      `href="${escapeHtml(href)}">#${escapeHtml(tag)}</a>`
+      `href="${escapeHtml(href)}">#${escapeHtml(match.raw)}</a>`
 
     const token = state.push('html_inline', '', 0)
     token.content = html

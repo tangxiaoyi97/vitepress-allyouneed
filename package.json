@@ -1,6 +1,6 @@
 {
   "name": "vitepress-allyouneed",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "VitePress plugin that turns an Obsidian-style vault into a website: wikilinks, transclusion, assets, Graph/Stats/Tags/LocalGraph views, Obsidian syntax, auto sidebar, and document header.",
   "type": "module",
   "main": "./dist/index.cjs",

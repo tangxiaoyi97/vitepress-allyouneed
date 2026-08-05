@@ -76,6 +76,21 @@ if (
 ) {
   throw new Error('External Markdown image dimensions are missing from SSR output')
 }
+if (
+  !syntaxHtml.includes('class="wikilink wikilink--attachment"') ||
+  !syntaxHtml.includes('>the attachment-only PDF</a>') ||
+  !syntaxHtml.includes('href="/e2e/vault-assets/attachment%20only-') ||
+  syntaxHtml.includes('/e2e/e2e/vault-assets/attachment')
+) {
+  throw new Error('Plain attachment wikilink is missing from SSR output')
+}
+if (
+  !syntaxHtml.includes('class="contains-task-list"') ||
+  !syntaxHtml.includes('data-task="?"') ||
+  !syntaxHtml.includes('data-task="✓"')
+) {
+  throw new Error('Obsidian task statuses are missing from SSR output')
+}
 if (!builtVaultData.tags?.['footnote-fixture']) {
   throw new Error('Multiline footnote content was dropped from the generated Tags data')
 }
@@ -85,6 +100,9 @@ if (builtVaultData.tags?.['fake-indented-e2e']) {
 if (builtVaultData.tags?.['fake-footnote-code-e2e']) {
   throw new Error('Footnote code leaked a fake tag into generated Tags data')
 }
+if (builtVaultData.tags?.stablerelease?.label !== 'StableRelease') {
+  throw new Error('Tags data did not retain first-seen author casing')
+}
 
 const emittedAssets = await walkFiles(
   resolve(distRoot, 'vault-assets'),
@@ -92,6 +110,13 @@ const emittedAssets = await walkFiles(
 )
 if (emittedAssets.length === 0) {
   throw new Error('Special-character vault asset was not emitted')
+}
+const linkedAttachments = await walkFiles(
+  resolve(distRoot, 'vault-assets'),
+  (file) => basename(file).startsWith('attachment only-') && extname(file) === '.pdf',
+)
+if (linkedAttachments.length !== 1) {
+  throw new Error('Attachment-only vault asset was not emitted exactly once')
 }
 
 const localGraphChunks = await walkFiles(

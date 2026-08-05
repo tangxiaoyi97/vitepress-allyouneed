@@ -151,7 +151,6 @@ export function defineConfigWithAllYouNeed(
     try {
       const report = generateViewMarkdown(
         resolvedForWrapper,
-        scanVault(resolvedForWrapper),
       )
       for (const skipped of report.skipped) {
         console.warn(

@@ -118,7 +118,7 @@ describe('official Obsidian syntax golden fixture', () => {
     expect(html).toContain('>#team/🚀<')
     expect(html).toContain('>#team/👍🏽<')
     expect(html).toContain('#404 ')
-    expect(html).toContain('>#404error<')
+    expect(html).toContain('>#404Error<')
   })
 
   it('excludes indented code without dropping nested list content', () => {

@@ -26,7 +26,7 @@ describe('DocHeader frontmatter normalization', () => {
 
   it('normalizes leading hashes, whitespace, duplicates and non-string entries', () => {
     expect(normalizeDocTags(['#Alpha', 'beta', '##alpha', 3, ''])).toEqual([
-      'alpha',
+      'Alpha',
       'beta',
     ])
     expect(normalizeDocTags('#one, two #three')).toEqual(['one', 'two', 'three'])

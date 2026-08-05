@@ -40,12 +40,13 @@ these route settings identical on both sides.
 | Wikilinks, aliases, relative/folder links | Supported | Includes self-links and multi-level heading paths. |
 | `[[note#^id]]` and `![[note#^id]]` | Supported | Paragraphs, lists, quotes/callouts, and table blocks are indexed; duplicate ids resolve to the first block. |
 | Note/heading/block transclusion | Supported | Transclusion cycle guards remain enabled. |
-| Images, audio, video, PDF | Supported | Wiki/Markdown image dimensions and PDF `#page=N` / `#height=N` fragments are preserved. |
+| Attachment links; images, audio, video, PDF | Supported | Plain `[[file.ext]]` links use the asset pipeline; dimensions and PDF fragments are preserved. |
 | Callouts, highlights, comments | Supported | HTML-preserved comments are not a secret-storage mechanism. |
 | Footnotes | Supported | Single-line, multiline definitions, and `^[inline footnote]`. |
-| Inline tags | Supported | Unicode/emoji are accepted, tags require a non-numeric character, and keys are case-insensitive/lowercased. |
+| Inline tags | Supported | Unicode/emoji and non-numeric validation; inline output keeps each authored spelling, while Tags/DocHeader group case-insensitively and display the first. |
+| Task lists | Supported | `[ ]`, `[x]`, and any one-character status render as static disabled checkboxes with `data-task`. |
 | Math, Mermaid | External adapter | Use VitePress/Markdown-it integrations; Math has an optional peer dependency. |
-| Canvas, Bases, search-result embeds | Not yet rendered | Kept outside 0.6.0 rather than approximated incorrectly. |
+| Canvas, Bases, search-result embeds | Not yet rendered | Kept outside core rather than approximated incorrectly. |
 | Dataview, Templater, community plugins | Not planned in core | Plugin code and queries are never executed. |
 
 Resolution is filesystem- and frontmatter-based; the package does not load an
@@ -59,15 +60,12 @@ Known boundaries:
   interactive canvases. `.base` files and `base` code blocks are not evaluated.
 - Embedded `query` blocks and the cross-vault `[[## heading]]` / `[[^^block]]`
   search shortcuts are not executed.
-- Plain attachment links such as `[[Figure.png]]` are not rewritten as download
-  links; the asset pipeline currently handles embeds.
-- The default media set does not yet cover every current Obsidian format:
-  `.mkv` needs a scan override, while `.3gp` and `.ogv` lack dedicated renderers.
-- Standard task checkboxes come from VitePress, but Obsidian's arbitrary task
-  status characters and editable Reading-view toggles are not emulated.
+- Task status markers are static in published HTML. Reading-view editing and
+  persistence back into the vault are not emulated.
 - Frontmatter powers selected publishing fields, but typed Properties, property
   search/editing, and Obsidian Publish's `publish` / `permalink` semantics are
-  not reproduced. Tag keys are lowercased instead of retaining first-seen case.
+  not reproduced. Canonical tag keys remain lowercase, while UI labels retain
+  the first spelling encountered in deterministic vault order.
 - Obsidian-specific URI schemes, commands, plugin APIs, and application state
   are outside the package scope.
 - With `comments.preserveAsHtmlComment: true`, `%%comment%%` is invisible in the

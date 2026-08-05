@@ -34,6 +34,7 @@ import { registerComments } from './modules/comments/index.js'
 import { registerFootnotes } from './modules/footnotes/index.js'
 import { registerBlockRefs } from './modules/block-refs/index.js'
 import { registerMarkdownImageDimensions } from './modules/embeds/external-image.js'
+import { registerTasks } from './modules/tasks/index.js'
 
 /**
  * markdown-it 插件函数。
@@ -58,6 +59,7 @@ function allYouNeedMarkdownIt(
     comments: cmOn,
     footnotes: fnOn,
     blockRefs: brOn,
+    tasks: tasksOn,
   } = resolved.modules
 
   if (wlOn && emOn) {
@@ -95,6 +97,10 @@ function allYouNeedMarkdownIt(
   // v0.3:block-ref `^id` 锚点(渲染层)
   if (brOn) {
     registerBlockRefs(md)
+  }
+
+  if (tasksOn) {
+    registerTasks(md)
   }
 }
 

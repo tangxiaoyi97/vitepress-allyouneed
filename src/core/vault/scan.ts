@@ -89,5 +89,9 @@ export function walk(
   }
 
   visit(srcDir)
-  return out
+  // Filesystem enumeration order is not portable. Stable path order makes
+  // conflict='first' and first-seen tag spelling reproducible across machines.
+  return out.sort((a, b) =>
+    a.absolutePath < b.absolutePath ? -1 : a.absolutePath > b.absolutePath ? 1 : 0,
+  )
 }

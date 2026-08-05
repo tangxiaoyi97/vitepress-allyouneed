@@ -38,6 +38,7 @@ export interface VaultDataEdge {
 }
 
 export interface VaultDataTagInfo {
+  label?: string
   count: number
   files: {
     id: string

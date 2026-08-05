@@ -2,6 +2,7 @@
 
 import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
+import type { FileEntry } from './types.js'
 import { registerFootnoteDefinitionBlocks } from '../modules/footnotes/rule.js'
 
 /** `[[...]]` / `![[...]]`, excluding line breaks. Create a fresh RegExp per scan. */
@@ -9,6 +10,50 @@ export const WIKILINK_SOURCE = /(!?)\[\[([^\]\n]+)\]\]/g
 
 const blockParser = new MarkdownIt({ html: true })
 registerFootnoteDefinitionBlocks(blockParser)
+
+export interface MarkdownContentAnalysis {
+  /** Block tokens shared by structural scanners such as block-ID collection. */
+  tokens: Token[]
+  /** Source with non-content regions blanked while preserving offsets. */
+  cleaned: string
+}
+
+interface CachedMarkdownContentAnalysis extends MarkdownContentAnalysis {
+  source: string
+}
+
+// FileEntry is intentionally kept unchanged: it is a public type and is also
+// serialized by user integrations. A WeakMap gives all core consumers the same
+// analysis without leaking implementation details or retaining removed HMR
+// entries.
+const analysisByFile = new WeakMap<FileEntry, CachedMarkdownContentAnalysis>()
+
+/** Parse a Markdown body once and derive the shared scanner representation. */
+export function analyzeMarkdownContent(src: string): MarkdownContentAnalysis {
+  const tokens = blockParser.parse(src, {})
+  return {
+    tokens,
+    cleaned: stripNonContentMarkdown(src, tokens),
+  }
+}
+
+/** Associate an ingest-time analysis with its immutable FileEntry snapshot. */
+export function cacheMarkdownContentAnalysis(
+  file: FileEntry,
+  analysis: MarkdownContentAnalysis,
+): void {
+  analysisByFile.set(file, { ...analysis, source: file.content })
+}
+
+/** Return scan-safe source, re-analysing only if a caller mutated the entry. */
+export function getScannableMarkdown(file: FileEntry): string {
+  const cached = analysisByFile.get(file)
+  if (cached?.source === file.content) return cached.cleaned
+
+  const analysis = analyzeMarkdownContent(file.content)
+  cacheMarkdownContentAnalysis(file, analysis)
+  return analysis.cleaned
+}
 
 /**
  * Blank fenced/inline code, HTML comments and Obsidian comments while

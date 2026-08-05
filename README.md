@@ -10,9 +10,11 @@ Obsidian 语法、自动侧边栏、文档头，以及 Graph / Stats / Tags 视�
 ## 能力边界
 
 - 支持 `[[note]]`、alias、多级 heading、`#^block`、folder link 与上下文同名解析。
-- 支持 `![[note]]` 转译，以及图片、音频、视频和 PDF 资源。
-- 支持 callout、`==highlight==`、`%%comment%%`、多行/内联脚注、block reference
-  与正文标签。
+- 支持 `![[note]]` 转译、`[[attachment.pdf]]` 普通附件链接，以及图片、音频、
+  视频和 PDF 资源。
+- 支持 callout、`==highlight==`、`%%comment%%`、多行/内联脚注、任意单字符
+  任务状态、block reference 与 Unicode 标签；正文保留每次书写，Tags / DocHeader
+  则按大小写不敏感归并并保留首次拼写。
 - 扫描 `.md` vault，生成 sidebar、backlinks 和可选的 Graph / Stats / Tags
   数据。
 - 提供可组合 VitePress theme，为文档页增加 DocHeader。

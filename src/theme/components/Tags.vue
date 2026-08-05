@@ -20,7 +20,9 @@ const tagList = computed(() => {
   const entries = Object.entries(data.value.tags)
   const f = filter.value.trim().toLowerCase()
   const filtered = f
-    ? entries.filter(([t]) => t.toLowerCase().includes(f))
+    ? entries.filter(([tag, info]) =>
+        tag.toLowerCase().includes(f) || (info.label ?? tag).toLowerCase().includes(f),
+      )
     : entries
   return filtered.sort((a, b) => b[1].count - a[1].count)
 })
@@ -129,7 +131,7 @@ function extraTagCount(tags: string[]): number {
                 <line x1="16" x2="14" y1="3" y2="21" />
               </svg>
             </span>
-            <span class="ayn-tag-chip-name">{{ tag }}</span>
+            <span class="ayn-tag-chip-name">{{ info.label ?? tag }}</span>
             <span class="ayn-tag-chip-count">{{ info.count }}</span>
           </button>
         </div>

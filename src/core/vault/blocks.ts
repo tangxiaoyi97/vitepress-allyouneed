@@ -1,20 +1,22 @@
 /** Collect Obsidian `^block-id` source ranges for linking and transclusion. */
 
-import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
 import type { BlockEntry } from '../types.js'
-import { stripNonContentMarkdown } from '../markdown-content.js'
-import { registerFootnoteDefinitionBlocks } from '../../modules/footnotes/rule.js'
-
-const parser = new MarkdownIt({ html: true })
-registerFootnoteDefinitionBlocks(parser)
+import {
+  analyzeMarkdownContent,
+  type MarkdownContentAnalysis,
+} from '../markdown-content.js'
 const BLOCK_ID_RE = /(?:^|\s)\^([A-Za-z0-9_-]+)\s*$/
 const STANDALONE_RE = /^\^([A-Za-z0-9_-]+)$/
 
-export function collectBlockIds(content: string): Map<string, BlockEntry> {
+export function collectBlockIds(
+  content: string,
+  sharedAnalysis?: MarkdownContentAnalysis,
+): Map<string, BlockEntry> {
   const lines = content.split(/\r?\n/)
-  const tokens = parser.parse(content, {})
-  const scanLines = stripNonContentMarkdown(content, tokens).split(/\r?\n/)
+  const analysis = sharedAnalysis ?? analyzeMarkdownContent(content)
+  const tokens = analysis.tokens
+  const scanLines = analysis.cleaned.split(/\r?\n/)
   const blocks = new Map<string, BlockEntry>()
 
   for (let markerLine = 0; markerLine < lines.length; markerLine += 1) {

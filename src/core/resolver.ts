@@ -716,3 +716,84 @@ export function resolveAsset(
       return { asset: undefined, rawBasename: target }
   }
 }
+
+/**
+ * Resolve a plain attachment target while preserving an Obsidian fragment.
+ * An exact filename wins first so literal `#` characters in asset names are
+ * never truncated merely because fragments are also supported.
+ */
+export function resolveAttachment(
+  rawTarget: string,
+  index: VaultIndex,
+  options: ResolvedOptions,
+  currentSourcePath?: string,
+): ReturnType<typeof resolveAsset> & { suffix: string } {
+  const exact = resolveAsset(rawTarget, index, options, currentSourcePath)
+  if (exact.asset) return { ...exact, suffix: '' }
+
+  const hash = rawTarget.indexOf('#')
+  if (hash > 0) {
+    const target = rawTarget.slice(0, hash)
+    const resolved = resolveAsset(target, index, options, currentSourcePath)
+    if (resolved.asset) {
+      return { ...resolved, suffix: rawTarget.slice(hash) }
+    }
+  }
+  return { ...exact, suffix: '' }
+}
+
+/**
+ * Resolve the page-vs-attachment ambiguity for a non-embedded wikilink.
+ * `[[note#manual.pdf]]` is a page heading, while `[[manual.pdf#page=2]]` is an
+ * attachment. A filename containing a literal `#` only wins when that exact
+ * indexed asset exists.
+ */
+export function resolvePlainAttachment(
+  rawTarget: string,
+  index: VaultIndex,
+  options: ResolvedOptions,
+  currentSourcePath?: string,
+): ReturnType<typeof resolveAttachment> & { isAttachment: boolean } {
+  if (hasAssetExtension(rawTarget, options.scan.assetExtensions)) {
+    return {
+      ...resolveAttachment(rawTarget, index, options, currentSourcePath),
+      isAttachment: true,
+    }
+  }
+
+  if (hasTerminalAssetExtension(rawTarget, options.scan.assetExtensions)) {
+    const exact = resolveAsset(rawTarget, index, options, currentSourcePath)
+    if (exact.asset) {
+      return { ...exact, suffix: '', isAttachment: true }
+    }
+  }
+
+  return {
+    asset: undefined,
+    rawBasename: rawTarget,
+    suffix: '',
+    isAttachment: false,
+  }
+}
+
+/** Whether the path before an optional fragment has an indexed asset type. */
+export function hasAssetExtension(
+  target: string,
+  extensions: readonly string[],
+): boolean {
+  const pathBeforeFragment = target.toLowerCase().split('#')[0]!
+  return extensions.some((extension) => {
+    const suffix = `.${extension.toLowerCase()}`
+    return pathBeforeFragment.endsWith(suffix)
+  })
+}
+
+function hasTerminalAssetExtension(
+  target: string,
+  extensions: readonly string[],
+): boolean {
+  const lower = target.toLowerCase()
+  return extensions.some((extension) =>
+    lower.endsWith(`.${extension.toLowerCase()}`),
+  )
+}

@@ -34,6 +34,10 @@ import {
 } from './frontmatter.js'
 import { collectHeadings } from './headings.js'
 import { collectBlockIds } from './blocks.js'
+import {
+  analyzeMarkdownContent,
+  cacheMarkdownContentAnalysis,
+} from '../markdown-content.js'
 
 // Keep page discovery in lockstep with VitePress 1.x (`**.md`). Assets use
 // their own configurable extension set below.
@@ -141,7 +145,8 @@ function ingestMarkdown(
   const aliases = normalizeAliases(data.aliases)
   const tags = normalizeTags(data.tags)
   const headings = collectHeadings(content, options.slugify)
-  const blockIds = collectBlockIds(content)
+  const contentAnalysis = analyzeMarkdownContent(content)
+  const blockIds = collectBlockIds(content, contentAnalysis)
   const rel = relativePath(index.srcDir, absPath)
   const base = basename(absPath, true)
   const ext = extname(absPath)
@@ -163,6 +168,7 @@ function ingestMarkdown(
     content,
   }
 
+  cacheMarkdownContentAnalysis(entry, contentAnalysis)
   registerFileEntry(index, entry, options)
 }
 

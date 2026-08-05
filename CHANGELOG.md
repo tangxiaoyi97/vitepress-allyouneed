@@ -3,10 +3,42 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/);版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
 
-## [Unreleased] — 0.6.0 release candidate
+## [Unreleased]
 
-0.6.0 is the next feature release, not a published version. Its scope is kept
-separate from the 0.5.7 stabilization release below.
+## [0.6.1] - 2026-08-06
+
+### Added
+
+- Plain attachment wikilinks now resolve through the same base-aware asset
+  pipeline as embeds; only referenced files are emitted during production
+  builds.
+- Obsidian task markers support `[ ]`, `[x]`, and arbitrary one-character
+  statuses as static, accessible checkboxes with preserved `data-task` values.
+- The default accepted media set now includes `.3gp`, `.mkv`, and `.ogv` while
+  retaining the existing extra formats.
+
+### Changed
+
+- Markdown source analysis is cached per immutable vault entry and reused by
+  block indexing, dead-link scans, Graph, and Tags. Generated perspective pages
+  are idempotent and no longer trigger a redundant full rescan when unchanged.
+- Tag matching remains case-insensitive. Inline tags retain each authored
+  spelling, while DocHeader and Tags views use the first author-facing spelling
+  in deterministic vault order.
+- Local Graph preview interaction is isolated in an internal component without
+  changing the public `LocalGraph` API, markup classes, or visual behavior.
+
+### Fixed
+
+- Attachment-only assets now receive deterministic SSR URLs instead of leaking
+  a virtual placeholder or being omitted from the final site.
+- Vault traversal order is stable across filesystems, making `first` conflict
+  behavior and tag display casing reproducible.
+
+## [0.6.0] - 2026-08-05
+
+0.6.0 is the feature release that introduced structured block syntax and Local
+Graph. Its scope remains separate from the 0.5.7 stabilization release below.
 
 ### Added
 
@@ -52,15 +84,6 @@ separate from the 0.5.7 stabilization release below.
 - DocHeader derives its default Tags link from customized view paths/names,
   canonicalizes tag links case-insensitively like the generated Tags dataset,
   and exposes its runtime options through the public theme configuration type.
-
-### Release boundary
-
-- Complete release review and publish only after the 0.5.7 stabilization tag is
-  available to the standalone site.
-- Keep 0.5.x-compatible defaults unless a breaking change is explicitly called
-  out with migration guidance.
-- Require typecheck, unit tests, package build, and e2e VitePress build before
-  tagging 0.6.0.
 
 ## [0.5.7] - 2026-08-05
 

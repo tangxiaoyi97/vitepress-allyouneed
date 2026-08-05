@@ -245,7 +245,7 @@ function tagHref(tag: string): string {
   const base = isExternalUrl(configured)
     ? configured
     : withBase(toSitePath(configured))
-  return `${base}#${encodeURIComponent(tag)}`
+  return `${base}#${encodeURIComponent(tag.toLowerCase())}`
 }
 
 // ── 是否有内容行,用于决定标题下方分割线 ────────────────────────

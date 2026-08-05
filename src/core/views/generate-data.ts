@@ -15,12 +15,18 @@ import type {
   FileEntry,
 } from '../types.js'
 import { splitWikilinkInner } from '../../utils/wikilink.js'
-import { resolveWikilink } from '../resolver.js'
 import {
+  resolvePlainAttachment,
+  resolveWikilink,
+} from '../resolver.js'
+import {
+  getScannableMarkdown,
   stripNonContentMarkdown,
   WIKILINK_SOURCE,
 } from '../markdown-content.js'
-import { findInlineTags } from '../tags.js'
+import { findInlineTagMatches } from '../tags.js'
+import { normalizeTagEntries } from '../vault/frontmatter.js'
+import { classifyMediaExt } from '../../modules/embeds/media.js'
 
 export interface VaultData {
   nodes: VaultDataNode[]
@@ -42,6 +48,8 @@ export interface VaultDataEdge {
   type: 'wikilink' | 'transclusion'
 }
 export interface VaultDataTagInfo {
+  /** First author-facing spelling encountered in deterministic vault order. */
+  label: string
   count: number
   files: {
     id: string
@@ -87,10 +95,9 @@ export function buildVaultData(
   for (const f of index.files.values()) {
     if (!isPerspective(f) && !isInternalFile(f)) userFiles.push(f)
   }
-  const cleanedContent = new Map(
-    userFiles.map((file) => [file.relativePath, stripNonContentMarkdown(file.content)]),
+  userFiles.sort((a, b) =>
+    a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0,
   )
-
   // 节点
   const nodes: VaultDataNode[] = []
   for (const f of userFiles) {
@@ -108,14 +115,35 @@ export function buildVaultData(
   // (transclusion 是更"强"的关系,渲染出来视觉上也更重)
   const edgeMap = new Map<string, VaultDataEdge>()
   for (const f of userFiles) {
-    const cleaned = cleanedContent.get(f.relativePath)!
+    const cleaned = getScannableMarkdown(f)
     const matches = cleaned.matchAll(new RegExp(WIKILINK_SOURCE))
     for (const m of matches) {
       const isEmbed = m[1] === '!'
+      if (isEmbed ? !options.modules.embeds : !options.modules.wikilinks) continue
       // v0.3.4:拆 \| 转义,取 target 段,剥 #heading
       const inner = m[2]!
-      const rawTarget = (splitWikilinkInner(inner)[0] ?? '').trim()
+      const authoredTarget = (splitWikilinkInner(inner)[0] ?? '').trim()
+      const rawTarget = isEmbed
+        ? authoredTarget
+        : options.wikilinks.postProcessLinkTarget(authoredTarget)
       if (!rawTarget) continue
+      if (!isEmbed && resolvePlainAttachment(
+        rawTarget,
+        index,
+        options,
+        f.absolutePath,
+      ).isAttachment) {
+        // Plain attachment links never create Graph page edges, even when a
+        // note such as `guide.pdf.md` happens to share the same basename.
+        continue
+      }
+      if (isEmbed) {
+        const extension = extractExt(rawTarget)
+        const isImage = Boolean(
+          extension && options.embeds.imageFileExt.includes(extension),
+        )
+        if (isImage || classifyMediaExt(extension)) continue
+      }
       // v0.3.4:传 source rel path,支持 Obsidian 相对路径 fallback
       const resolved = resolveWikilink(
         rawTarget,
@@ -147,12 +175,19 @@ export function buildVaultData(
   //       (此前对全 vault 重复跑两遍,大 vault 下浪费一倍解析时间)。
   const tagsMap = new Map<string, FileEntry[]>()
   const allTagsByFile = new Map<string, string[]>()
+  const tagLabels = new Map<string, string>()
   for (const f of userFiles) {
     const set = new Set(f.tags)
+    for (const entry of normalizeTagEntries(f.frontmatter.tags)) {
+      if (!tagLabels.has(entry.tag)) tagLabels.set(entry.tag, entry.display)
+    }
     if (options.views.parseInlineTags) {
-      const cleaned = cleanedContent.get(f.relativePath)!
-      for (const tag of findInlineTags(cleaned, options.views.inlineTagPattern)) {
-        set.add(tag)
+      for (const match of findInlineTagMatches(
+        getScannableMarkdown(f),
+        options.views.inlineTagPattern,
+      )) {
+        set.add(match.tag)
+        if (!tagLabels.has(match.tag)) tagLabels.set(match.tag, match.display)
       }
     }
     allTagsByFile.set(f.relativePath, [...set])
@@ -168,6 +203,7 @@ export function buildVaultData(
     // 按 mtime 倒序(最近修改在上)
     const sorted = [...files].sort((a, b) => b.mtime - a.mtime)
     tags[tag] = {
+      label: tagLabels.get(tag) ?? tag,
       count: files.length,
       files: sorted.map((f) => ({
         id: f.relativePath,
@@ -175,9 +211,9 @@ export function buildVaultData(
         title: pickTitle(f),
         mtime: f.mtime,
         path: f.relativePath,
-        otherTags: (allTagsByFile.get(f.relativePath) ?? []).filter(
-          (t) => t !== tag,
-        ),
+        otherTags: (allTagsByFile.get(f.relativePath) ?? [])
+          .filter((candidate) => candidate !== tag)
+          .map((candidate) => tagLabels.get(candidate) ?? candidate),
       })),
     }
   }
@@ -231,6 +267,13 @@ function pickTitle(f: FileEntry): string {
     return fm.title.trim()
   }
   return f.basename
+}
+
+function extractExt(target: string): string {
+  const cleaned = target.split('#')[0]!
+  const dot = cleaned.lastIndexOf('.')
+  if (dot <= 0) return ''
+  return cleaned.slice(dot + 1).toLowerCase()
 }
 
 /**

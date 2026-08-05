@@ -165,6 +165,21 @@ img[data-allyouneed-asset] {
   border-radius: 4px;
 }
 
+/* Obsidian task markers. `data-task` remains available to custom themes. */
+.contains-task-list {
+  list-style: none;
+}
+
+.task-list-item {
+  list-style: none;
+}
+
+.ayn-task-checkbox {
+  margin: 0 0.45em 0.2em -1.35em;
+  vertical-align: middle;
+  accent-color: var(--vp-c-brand-1);
+}
+
 /* ────────────────────────────────────────────────────────────────
  * 暗色模式 — VitePress 通过 .dark 类切换。
  * 大多数 token 已自动跟随,只对极个别需要的做覆盖。

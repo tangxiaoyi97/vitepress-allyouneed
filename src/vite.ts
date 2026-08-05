@@ -20,6 +20,7 @@ import { createHash } from 'node:crypto'
 import type { Plugin, ResolvedConfig } from 'vite'
 import type {
   AllYouNeedOptions,
+  AssetEntry,
   ResolvedOptions,
   VaultIndex,
 } from './core/types.js'
@@ -35,6 +36,7 @@ import {
 import { toPosix } from './utils/path.js'
 import { generateViewMarkdown } from './core/views/generate-md.js'
 import { writeVaultData } from './core/views/generate-data.js'
+import { markReferencedAssets } from './core/scan-wikilinks.js'
 
 export interface VitePluginAllYouNeedReturn extends Plugin {
   __getOptions(): ResolvedOptions
@@ -75,6 +77,41 @@ export function viteAllYouNeed(
   let index: VaultIndex | undefined
   let viteConfig: ResolvedConfig | undefined
   const emittedAssets = new Map<string, string>()
+  const emittedOutputAssets = new Map<
+    string,
+    { referenceId: string; digest: string }
+  >()
+  const emitReferencedAsset = (
+    asset: AssetEntry,
+    emitFile: (file: { type: 'asset'; fileName: string; source: Buffer }) => string,
+  ): string => {
+    const source = fs.readFileSync(asset.absolutePath)
+    const digest = createHash('sha256').update(source).digest('hex')
+    let fileName = buildAssetOutputPath(asset, resolved, digest.slice(0, 8))
+    let existing = emittedOutputAssets.get(fileName)
+
+    // Same basename + same content intentionally shares one emitted asset.
+    // If the short hash ever collides, extend only that filename instead of
+    // overwriting a different file or changing normal URLs.
+    if (existing && existing.digest !== digest) {
+      fileName = buildAssetOutputPath(asset, resolved, digest.slice(0, 16))
+      existing = emittedOutputAssets.get(fileName)
+    }
+    if (existing && existing.digest !== digest) {
+      fileName = buildAssetOutputPath(asset, resolved, digest)
+      existing = emittedOutputAssets.get(fileName)
+    }
+
+    const referenceId = existing?.referenceId ?? emitFile({
+      type: 'asset',
+      fileName,
+      source,
+    })
+    if (!existing) emittedOutputAssets.set(fileName, { referenceId, digest })
+    emittedAssets.set(asset.absolutePath, referenceId)
+    asset.outputPath = fileName
+    return referenceId
+  }
 
   const plugin: VitePluginAllYouNeedReturn = {
     name: 'vitepress-allyouneed',
@@ -134,6 +171,11 @@ export function viteAllYouNeed(
           }
         }
 
+        // Plain `<a href>` assets are not transformed into Vite imports. Mark
+        // vault references before buildStart so only genuinely linked assets
+        // can be emitted with a deterministic deployment URL.
+        markReferencedAssets(index, resolved)
+
         if (index.warnings.length > 0) {
           const top = index.warnings.slice(0, 10)
           for (const w of top) {
@@ -162,6 +204,12 @@ export function viteAllYouNeed(
 
     buildStart() {
       emittedAssets.clear()
+      emittedOutputAssets.clear()
+      if (viteConfig?.command !== 'build' || !index) return
+      for (const asset of index.assets.values()) {
+        if (asset.referencedBy.size === 0) continue
+        emitReferencedAsset(asset, (file) => this.emitFile(file))
+      }
     },
 
     configureServer(server) {
@@ -287,12 +335,7 @@ export function viteAllYouNeed(
 
       let referenceId = emittedAssets.get(asset.absolutePath)
       if (!referenceId) {
-        const source = fs.readFileSync(asset.absolutePath)
-        const hash = createHash('sha256').update(source).digest('hex').slice(0, 8)
-        const fileName = buildAssetOutputPath(asset, resolved, hash)
-        referenceId = this.emitFile({ type: 'asset', fileName, source })
-        emittedAssets.set(asset.absolutePath, referenceId)
-        asset.outputPath = fileName
+        referenceId = emitReferencedAsset(asset, (file) => this.emitFile(file))
       }
       // VitePress executes the same asset module in its SSR build. Rollup's
       // `import.meta.ROLLUP_FILE_URL_*` expands to a local `file://` URL there,

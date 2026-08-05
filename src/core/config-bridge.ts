@@ -30,12 +30,17 @@ const DEFAULT_ASSET_EXTENSIONS = [
   'webm',
   'mov',
   'm4v',
+  'avi',
+  'mkv',
+  'ogv',
   // 音频
   'mp3',
   'wav',
   'ogg',
   'm4a',
   'flac',
+  'aac',
+  '3gp',
   // 文档
   'pdf',
   // Obsidian 专属
@@ -206,6 +211,7 @@ export function resolveOptions(
       comments: modulesUser.comments ?? true,
       footnotes: modulesUser.footnotes ?? true,
       blockRefs: modulesUser.blockRefs ?? true,
+      tasks: modulesUser.tasks ?? true,
     },
 
     sidebarAuto: user.sidebarAuto ?? {},

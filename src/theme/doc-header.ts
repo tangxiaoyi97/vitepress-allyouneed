@@ -33,11 +33,16 @@ export function normalizeDocTags(value: unknown): string[] {
       ? value.split(/[,\s]+/)
       : []
 
-  return [...new Set(
-    values
-      .map((tag) => tag.trim().replace(/^#+/, '').toLowerCase())
-      .filter(Boolean),
-  )]
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    const display = value.trim().replace(/^#+/, '')
+    const key = display.toLowerCase()
+    if (!display || seen.has(key)) continue
+    seen.add(key)
+    result.push(display)
+  }
+  return result
 }
 
 /** 把站内路径归一化为可交给 VitePress `withBase` 的根绝对 URL。 */

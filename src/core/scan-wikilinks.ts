@@ -7,8 +7,14 @@
 
 import type { ResolvedOptions, VaultIndex } from './types.js'
 import { splitWikilinkInner } from '../utils/wikilink.js'
-import { findAmbiguousLeadingNumberMatches, resolveWikilink } from './resolver.js'
-import { stripNonContentMarkdown, WIKILINK_SOURCE } from './markdown-content.js'
+import {
+  findAmbiguousLeadingNumberMatches,
+  resolveAttachment,
+  resolvePlainAttachment,
+  resolveWikilink,
+} from './resolver.js'
+import { getScannableMarkdown, WIKILINK_SOURCE } from './markdown-content.js'
+import { classifyMediaExt } from '../modules/embeds/media.js'
 
 export interface DeadLinkReport {
   /** 总扫描的 wikilink 数 */
@@ -40,17 +46,21 @@ export function scanWikilinks(
   const scanAmbig = anchorMode === 'leading-number'
 
   for (const f of index.files.values()) {
-    const cleaned = stripNonContentMarkdown(f.content)
+    const cleaned = getScannableMarkdown(f)
     const matches = cleaned.matchAll(new RegExp(WIKILINK_SOURCE))
     for (const m of matches) {
-      total += 1
       const isEmbed = m[1] === '!'
+      if (isEmbed ? !options.modules.embeds : !options.modules.wikilinks) continue
+      total += 1
       // v0.3.4:拆 \| 转义,只看 target 段;再剥 #heading
       const inner = m[2]!
-      let rawTargetFull = splitWikilinkInner(inner)[0] ?? ''
-      const hashIdx = rawTargetFull.indexOf('#')
-      const headingPart = hashIdx >= 0 ? rawTargetFull.slice(hashIdx + 1).trim() : ''
-      const rawTarget = (hashIdx >= 0 ? rawTargetFull.slice(0, hashIdx) : rawTargetFull).trim()
+      const rawTargetFull = splitWikilinkInner(inner)[0] ?? ''
+      const targetFull = isEmbed
+        ? rawTargetFull
+        : options.wikilinks.postProcessLinkTarget(rawTargetFull)
+      const hashIdx = targetFull.indexOf('#')
+      const headingPart = hashIdx >= 0 ? targetFull.slice(hashIdx + 1).trim() : ''
+      const rawTarget = (hashIdx >= 0 ? targetFull.slice(0, hashIdx) : targetFull).trim()
       if (!rawTarget && !headingPart) continue
       // image/audio/video/pdf/transclusion 走 embed 通道,不参与 wikilink 死链检测
       if (isEmbed) {
@@ -62,11 +72,28 @@ export function scanWikilinks(
           if (isAsset) continue
         }
       }
+      if (!isEmbed) {
+        const attachment = resolvePlainAttachment(
+          targetFull,
+          index,
+          options,
+          f.absolutePath,
+        )
+        if (attachment.isAttachment) {
+          if (attachment.asset) continue
+          dead.push({
+            source: f.relativePath,
+            target: rawTarget,
+            raw: `[[${rawTargetFull}]]`,
+          })
+          continue
+        }
+      }
       // 扫描和渲染必须共用同一个 resolver。此前这里维护了一份简化版
       // resolveSimple,遗漏了 folderLinkOrder,导致可正常渲染的 [[folder/]]
       // 被启动预扫误报为死链。
       const resolved = resolveWikilink(
-        rawTargetFull,
+        targetFull,
         index,
         options,
         isEmbed ? 'transclusion' : 'page',
@@ -108,6 +135,58 @@ export function scanWikilinks(
     }
   }
   return { total, dead, ambiguous }
+}
+
+/** Mark only assets addressed by vault syntax so Rollup can emit them early. */
+export function markReferencedAssets(
+  index: VaultIndex,
+  options: ResolvedOptions,
+): number {
+  let count = 0
+  for (const file of index.files.values()) {
+    const matches = getScannableMarkdown(file).matchAll(new RegExp(WIKILINK_SOURCE))
+    for (const match of matches) {
+      const isEmbed = match[1] === '!'
+      if (isEmbed ? !options.modules.embeds : !options.modules.wikilinks) continue
+
+      const rawTarget = (splitWikilinkInner(match[2]!)[0] ?? '').trim()
+      let processedTarget: string
+      if (isEmbed) {
+        // Match the renderer's dispatch: only image/audio/video/PDF embeds use
+        // the asset pipeline. Other `![[...]]` targets are note transclusions.
+        const extension = extractExt(rawTarget)
+        const isImage = Boolean(
+          extension && options.embeds.imageFileExt.includes(extension),
+        )
+        if (!isImage && !classifyMediaExt(extension)) continue
+        processedTarget = options.embeds.postProcessImageTarget(rawTarget)
+      } else {
+        processedTarget = options.wikilinks.postProcessLinkTarget(rawTarget)
+        const plain = resolvePlainAttachment(
+          processedTarget,
+          index,
+          options,
+          file.absolutePath,
+        )
+        if (!plain.isAttachment || !plain.asset) continue
+        const before = plain.asset.referencedBy.size
+        plain.asset.referencedBy.add(file.absolutePath)
+        if (plain.asset.referencedBy.size !== before) count += 1
+        continue
+      }
+      const resolved = resolveAttachment(
+        processedTarget,
+        index,
+        options,
+        file.absolutePath,
+      )
+      if (!resolved.asset) continue
+      const before = resolved.asset.referencedBy.size
+      resolved.asset.referencedBy.add(file.absolutePath)
+      if (resolved.asset.referencedBy.size !== before) count += 1
+    }
+  }
+  return count
 }
 
 /** vitepress.ts wrapper 用:扫完打印汇总 */

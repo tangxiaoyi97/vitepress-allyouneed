@@ -11,8 +11,12 @@ import type {
   ResolvedOptions,
   VaultIndex,
 } from '../../core/types.js'
-import { resolveWikilink } from '../../core/resolver.js'
 import {
+  resolvePlainAttachment,
+  resolveWikilink,
+} from '../../core/resolver.js'
+import {
+  renderAttachmentLink,
   renderPageLink,
   renderDeadLink,
 } from './render.js'
@@ -20,6 +24,7 @@ import { handleImageEmbed } from '../embeds/image.js'
 import { handleTransclusion } from '../embeds/transclusion.js'
 import { classifyMediaExt, handleMediaEmbed } from '../embeds/media.js'
 import { splitWikilinkInner } from '../../utils/wikilink.js'
+import { buildSiteAssetPath } from '../../core/asset-pipeline/build-emit.js'
 
 /**
  * 构造 inline rule。
@@ -111,9 +116,69 @@ export function makeWikilinkRule(
       return handleTransclusion(state, rawTarget, aliasParts, env)
     }
 
+    // A non-embedded link with a known asset extension addresses an
+    // attachment, not a page. Rollup emission is pre-registered by the vault
+    // scan; the render pass also records it for dev/HMR and standalone use.
+    const processedTarget = env.options.wikilinks.postProcessLinkTarget(rawTarget)
+    const attachment = resolvePlainAttachment(
+      processedTarget,
+      env.index,
+      env.options,
+      env.currentPath,
+    )
+    if (attachment.isAttachment) {
+      return emitAttachmentLink(
+        state,
+        rawTarget,
+        aliasParts,
+        env,
+        attachment,
+      )
+    }
+
     // 普通 [[wikilink]]
     return emitPageLink(state, rawTarget, aliasParts, env)
   }
+}
+
+function emitAttachmentLink(
+  state: StateInline,
+  rawTarget: string,
+  aliasParts: string[],
+  env: AllYouNeedEnv,
+  resolved?: ReturnType<typeof resolvePlainAttachment>,
+): boolean {
+  const result = resolved ?? resolvePlainAttachment(
+    env.options.wikilinks.postProcessLinkTarget(rawTarget),
+    env.index,
+    env.options,
+    env.currentPath,
+  )
+  const userAlias = aliasParts.length > 0 ? aliasParts.join('|').trim() : ''
+  const label = userAlias
+    ? env.options.wikilinks.postProcessLinkLabel(userAlias)
+    : result.rawBasename
+
+  if (!result.asset) {
+    handleDeadLink(env, rawTarget)
+    return renderDeadLink(
+      state,
+      env.options.base + encodeURIComponent(result.rawBasename),
+      label,
+      rawTarget,
+      env,
+    )
+  }
+
+  result.asset.referencedBy.add(env.currentPath ?? '<unknown>')
+  env.referencedAssets?.add(result.asset)
+  return renderAttachmentLink(
+    state,
+    buildSiteAssetPath(result.asset, env.options) + result.suffix,
+    label,
+    result.asset.relativePath,
+    env,
+  )
 }
 
 /**
