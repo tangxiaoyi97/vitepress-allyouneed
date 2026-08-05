@@ -150,6 +150,11 @@ describe('local graph data selection', () => {
     expect(source).not.toContain('ayn-local-graph-heading')
     expect(source).not.toContain('ayn-local-graph-preview-label')
     expect(source).not.toContain('<span>Local graph</span>')
+    expect(source).toContain('setPointerCapture')
+    expect(source).toContain('@pointermove="moveNodeDrag"')
+    expect(source).toContain('ayn-local-graph-preview-hit')
+    expect(source).toContain('ayn-local-graph-tooltip')
+    expect(source).toContain('nodeFileName')
 
     const styles = readFileSync(
       resolve(testDir, '../src/theme/styles/local-graph.css'),
@@ -158,6 +163,8 @@ describe('local graph data selection', () => {
     expect(styles).toMatch(/\.ayn-local-graph-preview\s*\{[^}]*background:\s*transparent/s)
     expect(styles).toMatch(/\.ayn-local-graph-preview\s*\{[^}]*border:\s*1px solid transparent/s)
     expect(styles).toMatch(/\.ayn-local-graph-preview:hover\s*\{[^}]*border-color:\s*var\(--vp-c-divider\)/s)
+    expect(styles).toMatch(/\.ayn-local-graph-preview-hit\s*\{[^}]*cursor:\s*grab/s)
+    expect(styles).toMatch(/\.ayn-local-graph-tooltip\s*\{[^}]*pointer-events:\s*none/s)
   })
 })
 

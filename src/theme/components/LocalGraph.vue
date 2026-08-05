@@ -96,18 +96,53 @@ const modalData = computed(() =>
 const positions = computed(() =>
   miniSlice.value ? layoutLocalGraph(miniSlice.value) : [],
 )
+const previewPositions = ref(positions.value.map((position) => ({ ...position })))
 const positionMap = computed(() =>
-  new Map(positions.value.map((position) => [position.id, position])),
+  new Map(previewPositions.value.map((position) => [position.id, position])),
 )
 const nodeMap = computed(() =>
   new Map((miniSlice.value?.nodes ?? []).map((node) => [node.id, node])),
 )
+const hoveredNodeId = ref<string | null>(null)
+const draggedNodeId = ref<string | null>(null)
+const hoveredNodePosition = computed(() =>
+  hoveredNodeId.value ? positionMap.value.get(hoveredNodeId.value) ?? null : null,
+)
+const hoveredNodeLabel = computed(() =>
+  hoveredNodeId.value ? nodeFileName(hoveredNodeId.value) : '',
+)
+const hoveredNodeTooltipStyle = computed(() => {
+  const position = hoveredNodePosition.value
+  if (!position) return undefined
+  return {
+    left: `${position.x / 2.4}%`,
+    top: `${position.y / 1.5}%`,
+    transform: position.y < 34
+      ? 'translate(-50%, 10px)'
+      : 'translate(-50%, calc(-100% - 10px))',
+  }
+})
 const currentTitle = computed(() =>
   currentId.value ? nodeMap.value.get(currentId.value)?.title ?? page.value.title : '',
 )
 const visible = computed(() =>
   active.value && Boolean(miniSlice.value && miniSlice.value.nodes.length > 1),
 )
+
+interface PreviewDragState {
+  id: string
+  pointerId: number
+  startClientX: number
+  startClientY: number
+  startNodeX: number
+  startNodeY: number
+  captureTarget: SVGCircleElement
+  moved: boolean
+}
+
+let previewDrag: PreviewDragState | null = null
+let suppressPreviewClick = false
+let suppressPreviewClickTimer: ReturnType<typeof setTimeout> | null = null
 
 function syncViewport(): void {
   const isCompact = viewportQuery?.matches ?? false
@@ -121,12 +156,110 @@ function openModal(): void {
   modalOpen.value = true
 }
 
+function handlePreviewClick(): void {
+  if (suppressPreviewClick) {
+    suppressPreviewClick = false
+    if (suppressPreviewClickTimer) clearTimeout(suppressPreviewClickTimer)
+    suppressPreviewClickTimer = null
+    return
+  }
+  openModal()
+}
+
 function closeModal(): void {
   modalOpen.value = false
 }
 
 function edgeKey(source: string, target: string, index: number): string {
   return `${source}\0${target}\0${index}`
+}
+
+function nodeFileName(id: string): string {
+  const fileName = id.split('/').pop() ?? id
+  const noteName = fileName.replace(/\.(?:md|markdown)$/i, '')
+  try {
+    return decodeURIComponent(noteName)
+  } catch {
+    return noteName
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function startNodeDrag(event: PointerEvent, id: string): void {
+  if (event.button !== 0) return
+  const position = positionMap.value.get(id)
+  const captureTarget = event.currentTarget
+  if (!position || !(captureTarget instanceof SVGCircleElement)) return
+
+  event.preventDefault()
+  captureTarget.setPointerCapture(event.pointerId)
+  hoveredNodeId.value = id
+  draggedNodeId.value = id
+  previewDrag = {
+    id,
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startNodeX: position.x,
+    startNodeY: position.y,
+    captureTarget,
+    moved: false,
+  }
+}
+
+function moveNodeDrag(event: PointerEvent): void {
+  if (!previewDrag || event.pointerId !== previewDrag.pointerId) return
+  const svg = event.currentTarget
+  if (!(svg instanceof SVGSVGElement)) return
+
+  event.preventDefault()
+  const rect = svg.getBoundingClientRect()
+  const clientDeltaX = event.clientX - previewDrag.startClientX
+  const clientDeltaY = event.clientY - previewDrag.startClientY
+  if (!previewDrag.moved && Math.hypot(clientDeltaX, clientDeltaY) >= 3) {
+    previewDrag.moved = true
+  }
+
+  const x = clamp(
+    previewDrag.startNodeX + clientDeltaX * (240 / rect.width),
+    10,
+    230,
+  )
+  const y = clamp(
+    previewDrag.startNodeY + clientDeltaY * (150 / rect.height),
+    10,
+    140,
+  )
+  previewPositions.value = previewPositions.value.map((position) =>
+    position.id === previewDrag?.id ? { ...position, x, y } : position,
+  )
+}
+
+function endNodeDrag(event: PointerEvent): void {
+  if (!previewDrag || event.pointerId !== previewDrag.pointerId) return
+  suppressPreviewClick = previewDrag.moved
+  if (suppressPreviewClickTimer) clearTimeout(suppressPreviewClickTimer)
+  suppressPreviewClickTimer = suppressPreviewClick
+    ? setTimeout(() => {
+        suppressPreviewClick = false
+        suppressPreviewClickTimer = null
+      }, 0)
+    : null
+  const { captureTarget, pointerId } = previewDrag
+  if (captureTarget.hasPointerCapture(pointerId)) {
+    captureTarget.releasePointerCapture(pointerId)
+  }
+  previewDrag = null
+  draggedNodeId.value = null
+}
+
+function leaveNode(id: string): void {
+  if (draggedNodeId.value !== id && hoveredNodeId.value === id) {
+    hoveredNodeId.value = null
+  }
 }
 
 onMounted(() => {
@@ -138,6 +271,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   viewportQuery?.removeEventListener('change', syncViewport)
   viewportQuery = null
+  if (suppressPreviewClickTimer) clearTimeout(suppressPreviewClickTimer)
 })
 
 watch(
@@ -154,6 +288,19 @@ watch(
 watch(currentId, (next, previous) => {
   if (previous && next !== previous) closeModal()
 })
+
+watch(
+  positions,
+  (next) => {
+    previewPositions.value = next.map((position) => ({ ...position }))
+    hoveredNodeId.value = null
+    draggedNodeId.value = null
+    previewDrag = null
+    suppressPreviewClick = false
+    if (suppressPreviewClickTimer) clearTimeout(suppressPreviewClickTimer)
+    suppressPreviewClickTimer = null
+  },
+)
 </script>
 
 <template>
@@ -167,10 +314,17 @@ watch(currentId, (next, previous) => {
         type="button"
         class="ayn-local-graph-preview"
         aria-haspopup="dialog"
-        :aria-label="`Open local graph for ${currentTitle}`"
-        @click="openModal"
+        :aria-label="`Interactive local graph for ${currentTitle}. Drag nodes or open the expanded graph.`"
+        @click="handlePreviewClick"
       >
-        <svg viewBox="0 0 240 150" role="img" :aria-label="`Local graph for ${currentTitle}`">
+        <svg
+          viewBox="0 0 240 150"
+          role="img"
+          :aria-label="`Local graph for ${currentTitle}`"
+          @pointermove="moveNodeDrag"
+          @pointerup="endNodeDrag"
+          @pointercancel="endNodeDrag"
+        >
           <g class="ayn-local-graph-preview-edges" aria-hidden="true">
             <line
               v-for="(edge, index) in miniSlice!.edges"
@@ -183,18 +337,39 @@ watch(currentId, (next, previous) => {
             />
           </g>
           <g class="ayn-local-graph-preview-nodes">
-            <circle
-              v-for="position in positions"
+            <g
+              v-for="position in previewPositions"
               :key="position.id"
-              :cx="position.x"
-              :cy="position.y"
-              :r="position.id === currentId ? 6 : 3.5"
-              :class="{ 'is-current': position.id === currentId }"
+              class="ayn-local-graph-preview-node"
+              :class="{
+                'is-hovered': position.id === hoveredNodeId,
+                'is-dragging': position.id === draggedNodeId,
+              }"
             >
-              <title>{{ nodeMap.get(position.id)?.title }}</title>
-            </circle>
+              <circle
+                class="ayn-local-graph-preview-node-dot"
+                :class="{ 'is-current': position.id === currentId }"
+                :cx="position.x"
+                :cy="position.y"
+                :r="position.id === currentId ? 6 : 3.5"
+              />
+              <circle
+                class="ayn-local-graph-preview-hit"
+                :cx="position.x"
+                :cy="position.y"
+                r="12"
+                @pointerenter="hoveredNodeId = position.id"
+                @pointerleave="leaveNode(position.id)"
+                @pointerdown.stop="startNodeDrag($event, position.id)"
+              />
+            </g>
           </g>
         </svg>
+        <span
+          v-if="hoveredNodeLabel && hoveredNodePosition"
+          class="ayn-local-graph-tooltip"
+          :style="hoveredNodeTooltipStyle"
+        >{{ hoveredNodeLabel }}</span>
       </button>
     </template>
 
