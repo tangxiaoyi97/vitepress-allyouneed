@@ -40,7 +40,7 @@ these route settings identical on both sides.
 | Wikilinks, aliases, relative/folder links | Supported | Includes self-links and multi-level heading paths. |
 | `[[note#^id]]` and `![[note#^id]]` | Supported | Paragraphs, lists, quotes/callouts, and table blocks are indexed; duplicate ids resolve to the first block. |
 | Note/heading/block transclusion | Supported | Transclusion cycle guards remain enabled. |
-| Images, audio, video, PDF | Supported | PDF `#page=N` and `#height=N` fragments are preserved. |
+| Images, audio, video, PDF | Supported | Wiki/Markdown image dimensions and PDF `#page=N` / `#height=N` fragments are preserved. |
 | Callouts, highlights, comments | Supported | HTML-preserved comments are not a secret-storage mechanism. |
 | Footnotes | Supported | Single-line, multiline definitions, and `^[inline footnote]`. |
 | Inline tags | Supported | Unicode/emoji are accepted, tags require a non-numeric character, and keys are case-insensitive/lowercased. |
@@ -60,8 +60,7 @@ Known boundaries:
 - Embedded `query` blocks and the cross-vault `[[## heading]]` / `[[^^block]]`
   search shortcuts are not executed.
 - Plain attachment links such as `[[Figure.png]]` are not rewritten as download
-  links; the asset pipeline currently handles embeds. Obsidian's external-image
-  dimension form (`![alt|100x145](url)`) is also not rewritten.
+  links; the asset pipeline currently handles embeds.
 - The default media set does not yet cover every current Obsidian format:
   `.mkv` needs a scan override, while `.3gp` and `.ogv` lack dedicated renderers.
 - Standard task checkboxes come from VitePress, but Obsidian's arbitrary task

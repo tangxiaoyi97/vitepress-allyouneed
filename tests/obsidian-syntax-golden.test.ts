@@ -10,6 +10,7 @@ import { scanWikilinks } from '../src/core/scan-wikilinks.js'
 import type { AllYouNeedEnv } from '../src/core/types.js'
 import { scanVault } from '../src/core/vault/index.js'
 import { buildVaultData } from '../src/core/views/generate-data.js'
+import { stripNonContentMarkdown } from '../src/core/markdown-content.js'
 import allYouNeedMarkdownIt from '../src/markdown-it.js'
 import { registerTagsInline } from '../src/modules/tags/index.js'
 
@@ -118,5 +119,42 @@ describe('official Obsidian syntax golden fixture', () => {
     expect(html).toContain('>#team/👍🏽<')
     expect(html).toContain('#404 ')
     expect(html).toContain('>#404error<')
+  })
+
+  it('excludes indented code without dropping nested list content', () => {
+    const cleaned = stripNonContentMarkdown([
+      '    [[missing-indented]] #fake-indented',
+      '',
+      '- Parent',
+      '    - [[real-nested]] #real-nested',
+      '',
+    ].join('\n'))
+    expect(cleaned).not.toContain('missing-indented')
+    expect(cleaned).not.toContain('fake-indented')
+    expect(cleaned).toContain('[[real-nested]] #real-nested')
+  })
+
+  it('keeps two/four-space, tab, and multi-paragraph footnote continuations', () => {
+    const cleaned = stripNonContentMarkdown([
+      '[^note]: first',
+      '  [[two-space]] #two-space',
+      '    [[four-space]] #four-space',
+      '\t[[tab-indented]] #tab-indented',
+      '',
+      '        [[footnote-code]] #footnote-code',
+      '',
+      '  [[second-paragraph]] #second-paragraph',
+      '',
+      'After the footnote.',
+      '',
+      '    [[actual-code]] #actual-code',
+      '',
+    ].join('\n'))
+    expect(cleaned).toContain('[[two-space]] #two-space')
+    expect(cleaned).toContain('[[four-space]] #four-space')
+    expect(cleaned).toContain('[[tab-indented]] #tab-indented')
+    expect(cleaned).toContain('[[second-paragraph]] #second-paragraph')
+    expect(cleaned).not.toContain('footnote-code')
+    expect(cleaned).not.toContain('actual-code')
   })
 })

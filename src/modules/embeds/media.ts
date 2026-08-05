@@ -20,6 +20,7 @@ import { resolveAsset } from '../../core/resolver.js'
 import { basename } from '../../utils/path.js'
 import { escapeHtml } from '../../utils/escape.js'
 import { buildPlaceholderUrl } from '../../core/asset-pipeline/build-emit.js'
+import { parseDimensionToken } from './dimensions.js'
 
 // webm 实际多为 video/webm,这里只放 video 列表;classifyMediaExt video-first
 const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac']
@@ -54,20 +55,7 @@ interface ParsedDim {
 /** 取最后一段 alias 当尺寸 token(逻辑和 image.ts 一致,但这里精简一份) */
 function parseAliasDim(parts: string[]): ParsedDim {
   if (parts.length === 0) return {}
-  const last = parts[parts.length - 1]!.trim().toLowerCase()
-  if (!last) return {}
-  if (last.includes('x')) {
-    const [w, h] = last.split('x')
-    const wOk = w === '' || /^\d+$/.test(w!)
-    const hOk = h === '' || /^\d+$/.test(h!)
-    if (!wOk || !hOk) return {}
-    return {
-      width: w === '' ? undefined : Number(w),
-      height: h === '' ? undefined : Number(h),
-    }
-  }
-  if (/^\d+$/.test(last)) return { width: Number(last) }
-  return {}
+  return parseDimensionToken(parts[parts.length - 1]!) ?? {}
 }
 
 /**

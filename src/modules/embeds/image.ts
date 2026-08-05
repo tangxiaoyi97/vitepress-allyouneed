@@ -26,6 +26,7 @@ import {
   buildPlaceholderUrl,
   buildPublicUrl,
 } from '../../core/asset-pipeline/build-emit.js'
+import { parseWikiImageParts } from './dimensions.js'
 
 // ── 公共渲染:返回 <img> 标签字符串 ───────────────────────────────
 
@@ -40,7 +41,9 @@ export function renderImageHtml(
 ): string {
   const { index, options } = env
 
-  const { altText, dim } = parseAltAndDim(aliasParts)
+  const parsed = parseWikiImageParts(aliasParts)
+  const altText = parsed.altText
+  const dim = { ...parsed.dimensions, raw: parsed.rawDimensions }
 
   const processedTarget = options.embeds.postProcessImageTarget(rawTarget)
   // v0.3.4:传 currentPath,让 resolveAsset 支持 Obsidian 相对当前文件路径
@@ -150,49 +153,6 @@ export function handleImageEmbed(
 }
 
 // ── 解析尺寸 + alt ───────────────────────────────────────────────
-
-interface ParsedDim {
-  width?: number
-  height?: number
-  raw: string
-}
-
-function parseAltAndDim(parts: string[]): {
-  altText: string
-  dim: ParsedDim
-} {
-  if (parts.length === 0) return { altText: '', dim: { raw: '' } }
-  const last = parts[parts.length - 1]!
-  const parsedLast = tryParseDimension(last)
-  if (parsedLast) {
-    const alt = parts.slice(0, -1).join('|').trim()
-    return { altText: alt, dim: { ...parsedLast, raw: last } }
-  }
-  return { altText: parts.join('|').trim(), dim: { raw: '' } }
-}
-
-function tryParseDimension(
-  s: string,
-): { width?: number; height?: number } | undefined {
-  const trimmed = s.trim().toLowerCase()
-  if (!trimmed) return undefined
-
-  if (trimmed.includes('x')) {
-    const [w, h] = trimmed.split('x')
-    const wOk = w === '' || /^\d+$/.test(w!)
-    const hOk = h === '' || /^\d+$/.test(h!)
-    if (!wOk || !hOk) return undefined
-    if (w === '' && h === '') return undefined
-    return {
-      width: w === '' ? undefined : Number(w),
-      height: h === '' ? undefined : Number(h),
-    }
-  }
-  if (/^\d+$/.test(trimmed)) {
-    return { width: Number(trimmed) }
-  }
-  return undefined
-}
 
 function determineAlt(
   rawAlt: string,

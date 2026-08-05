@@ -19,7 +19,8 @@ separate from the 0.5.7 stabilization release below.
   The public `views.localGraph` options and `LocalGraph` component are exported.
 - **Obsidian syntax parity**: block links/transclusion for structured blocks,
   multi-level/self heading targets, PDF page/height fragments, multiline and
-  inline footnotes, and Unicode/emoji case-insensitive tag rules.
+  inline footnotes, external Markdown image dimensions, and Unicode/emoji
+  case-insensitive tag rules.
 - Golden fixtures now connect every new 0.6 compatibility claim to regression
   tests.
 
@@ -31,7 +32,8 @@ separate from the 0.5.7 stabilization release below.
 - Public option types for views, Local Graph, sidebar generation, and comments
   are now named exports, keeping the exported types/TSDoc as the API contract.
 - Dead-link, Graph, and Tags extraction share the same code/comment-aware body
-  scanner so those datasets do not drift apart.
+  scanner so those datasets do not drift apart. Indented code is excluded while
+  multiline footnote continuations remain visible to all three scanners.
 - The aside Local Graph preview now blends into the TOC surface with transparent
   chrome, revealing only a subtle border on hover; duplicate visible labels
   were removed while accessible names remain intact.

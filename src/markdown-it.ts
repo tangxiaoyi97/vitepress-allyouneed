@@ -33,6 +33,7 @@ import { registerHighlight } from './modules/highlight/index.js'
 import { registerComments } from './modules/comments/index.js'
 import { registerFootnotes } from './modules/footnotes/index.js'
 import { registerBlockRefs } from './modules/block-refs/index.js'
+import { registerMarkdownImageDimensions } from './modules/embeds/external-image.js'
 
 /**
  * markdown-it 插件函数。
@@ -68,6 +69,8 @@ function allYouNeedMarkdownIt(
   } else if (emOn) {
     registerEmbedsOnly(md) // 内含 inline + block
   }
+
+  if (emOn) registerMarkdownImageDimensions(md)
 
   // v0.3:Obsidian callouts(独立 core ruler,与 wikilinks/embeds 解耦)
   if (coOn) {

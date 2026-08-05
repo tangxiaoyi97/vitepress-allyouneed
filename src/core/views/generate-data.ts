@@ -87,6 +87,9 @@ export function buildVaultData(
   for (const f of index.files.values()) {
     if (!isPerspective(f) && !isInternalFile(f)) userFiles.push(f)
   }
+  const cleanedContent = new Map(
+    userFiles.map((file) => [file.relativePath, stripNonContentMarkdown(file.content)]),
+  )
 
   // 节点
   const nodes: VaultDataNode[] = []
@@ -105,7 +108,7 @@ export function buildVaultData(
   // (transclusion 是更"强"的关系,渲染出来视觉上也更重)
   const edgeMap = new Map<string, VaultDataEdge>()
   for (const f of userFiles) {
-    const cleaned = stripNonContentMarkdown(f.content)
+    const cleaned = cleanedContent.get(f.relativePath)!
     const matches = cleaned.matchAll(new RegExp(WIKILINK_SOURCE))
     for (const m of matches) {
       const isEmbed = m[1] === '!'
@@ -147,7 +150,7 @@ export function buildVaultData(
   for (const f of userFiles) {
     const set = new Set(f.tags)
     if (options.views.parseInlineTags) {
-      const cleaned = stripNonContentMarkdown(f.content)
+      const cleaned = cleanedContent.get(f.relativePath)!
       for (const tag of findInlineTags(cleaned, options.views.inlineTagPattern)) {
         set.add(tag)
       }

@@ -4,15 +4,17 @@ import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
 import type { BlockEntry } from '../types.js'
 import { stripNonContentMarkdown } from '../markdown-content.js'
+import { registerFootnoteDefinitionBlocks } from '../../modules/footnotes/rule.js'
 
 const parser = new MarkdownIt({ html: true })
+registerFootnoteDefinitionBlocks(parser)
 const BLOCK_ID_RE = /(?:^|\s)\^([A-Za-z0-9_-]+)\s*$/
 const STANDALONE_RE = /^\^([A-Za-z0-9_-]+)$/
 
 export function collectBlockIds(content: string): Map<string, BlockEntry> {
   const lines = content.split(/\r?\n/)
-  const scanLines = stripNonContentMarkdown(content).split(/\r?\n/)
   const tokens = parser.parse(content, {})
+  const scanLines = stripNonContentMarkdown(content, tokens).split(/\r?\n/)
   const blocks = new Map<string, BlockEntry>()
 
   for (let markerLine = 0; markerLine < lines.length; markerLine += 1) {

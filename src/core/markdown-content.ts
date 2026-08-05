@@ -1,15 +1,23 @@
 /** Shared source cleanup for scanners that inspect rendered Markdown content. */
 
+import MarkdownIt from 'markdown-it'
+import type Token from 'markdown-it/lib/token.mjs'
+import { registerFootnoteDefinitionBlocks } from '../modules/footnotes/rule.js'
+
 /** `[[...]]` / `![[...]]`, excluding line breaks. Create a fresh RegExp per scan. */
 export const WIKILINK_SOURCE = /(!?)\[\[([^\]\n]+)\]\]/g
+
+const blockParser = new MarkdownIt({ html: true })
+registerFootnoteDefinitionBlocks(blockParser)
 
 /**
  * Blank fenced/inline code, HTML comments and Obsidian comments while
  * preserving newlines and string length. Dead-link, graph and body-tag scans
  * therefore agree about which source regions are content.
  */
-export function stripNonContentMarkdown(src: string): string {
-  let out = stripFencedBlocks(src)
+export function stripNonContentMarkdown(src: string, tokens?: Token[]): string {
+  let out = stripIndentedCodeBlocks(src, tokens)
+  out = stripFencedBlocks(out)
     .replace(/<!--[\s\S]*?-->/g, (match) => blankExceptNewlines(match))
     .replace(/%%[\s\S]*?%%/g, (match) => blankExceptNewlines(match))
 
@@ -45,6 +53,51 @@ export function stripNonContentMarkdown(src: string): string {
       if (chars[k] !== '\n') chars[k] = ' '
     }
     i = close + width
+  }
+  return chars.join('')
+}
+
+/**
+ * Blank CommonMark indented code blocks without mistaking nested list content
+ * for code. Markdown-it already owns that block-level distinction, and its
+ * token line maps let the scanners preserve both source length and line count.
+ */
+function stripIndentedCodeBlocks(src: string, tokens?: Token[]): string {
+  const parsed = tokens ?? blockParser.parse(src, {})
+  const ranges = parsed
+    .filter((token) => token.type === 'code_block' && token.map)
+    .map((token) => token.map as [number, number])
+  for (const token of parsed) {
+    if (token.type !== 'footnote_def') continue
+    const meta = token.meta as {
+      scanContent?: string
+      sourceLines?: number[]
+    } | null
+    if (!meta?.scanContent || !meta.sourceLines) continue
+    const nestedCode = blockParser
+      .parse(meta.scanContent, {})
+      .filter((child) => child.type === 'code_block' && child.map)
+    for (const child of nestedCode) {
+      const [start, end] = child.map!
+      for (let line = start; line < end; line += 1) {
+        const sourceLine = meta.sourceLines[line]
+        if (sourceLine !== undefined) ranges.push([sourceLine, sourceLine + 1])
+      }
+    }
+  }
+  if (ranges.length === 0) return src
+
+  const lineStarts = [0]
+  for (let index = 0; index < src.length; index += 1) {
+    if (src.charCodeAt(index) === 0x0a /* \n */) lineStarts.push(index + 1)
+  }
+  const chars = src.split('')
+  for (const [startLine, endLine] of ranges) {
+    const start = lineStarts[startLine] ?? src.length
+    const end = lineStarts[endLine] ?? src.length
+    for (let index = start; index < end; index += 1) {
+      if (chars[index] !== '\n') chars[index] = ' '
+    }
   }
   return chars.join('')
 }

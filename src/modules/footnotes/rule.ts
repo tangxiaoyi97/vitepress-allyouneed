@@ -53,6 +53,7 @@ function defBlockRule(
 
   const id = m[1]!
   const contentLines = [(m[2] ?? '').trimEnd()]
+  const sourceLines = [startLine]
   let nextLine = startLine + 1
   while (nextLine < endLine) {
     const raw = sourceLine(state, nextLine)
@@ -66,18 +67,27 @@ function defBlockRule(
       }
       while (nextLine < lookahead) {
         contentLines.push('')
+        sourceLines.push(nextLine)
         nextLine += 1
       }
       continue
     }
     if (!isFootnoteContinuation(raw)) break
     contentLines.push(stripContinuationIndent(raw))
+    sourceLines.push(nextLine)
     nextLine += 1
   }
-  const content = contentLines.join('\n').trim()
+  const scanContent = contentLines.join('\n')
+  const content = scanContent.trim()
 
   const token = state.push('footnote_def', '', 0)
-  token.meta = { id, content, multiline: contentLines.length > 1 }
+  token.meta = {
+    id,
+    content,
+    multiline: contentLines.length > 1,
+    scanContent,
+    sourceLines,
+  }
   token.map = [startLine, nextLine]
   token.hidden = true // 不直接渲染,等 core rule 收集
 
@@ -319,9 +329,14 @@ function escapeHtmlAttr(s: string): string {
 // ── 注册 ────────────────────────────────────────────────────────
 
 export function registerFootnotes(md: MarkdownIt): void {
+  registerFootnoteDefinitionBlocks(md)
+  md.inline.ruler.after('emphasis', 'allyouneed_footnote_ref', refInlineRule)
+  md.core.ruler.after('inline', 'allyouneed_footnote_collect', collectAndRender)
+}
+
+/** Register only the block grammar needed by source scanners. */
+export function registerFootnoteDefinitionBlocks(md: MarkdownIt): void {
   md.block.ruler.before('reference', 'allyouneed_footnote_def', defBlockRule, {
     alt: ['paragraph', 'reference'],
   })
-  md.inline.ruler.after('emphasis', 'allyouneed_footnote_ref', refInlineRule)
-  md.core.ruler.after('inline', 'allyouneed_footnote_collect', collectAndRender)
 }

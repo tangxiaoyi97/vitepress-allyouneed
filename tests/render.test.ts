@@ -177,6 +177,79 @@ describe('Render — image embeds', () => {
     expect(html).toMatch(/<img\b[^>]*\balt="[^"]*"/)
   })
 
+  it('普通 Markdown 外链图片支持 Obsidian 宽高语法', () => {
+    const html = md.renderInline(
+      '![diagram|320x180](https://example.com/diagram.png)',
+      env,
+    )
+    expect(html).toContain('src="https://example.com/diagram.png"')
+    expect(html).toContain('alt="diagram"')
+    expect(html).toContain('width="320"')
+    expect(html).toContain('height="180"')
+  })
+
+  it('普通 Markdown 外链图片的纯数字 alt 作为宽度而非替代文本', () => {
+    const html = md.renderInline('![250](https://example.com/photo.png)', env)
+    expect(html).toContain('alt=""')
+    expect(html).toContain('width="250"')
+  })
+
+  it('普通 Markdown 图片的非尺寸 alt 保持不变', () => {
+    const html = md.renderInline('![release|candidate](https://example.com/badge.png)', env)
+    expect(html).toContain('alt="release|candidate"')
+    expect(html).not.toContain('width=')
+    expect(html).not.toContain('height=')
+  })
+
+  it('外链图片尺寸保留强调、实体、转义管道和 title 的 alt 语义', () => {
+    const emphasized = md.renderInline('![*diagram*|100](https://example.com/a.png "A")', env)
+    expect(emphasized).toContain('alt="diagram"')
+    expect(emphasized).toContain('title="A"')
+    expect(emphasized).toContain('width="100"')
+
+    const entity = md.renderInline('![A &amp; B|100](https://example.com/b.png)', env)
+    expect(entity).toContain('alt="A &amp; B"')
+    expect(entity).toContain('width="100"')
+
+    const escaped = md.renderInline(String.raw`![a\|b|100](https://example.com/c.png)`, env)
+    expect(escaped).toContain('alt="a|b"')
+    expect(escaped).toContain('width="100"')
+  })
+
+  it('转义管道和未记录的单边尺寸不会被误判', () => {
+    const escapedOnly = md.renderInline(String.raw`![alt\|100](https://example.com/a.png)`, env)
+    expect(escapedOnly).not.toContain('width=')
+    expect(escapedOnly).toContain('alt=')
+
+    for (const alt of ['x200', '100x']) {
+      const html = md.renderInline(`![${alt}](https://example.com/a.png)`, env)
+      expect(html).not.toContain('width=')
+      expect(html).not.toContain('height=')
+      expect(html).toContain(`alt="${alt}"`)
+    }
+  })
+
+  it('外链图片尺寸支持引用式图片，关闭 embeds 时保持原始 Markdown 行为', () => {
+    const reference = md.render('![reference|90x60][asset]\n\n[asset]: https://example.com/a.png "Asset"\n', env)
+    expect(reference).toContain('alt="reference"')
+    expect(reference).toContain('width="90"')
+    expect(reference).toContain('height="60"')
+    expect(reference).toContain('title="Asset"')
+
+    const disabledOptions = resolveOptions({
+      srcDir: VAULT,
+      cleanUrls: true,
+      modules: { embeds: false },
+    })
+    const disabled = makeMd(disabledOptions, scanVault(disabledOptions))
+    const original = disabled.md.renderInline(
+      '![diagram|100](https://example.com/a.png)',
+      disabled.env,
+    )
+    expect(original).toContain('alt="diagram|100"')
+    expect(original).not.toContain('width=')
+  })
+
   // HOTFIX(0.5.2):缺失 image 不能再产出 <img src="/basename">。那个绝对 URL
   // 会被 Vite/Rollup 当模块 import,解析不到就硬崩整个 build
   // (`Rollup failed to resolve import "/foo.png"`)。改为渲染不触发 Vite 解析的

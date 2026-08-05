@@ -68,6 +68,24 @@ if (!notesHtml.includes('/e2e/cover.svg')) {
   throw new Error('DocHeader cover did not inherit the configured base')
 }
 
+const syntaxHtml = await readFile(resolve(distRoot, 'syntax/index.html'), 'utf8')
+if (
+  !syntaxHtml.includes('alt="External diagram"') ||
+  !syntaxHtml.includes('width="80"') ||
+  !syntaxHtml.includes('height="40"')
+) {
+  throw new Error('External Markdown image dimensions are missing from SSR output')
+}
+if (!builtVaultData.tags?.['footnote-fixture']) {
+  throw new Error('Multiline footnote content was dropped from the generated Tags data')
+}
+if (builtVaultData.tags?.['fake-indented-e2e']) {
+  throw new Error('Indented code leaked a fake tag into generated Tags data')
+}
+if (builtVaultData.tags?.['fake-footnote-code-e2e']) {
+  throw new Error('Footnote code leaked a fake tag into generated Tags data')
+}
+
 const emittedAssets = await walkFiles(
   resolve(distRoot, 'vault-assets'),
   (file) => extname(file) === '.svg',
