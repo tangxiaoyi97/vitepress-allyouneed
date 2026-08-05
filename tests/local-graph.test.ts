@@ -147,6 +147,17 @@ describe('local graph data selection', () => {
     )
     expect(source).not.toContain("from 'd3-force'")
     expect(source).toContain("import('./LocalGraphModal.vue')")
+    expect(source).not.toContain('ayn-local-graph-heading')
+    expect(source).not.toContain('ayn-local-graph-preview-label')
+    expect(source).not.toContain('<span>Local graph</span>')
+
+    const styles = readFileSync(
+      resolve(testDir, '../src/theme/styles/local-graph.css'),
+      'utf8',
+    )
+    expect(styles).toMatch(/\.ayn-local-graph-preview\s*\{[^}]*background:\s*transparent/s)
+    expect(styles).toMatch(/\.ayn-local-graph-preview\s*\{[^}]*border:\s*1px solid transparent/s)
+    expect(styles).toMatch(/\.ayn-local-graph-preview:hover\s*\{[^}]*border-color:\s*var\(--vp-c-divider\)/s)
   })
 })
 

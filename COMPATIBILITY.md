@@ -56,7 +56,19 @@ Known boundaries:
 
 - Dataview and DataviewJS queries are not executed.
 - Canvas and Excalidraw documents are indexed as assets, not rendered as native
-  interactive canvases.
+  interactive canvases. `.base` files and `base` code blocks are not evaluated.
+- Embedded `query` blocks and the cross-vault `[[## heading]]` / `[[^^block]]`
+  search shortcuts are not executed.
+- Plain attachment links such as `[[Figure.png]]` are not rewritten as download
+  links; the asset pipeline currently handles embeds. Obsidian's external-image
+  dimension form (`![alt|100x145](url)`) is also not rewritten.
+- The default media set does not yet cover every current Obsidian format:
+  `.mkv` needs a scan override, while `.3gp` and `.ogv` lack dedicated renderers.
+- Standard task checkboxes come from VitePress, but Obsidian's arbitrary task
+  status characters and editable Reading-view toggles are not emulated.
+- Frontmatter powers selected publishing fields, but typed Properties, property
+  search/editing, and Obsidian Publish's `publish` / `permalink` semantics are
+  not reproduced. Tag keys are lowercased instead of retaining first-seen case.
 - Obsidian-specific URI schemes, commands, plugin APIs, and application state
   are outside the package scope.
 - With `comments.preserveAsHtmlComment: true`, `%%comment%%` is invisible in the

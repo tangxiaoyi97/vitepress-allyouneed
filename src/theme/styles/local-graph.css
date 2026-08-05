@@ -2,26 +2,13 @@
 
 .ayn-local-graph--aside {
   display: none;
-  margin: 0 0 1.25rem;
+  margin: 0 0 1rem;
 }
 
 @media (min-width: 1280px) {
   .ayn-local-graph--aside {
     display: block;
   }
-}
-
-.ayn-local-graph-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.55rem;
-  color: var(--vp-c-text-1);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .ayn-local-graph-count {
@@ -45,17 +32,16 @@
   padding: 0;
   overflow: hidden;
   color: var(--vp-c-text-2);
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.18s ease, background-color 0.18s ease;
+  transition: border-color 0.16s ease;
 }
 
 .ayn-local-graph-preview:hover {
-  border-color: var(--vp-c-brand-1);
-  background: var(--vp-c-bg-mute);
+  border-color: var(--vp-c-divider);
 }
 
 .ayn-local-graph-preview:focus-visible,
@@ -91,18 +77,6 @@
   fill: var(--vp-c-brand-1);
   stroke: var(--vp-c-bg);
   stroke-width: 2;
-}
-
-.ayn-local-graph-preview-label {
-  position: absolute;
-  right: 0.55rem;
-  bottom: 0.45rem;
-  padding: 0.2rem 0.45rem;
-  border-radius: 999px;
-  color: var(--vp-c-text-2);
-  background: color-mix(in srgb, var(--vp-c-bg) 88%, transparent);
-  font-size: 0.66rem;
-  font-weight: 600;
 }
 
 /* ── Compact/mobile DocHeader trigger ── */
@@ -188,16 +162,6 @@
   justify-content: space-between;
   gap: 1rem;
   border-bottom: 1px solid var(--vp-c-divider);
-}
-
-.ayn-local-graph-dialog-eyebrow {
-  display: block;
-  margin-bottom: 0.2rem;
-  color: var(--vp-c-brand-1);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .ayn-local-graph-dialog h2 {

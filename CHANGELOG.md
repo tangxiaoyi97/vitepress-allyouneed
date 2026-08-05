@@ -32,6 +32,9 @@ separate from the 0.5.7 stabilization release below.
   are now named exports, keeping the exported types/TSDoc as the API contract.
 - Dead-link, Graph, and Tags extraction share the same code/comment-aware body
   scanner so those datasets do not drift apart.
+- The aside Local Graph preview now blends into the TOC surface with transparent
+  chrome, revealing only a subtle border on hover; duplicate visible labels
+  were removed while accessible names remain intact.
 - Legacy `views.sidebar` and `sidebarAuto.layout: 'flat'` remain compatible;
   their deprecation messages now match the documented 1.0 removal boundary.
 

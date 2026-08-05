@@ -163,10 +163,6 @@ watch(currentId, (next, previous) => {
     :class="`ayn-local-graph--${mode}`"
   >
     <template v-if="mode === 'aside'">
-      <div class="ayn-local-graph-heading">
-        <span>Local graph</span>
-        <span class="ayn-local-graph-count">{{ miniSlice!.nodes.length }}</span>
-      </div>
       <button
         type="button"
         class="ayn-local-graph-preview"
@@ -199,7 +195,6 @@ watch(currentId, (next, previous) => {
             </circle>
           </g>
         </svg>
-        <span class="ayn-local-graph-preview-label">Open graph</span>
       </button>
     </template>
 
@@ -217,7 +212,7 @@ watch(currentId, (next, previous) => {
         <circle cx="18" cy="17" r="2.25" />
         <path d="m8 11 7-4M8 13l8 3" />
       </svg>
-      <span>Local graph</span>
+      <span>Graph</span>
       <span class="ayn-local-graph-count">{{ miniSlice!.nodes.length }}</span>
     </button>
 

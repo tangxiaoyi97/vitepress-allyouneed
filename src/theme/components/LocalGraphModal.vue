@@ -85,7 +85,6 @@ onBeforeUnmount(() => {
       >
         <header class="ayn-local-graph-dialog-header">
           <div>
-            <span class="ayn-local-graph-dialog-eyebrow">Local graph</span>
             <h2 :id="titleId">{{ props.title }}</h2>
           </div>
           <button
