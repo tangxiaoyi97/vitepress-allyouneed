@@ -31,7 +31,7 @@ export interface SidebarAutoOptions {
   /**
    * 布局:
    *   - 'tree'        (默认)单一全局 array,子目录嵌套成 collapsible 子 group
-   *   - 'flat'        @deprecated v0.4.0. 老 v0.3 第一版行为。v0.5 将删除 ——
+   *   - 'flat'        @deprecated。老 v0.3 第一版行为；1.0 将删除 ——
    *                   推荐换 'tree'(嵌套)或 'per-folder'(每文件夹独立 sidebar)
    *   - 'per-folder'  Record<string, items[]>,VitePress 按 URL 前缀切换 sidebar
    */

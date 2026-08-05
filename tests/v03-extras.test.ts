@@ -96,6 +96,49 @@ describe('_sidebar.md 手动覆盖', () => {
     expect(parsed).toEqual([{ text: '自定义', link: '/foo' }])
     fs.rmSync(tmp2, { recursive: true, force: true })
   })
+
+  it('短 wikilink 优先解析到 _sidebar.md 同目录及其 folder index', () => {
+    const tmp2 = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'ayn-side-context-'))
+    write(nodePath.join(tmp2, 'index.md'), '# Root index\n')
+    write(nodePath.join(tmp2, 'wikilinks.md'), '# Root wikilinks\n')
+    write(nodePath.join(tmp2, 'showcase', 'index.md'), '# Showcase\n')
+    write(nodePath.join(tmp2, 'showcase', 'wikilinks.md'), '# Local wikilinks\n')
+    write(nodePath.join(tmp2, 'showcase', 'topic', 'index.md'), '# Topic\n')
+    write(
+      nodePath.join(tmp2, 'showcase', '_sidebar.md'),
+      '- [[index|Overview]]\n- [[wikilinks|Wikilinks]]\n- [[topic|Topic]]\n',
+    )
+    write(nodePath.join(tmp2, 'zh', 'showcase', 'index.md'), '# 中文展示\n')
+    write(nodePath.join(tmp2, 'zh', 'showcase', 'wikilinks.md'), '# 中文链接\n')
+    write(
+      nodePath.join(tmp2, 'zh', 'showcase', '_sidebar.md'),
+      '- [[index|总览]]\n- [[wikilinks|链接]]\n',
+    )
+
+    const opts = resolveOptions({ srcDir: tmp2, cleanUrls: true })
+    const idx = scanVault(opts)
+    const rootSidebar = parseSidebarOverride(
+      idx.byRelativePath.get('showcase/_sidebar.md')!,
+      idx,
+      opts,
+    )!
+    const zhSidebar = parseSidebarOverride(
+      idx.byRelativePath.get('zh/showcase/_sidebar.md')!,
+      idx,
+      opts,
+    )!
+
+    expect(rootSidebar.map((item) => item.link)).toEqual([
+      '/showcase/',
+      '/showcase/wikilinks',
+      '/showcase/topic/',
+    ])
+    expect(zhSidebar.map((item) => item.link)).toEqual([
+      '/zh/showcase/',
+      '/zh/showcase/wikilinks',
+    ])
+    fs.rmSync(tmp2, { recursive: true, force: true })
+  })
 })
 
 // v0.3.10:generateFolderIndexes 测试块整个删除 — autoFolderIndex 功能不再存在

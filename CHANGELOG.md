@@ -28,8 +28,25 @@ separate from the 0.5.7 stabilization release below.
 - The bilingual documentation/showcase and Pages deployment are prepared as a
   standalone site repository. The npm package repository retains only a small
   real-build e2e vault.
+- Public option types for views, Local Graph, sidebar generation, and comments
+  are now named exports, keeping the exported types/TSDoc as the API contract.
 - Dead-link, Graph, and Tags extraction share the same code/comment-aware body
   scanner so those datasets do not drift apart.
+- Legacy `views.sidebar` and `sidebarAuto.layout: 'flat'` remain compatible;
+  their deprecation messages now match the documented 1.0 removal boundary.
+
+### Fixed
+
+- SSR asset modules now export deterministic, base-aware deployment URLs;
+  nested/special-character assets no longer leak local `file://` paths into
+  prerendered HTML.
+- Transclusion source and degraded-inline links now apply the configured
+  deployment `base` even though they are emitted as raw HTML.
+- `_sidebar.md` short wikilinks resolve in the sidebar's own directory before
+  falling back to vault-global aliases/basenames, preventing locale crossover.
+- DocHeader derives its default Tags link from customized view paths/names,
+  canonicalizes tag links case-insensitively like the generated Tags dataset,
+  and exposes its runtime options through the public theme configuration type.
 
 ### Release boundary
 

@@ -10,7 +10,8 @@
  *     // .vitepress/theme/index.ts
  *     export { default } from 'vitepress-allyouneed/theme'
  *
- * 拿到 DefaultTheme + 4 个全局组件(VaultGraph / Tags / VaultStats / DocHeader)
+ * 拿到 DefaultTheme + 5 个全局组件(VaultGraph / Tags / VaultStats / DocHeader /
+ * LocalGraph)
  * + 一个自动注入 DocHeader 的 Layout + 全套 CSS。
  *
  * ## 2. 自定义 Layout / 注册更多组件 / 换某个视图实现
@@ -83,7 +84,7 @@ function wrapLayout(baseLayout: Component): Component {
  * 工厂:产出一个完整 Theme 对象,合并我们组件 + 用户传入的覆盖。
  *
  * 默认行为(传 `{}` 或不传):`extends: DefaultTheme`、`Layout: 我们的 Layout`、
- * 注册 4 个全局组件。
+ * 注册 5 个全局组件。
  *
  * 任何传入项**覆盖**我们对应的默认:
  *   - `extends`     → 用你给的 base theme 替代 DefaultTheme
@@ -106,7 +107,7 @@ export function defineTheme(userTheme: Partial<Theme> = {}): Theme {
       userTheme.setup?.()
     },
     enhanceApp(ctx: EnhanceAppContext) {
-      // 1. 注册我们 4 个组件 —— 用户没传 enhanceApp 就用我们默认
+      // 1. 注册我们 5 个组件 —— 用户没传 enhanceApp 就用我们默认
       ctx.app.component('VaultGraph', VaultGraph)
       ctx.app.component('VaultStats', VaultStats)
       ctx.app.component('Tags', Tags)
@@ -132,5 +133,6 @@ export type {
   VaultDataTagInfo,
   VaultDataStats,
   LocalGraphConfig,
+  DocHeaderConfig,
   AllyouneedThemeConfig,
 } from './types.js'

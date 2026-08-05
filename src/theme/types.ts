@@ -48,9 +48,21 @@ export interface LocalGraphConfig {
   mobile: 'button' | 'hidden'
 }
 
+export interface DocHeaderConfig {
+  enabled?: boolean
+  hideH1?: boolean
+  showDates?: boolean
+  showTags?: boolean
+  showWordCount?: boolean
+  /** Override the generated Tags view route. */
+  tagsViewUrl?: string
+  wordsPerMinute?: number
+}
+
 export interface AllyouneedThemeConfig {
   viewsUrlPrefix?: string
   viewsNames?: { graph: string; stats: string; tags: string }
   dataFileName?: string
   localGraph?: Partial<LocalGraphConfig>
+  docHeader?: DocHeaderConfig
 }

@@ -30,6 +30,7 @@ import {
   ASSET_PLACEHOLDER_PREFIX,
   buildAssetOutputPath,
   buildPublicUrl,
+  encodePathSegments,
 } from './core/asset-pipeline/build-emit.js'
 import { toPosix } from './utils/path.js'
 import { generateViewMarkdown } from './core/views/generate-md.js'
@@ -293,8 +294,14 @@ export function viteAllYouNeed(
         emittedAssets.set(asset.absolutePath, referenceId)
         asset.outputPath = fileName
       }
+      // VitePress executes the same asset module in its SSR build. Rollup's
+      // `import.meta.ROLLUP_FILE_URL_*` expands to a local `file://` URL there,
+      // which then leaks into the prerendered HTML even though the asset is
+      // correctly emitted. The output name is already deterministic, so
+      // export its deploy URL directly for both client and SSR bundles.
+      const publicUrl = resolved.base + encodePathSegments(asset.outputPath!)
       return {
-        code: `export default import.meta.ROLLUP_FILE_URL_${referenceId}`,
+        code: `export default ${JSON.stringify(publicUrl)}`,
         moduleSideEffects: false,
       }
     },

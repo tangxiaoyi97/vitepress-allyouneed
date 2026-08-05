@@ -231,9 +231,9 @@ export function generateSidebar(
   if (layout === 'per-folder') {
     result = toPerFolderSidebar(root, opts, options, index)
   } else if (layout === 'flat') {
-    // v0.4.0:flat 已 @deprecated,v0.5 将删除
+    // flat 保持向后兼容到 1.0，但继续给出可操作的弃用提示。
     console.warn(
-      "vitepress-allyouneed: sidebarAuto.layout='flat' is deprecated and will be removed in v0.5. " +
+      "vitepress-allyouneed: sidebarAuto.layout='flat' is deprecated and will be removed in 1.0. " +
         "Use 'tree' (nested groups) or 'per-folder' (one sidebar per top-level folder).",
     )
     result = toFlatSidebar(root, opts)

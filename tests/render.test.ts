@@ -266,6 +266,26 @@ describe('Render — transclusion', () => {
     expect(html).toContain('wikilink--inline-transclusion-degraded')
   })
 
+  it('非根 base 会应用到 source link、data URL 和行内降级链接', () => {
+    const options = resolveOptions({
+      srcDir: VAULT,
+      cleanUrls: true,
+      base: '/docs/',
+    })
+    const index = scanVault(options)
+    const local = makeMd(options, index)
+
+    const block = local.md.render('![[Note A#一级标题]]\n', local.env)
+    expect(block).toContain('href="/docs/Note%20A#一级标题"')
+    expect(block).toContain('data-source-url="/docs/Note%20A#一级标题"')
+
+    const inline = local.md.render(
+      '前文 ![[note-with-emoji]] 后文\n',
+      local.env,
+    )
+    expect(inline).toContain('href="/docs/note-with-emoji"')
+  })
+
   it('段落中 ![[image.png]] 仍可作 inline 图片', () => {
     const html = md.render('前文 ![[image.png]] 后文\n', env)
     expect(html).toContain('<img ')

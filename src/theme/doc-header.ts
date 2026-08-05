@@ -1,5 +1,27 @@
 /** DocHeader 不依赖 DOM/Vue 的 URL 与 frontmatter 归一化工具。 */
 
+import type { AllyouneedThemeConfig, DocHeaderConfig } from './types.js'
+
+export function resolveDocHeaderConfig(
+  config: AllyouneedThemeConfig | undefined,
+): Required<DocHeaderConfig> {
+  const prefix = (config?.viewsUrlPrefix ?? '_perspectives_')
+    .replace(/^\/+|\/+$/g, '')
+  const tagsName = config?.viewsNames?.tags ?? 'tags'
+  const generatedTagsUrl = '/' + [prefix, tagsName].filter(Boolean).join('/')
+
+  return {
+    enabled: true,
+    hideH1: true,
+    showDates: true,
+    showTags: true,
+    showWordCount: true,
+    tagsViewUrl: generatedTagsUrl,
+    wordsPerMinute: 300,
+    ...(config?.docHeader ?? {}),
+  }
+}
+
 export function isExternalUrl(value: string): boolean {
   return /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(value)
 }
@@ -13,7 +35,7 @@ export function normalizeDocTags(value: unknown): string[] {
 
   return [...new Set(
     values
-      .map((tag) => tag.trim().replace(/^#+/, ''))
+      .map((tag) => tag.trim().replace(/^#+/, '').toLowerCase())
       .filter(Boolean),
   )]
 }

@@ -208,8 +208,18 @@ describe('integration and asset regressions', () => {
     expect(fileNames).toContain('media/nested/pic.png')
     expect(fileNames.some((fileName) => /%2f/i.test(fileName))).toBe(false)
     for (const chunk of output) {
-      if (chunk.type === 'chunk') expect(chunk.code).not.toMatch(/%2f/i)
+      if (chunk.type === 'chunk') {
+        expect(chunk.code).not.toMatch(/%2f/i)
+        expect(chunk.code).not.toContain('file://')
+        expect(chunk.code).not.toContain('ROLLUP_FILE_URL')
+      }
     }
+    expect(
+      output.some(
+        (chunk) =>
+          chunk.type === 'chunk' && chunk.code.includes('/media/nested/pic.png'),
+      ),
+    ).toBe(true)
   })
 
   it('makes deadLink:error fatal in the startup report', () => {

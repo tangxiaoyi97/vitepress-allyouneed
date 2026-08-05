@@ -9,7 +9,7 @@
  *   3. dev:resolveId 返回虚拟模块,load 导出 `buildPublicUrl(asset)` —— URL
  *      点回 vault asset(由 dev-middleware 流式响应)。
  *   4. build:load 调 `this.emitFile` 把文件丢给 Rollup,导出
- *      `import.meta.ROLLUP_FILE_URL_<id>` —— 插件按内容算 hash,Rollup 替换 URL。
+ *      输出确定性的部署 URL；插件仍通过 `emitFile` 交给 Rollup 写入资源。
  *
  * 没有 transformIndexHtml/后期字符串替换的路径 —— 全部走标准 Vite 资源管线。
  */

@@ -159,7 +159,10 @@ export function renderTransclusionHtml(
     `ayn-tx-${stableHash(instanceKey)}-${instance.toString(36)}`,
   )
 
-  const sourceUrl = result.url
+  // FileEntry URLs are intentionally site-root relative because VitePress
+  // prepends `base` for markdown link tokens. This source link is raw HTML,
+  // so VitePress never gets that chance; apply the configured base here.
+  const sourceUrl = withBase(result.url, options.base)
 
   const aliasData = aliasParts.length
     ? ` data-caption="${escapeHtml(aliasParts.join('|'))}"`
@@ -200,7 +203,9 @@ export function handleTransclusion(
   const { index, options } = env
   // v0.3.4:同样传 currentPath
   const result = resolveWikilink(rawTarget, index, options, 'page', env.currentPath)
-  const url = result.url
+  // The degraded link is also emitted as raw HTML rather than a markdown-it
+  // link token, so it needs the same explicit base handling as source links.
+  const url = withBase(result.url, options.base)
   const label = aliasParts.length
     ? aliasParts.join('|').trim()
     : result.defaultLabel
@@ -221,6 +226,14 @@ function extractFragment(raw: string): string {
   const hashIdx = raw.indexOf('#')
   if (hashIdx < 0) return ''
   return raw.slice(hashIdx + 1).trim()
+}
+
+/** Apply a normalized VitePress base to a site-root-relative vault URL. */
+function withBase(url: string, base: string): string {
+  if (/^(?:[a-z][a-z+.-]*:|#)/i.test(url)) return url
+  const normalizedBase = `/${base}`.replace(/\/+/g, '/').replace(/\/?$/, '/')
+  if (url === '/') return normalizedBase
+  return normalizedBase + url.replace(/^\/+/, '')
 }
 
 function sliceByHeading(

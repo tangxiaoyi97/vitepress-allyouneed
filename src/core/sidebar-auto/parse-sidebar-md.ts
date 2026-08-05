@@ -221,23 +221,32 @@ function resolveTarget(
   options: ResolvedOptions,
   contextEntry: FileEntry,
 ): FileEntry | undefined {
-  const target = stripMarkdownExt(toPosix(raw))
+  const target = stripMarkdownExt(toPosix(raw)).replace(/^\/+/, '')
   if (!target) return undefined
-  // 路径(相对当前 _sidebar.md 所在目录,或绝对)
-  if (target.includes('/')) {
-    // 相对路径试一次
-    const ctxDir = contextEntry.relativePath.split('/').slice(0, -1).join('/')
-    const candidates = [
-      target,
-      target + '.md',
-      ctxDir ? `${ctxDir}/${target}` : '',
-      ctxDir ? `${ctxDir}/${target}.md` : '',
-    ].filter(Boolean)
-    for (const c of candidates) {
-      const found = index.byRelativePath.get(c)
+
+  // `_sidebar.md` links follow normal relative-link expectations: a short
+  // `[[index]]` inside `zh/showcase/_sidebar.md` must choose
+  // `zh/showcase/index.md`, not the first global `index.md`. Resolve the
+  // context directory before aliases/basenames, including `.markdown` and a
+  // folder's `index` entry. Explicit vault-root paths are tried afterwards.
+  const ctxDir = contextEntry.relativePath.split('/').slice(0, -1).join('/')
+  const contextualBase = ctxDir ? `${ctxDir}/${target}` : target
+  const candidateBases = raw.trim().startsWith('/')
+    ? [target]
+    : [...new Set([contextualBase, target])]
+  for (const base of candidateBases) {
+    for (const candidate of [
+      base,
+      `${base}.md`,
+      `${base}.markdown`,
+      `${base}/index.md`,
+      `${base}/index.markdown`,
+    ]) {
+      const found = findByRelativePath(candidate, index, options.caseSensitive)
       if (found) return found
     }
   }
+
   // alias
   const aliasKey = options.caseSensitive ? target : target.toLowerCase()
   const aliased = index.byAlias.get(aliasKey)
@@ -247,6 +256,20 @@ function resolveTarget(
   const key = options.caseSensitive ? target : target.toLowerCase()
   const arr = map.get(key)
   if (arr && arr.length > 0) return arr[0]
+  return undefined
+}
+
+function findByRelativePath(
+  path: string,
+  index: VaultIndex,
+  caseSensitive: boolean,
+): FileEntry | undefined {
+  const exact = index.byRelativePath.get(path)
+  if (exact || caseSensitive) return exact
+  const lower = path.toLowerCase()
+  for (const [candidate, entry] of index.byRelativePath) {
+    if (candidate.toLowerCase() === lower) return entry
+  }
   return undefined
 }
 

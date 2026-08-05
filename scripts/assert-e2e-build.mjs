@@ -88,6 +88,12 @@ const allHtml = await Promise.all(
   (await walkFiles(distRoot, (file) => extname(file) === '.html'))
     .map((file) => readFile(file, 'utf8')),
 )
+if (allHtml.some((html) => html.includes('file://') || html.includes('/__ayn_asset__/'))) {
+  throw new Error('Built HTML contains a local or unresolved vault asset URL')
+}
+if (!allHtml.some((html) => html.includes('/e2e/vault-assets/diagram%20%26%20'))) {
+  throw new Error('Built HTML does not reference the emitted special-character asset URL')
+}
 if (!allHtml.some((html) => html.includes('class="wikilink'))) {
   throw new Error('No rendered wikilinks were found in the built HTML')
 }

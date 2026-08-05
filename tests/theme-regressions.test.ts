@@ -3,13 +3,29 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   normalizeDocTags,
+  resolveDocHeaderConfig,
   resolveCoverPath,
   toSitePath,
 } from '../src/theme/doc-header.js'
 
 describe('DocHeader frontmatter normalization', () => {
+  it('derives the default Tags link from the generated view route', () => {
+    expect(resolveDocHeaderConfig(undefined).tagsViewUrl).toBe(
+      '/_perspectives_/tags',
+    )
+    expect(resolveDocHeaderConfig({
+      viewsUrlPrefix: 'insights',
+      viewsNames: { graph: 'map', stats: 'summary', tags: 'topics' },
+    }).tagsViewUrl).toBe('/insights/topics')
+    expect(resolveDocHeaderConfig({
+      viewsUrlPrefix: '',
+      viewsNames: { graph: 'map', stats: 'summary', tags: 'topics' },
+      docHeader: { tagsViewUrl: '/custom/tags' },
+    }).tagsViewUrl).toBe('/custom/tags')
+  })
+
   it('normalizes leading hashes, whitespace, duplicates and non-string entries', () => {
-    expect(normalizeDocTags(['#alpha', 'beta', '##alpha', 3, ''])).toEqual([
+    expect(normalizeDocTags(['#Alpha', 'beta', '##alpha', 3, ''])).toEqual([
       'alpha',
       'beta',
     ])

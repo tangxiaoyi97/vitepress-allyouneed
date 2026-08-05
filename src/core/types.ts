@@ -17,7 +17,7 @@ export interface FileEntry {
   basename: string
   /** 不含点的扩展名,已小写 */
   extension: string
-  /** 最终 VitePress 路由(已应用 base + cleanUrls)*/
+  /** 站点根相对 VitePress 路由(已应用 cleanUrls；渲染器负责应用 base) */
   url: string
   /** 解析后的 frontmatter 全量 */
   frontmatter: Record<string, unknown>
@@ -281,7 +281,7 @@ export interface SidebarAutoUserOptions {
   /**
    * 布局:
    *   - 'tree'(默认)        单一全局 array,子目录嵌套成子 group
-   *   - 'flat'                @deprecated v0.4.0. v0.5 将删除。推荐 'tree' 或 'per-folder'
+   *   - 'flat'                @deprecated；1.0 将删除。推荐 'tree' 或 'per-folder'
    *   - 'per-folder'          每个顶层目录独立一份 sidebar,VitePress 按 URL 前缀切换
    */
   layout?: 'tree' | 'flat' | 'per-folder'
@@ -414,7 +414,7 @@ export interface LocalGraphOptions {
   modalDepth?: 1 | 2
   /** 弹窗图谱最多节点数(含当前页)。默认 100。 */
   modalMaxNodes?: number
-  /** 移动端在 DocHeader 中显示打开按钮;设 false 隐藏。 */
+  /** 移动端在 DocHeader 中显示打开按钮；设 'hidden' 隐藏。 */
   mobile?: 'button' | 'hidden'
 }
 
@@ -440,15 +440,15 @@ export interface ViewsOptions {
   }
   /**
    * 视图条目注入位置(v0.3 新):
-   *   - 'sidebar'(默认,兼容老版)→ 每个 sidebar 末尾追加 Perspectives 组
-   *   - 'nav'                   → themeConfig.nav 末尾追加 Perspectives 下拉,
+   *   - 'sidebar'               → 每个 sidebar 末尾追加 Perspectives 组
+   *   - 'nav'(默认)             → themeConfig.nav 末尾追加 Perspectives 下拉,
    *                                sidebar 不再被污染(per-folder 用户推荐)
    *   - 'both'                  → 两边都加
    *   - 'off'                   → 都不加(用户自己手动配)
    */
   injectInto?: 'sidebar' | 'nav' | 'both' | 'off'
   /**
-   * @deprecated v0.2 老字段。v0.4.0 起标 deprecated,**v0.5 将删除**。
+   * @deprecated v0.2 老字段；兼容到 1.0。
    * 等价 `injectInto: 'sidebar' | 'off'`。仅 injectInto 未设时生效。
    */
   sidebar?: 'auto' | false

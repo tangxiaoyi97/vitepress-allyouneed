@@ -122,7 +122,7 @@ VitePress 配置同步。`deadLink: 'error'` 和 `onAliasConflict: 'error'` 会�
 才会懒加载完整图谱弹层。移动端默认在 DocHeader 显示打开按钮。
 
 完整指南与示例站：
-[tangxiaoyi97.github.io/vitepress-allyouneed](https://tangxiaoyi97.github.io/vitepress-allyouneed/)。
+[tangxiaoyi97.github.io/vitepress-allyouneed-site](https://tangxiaoyi97.github.io/vitepress-allyouneed-site/)。
 
 ## 入口
 

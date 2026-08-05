@@ -34,37 +34,18 @@ import { useData, withBase } from 'vitepress'
 import {
   isExternalUrl,
   normalizeDocTags,
+  resolveDocHeaderConfig,
   resolveCoverPath,
   toSitePath,
 } from '../doc-header.js'
+import type { AllyouneedThemeConfig } from '../types.js'
 import LocalGraph from './LocalGraph.vue'
 
 const { frontmatter, page, theme } = useData()
 
-interface DocHeaderConfig {
-  enabled?: boolean
-  hideH1?: boolean
-  showDates?: boolean
-  showTags?: boolean
-  showWordCount?: boolean
-  tagsViewUrl?: string
-  wordsPerMinute?: number
-}
-
-const cfg = computed<DocHeaderConfig>(() => {
-  const t = (theme.value as { allyouneed?: { docHeader?: DocHeaderConfig } })
-    .allyouneed
-  return {
-    enabled: true,
-    hideH1: true,
-    showDates: true,
-    showTags: true,
-    showWordCount: true,
-    tagsViewUrl: '/_perspectives_/tags',
-    wordsPerMinute: 300,
-    ...(t?.docHeader ?? {}),
-  }
-})
+const cfg = computed(() => resolveDocHeaderConfig(
+  (theme.value as { allyouneed?: AllyouneedThemeConfig }).allyouneed,
+))
 
 // ── cover + banner 配置 ──────────────────────────────────────────
 

@@ -155,13 +155,13 @@ export function resolveOptions(
         tags: viewsUser.names?.tags ?? 'tags',
       },
       // 'injectInto' 优先(v0.3+);否则从老的 'sidebar' 字段推断;再否则默认 'nav'
-      // v0.4.0:用户仍传老 sidebar 字段时 console.warn 一次(v0.5 将删)
+      // 兼容旧 sidebar 字段；破坏性移除统一留到 1.0。
       injectInto:
         viewsUser.injectInto ??
         (() => {
           if (viewsUser.sidebar !== undefined) {
             console.warn(
-              "vitepress-allyouneed: views.sidebar ('auto'|false) is deprecated and will be removed in v0.5. " +
+              "vitepress-allyouneed: views.sidebar ('auto'|false) is deprecated and will be removed in 1.0. " +
                 "Use views.injectInto: 'sidebar' | 'nav' | 'both' | 'off' instead.",
             )
           }
